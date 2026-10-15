@@ -188,7 +188,6 @@ CREATE TABLE IF NOT EXISTS "subscribers" (
   "opt_in_at" date,
   "opt_in_source" text,
   "joined_at" timestamptz,
-  "last_delivered_at" timestamptz,
   "notes" text,
   _seq bigserial
 );
@@ -278,6 +277,12 @@ DO $$ DECLARE r record; BEGIN
     EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', 'reports', r.conname); END LOOP;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = '"reports"'::regclass AND conname = 'reports_trigger_v49_abeaa8ee') THEN
     ALTER TABLE "reports" ADD CONSTRAINT "reports_trigger_v49_abeaa8ee" CHECK (("trigger" IN ('Schedule', 'Manual') OR "trigger" = '')) NOT VALID; END IF;
+END $$;
+DO $$ DECLARE r record; BEGIN
+  FOR r IN SELECT conname FROM pg_constraint WHERE conrelid = '"reports"'::regclass AND conname LIKE 'reports_status_v49_%' AND conname <> 'reports_status_v49_b16a3934' LOOP
+    EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', 'reports', r.conname); END LOOP;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = '"reports"'::regclass AND conname = 'reports_status_v49_b16a3934') THEN
+    ALTER TABLE "reports" ADD CONSTRAINT "reports_status_v49_b16a3934" CHECK (("status" IN ('Ready', 'Sent', 'Failed') OR "status" = '')) NOT VALID; END IF;
 END $$;
 DO $$ DECLARE r record; BEGIN
   FOR r IN SELECT conname FROM pg_constraint WHERE conrelid = '"reports"'::regclass AND conname LIKE 'reports_sentiment_v49_%' AND conname <> 'reports_sentiment_v49_1154c557' LOOP
@@ -463,9 +468,14 @@ ALTER TABLE "subscribers" ADD COLUMN IF NOT EXISTS "status" text;
 ALTER TABLE "subscribers" ADD COLUMN IF NOT EXISTS "opt_in_at" date;
 ALTER TABLE "subscribers" ADD COLUMN IF NOT EXISTS "opt_in_source" text;
 ALTER TABLE "subscribers" ADD COLUMN IF NOT EXISTS "joined_at" timestamptz;
-ALTER TABLE "subscribers" ADD COLUMN IF NOT EXISTS "last_delivered_at" timestamptz;
 ALTER TABLE "subscribers" ADD COLUMN IF NOT EXISTS "notes" text;
 ALTER TABLE "subscribers" ADD COLUMN IF NOT EXISTS _seq bigserial;
+DO $$ DECLARE r record; BEGIN
+  FOR r IN SELECT conname FROM pg_constraint WHERE conrelid = '"subscribers"'::regclass AND conname LIKE 'subscribers_status_v49_%' AND conname <> 'subscribers_status_v49_d8ecee6b' LOOP
+    EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', 'subscribers', r.conname); END LOOP;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = '"subscribers"'::regclass AND conname = 'subscribers_status_v49_d8ecee6b') THEN
+    ALTER TABLE "subscribers" ADD CONSTRAINT "subscribers_status_v49_d8ecee6b" CHECK (("status" IN ('Active', 'Paused', 'Unsubscribed') OR "status" = '')) NOT VALID; END IF;
+END $$;
 DO $$ DECLARE r record; BEGIN
   FOR r IN SELECT conname FROM pg_constraint WHERE conrelid = '"subscribers"'::regclass AND conname LIKE 'subscribers_opt_in_source_v49_%' AND conname <> 'subscribers_opt_in_source_v49_c4b68b09' LOOP
     EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', 'subscribers', r.conname); END LOOP;
@@ -488,6 +498,12 @@ DO $$ DECLARE r record; BEGIN
     EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', 'deliveries', r.conname); END LOOP;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = '"deliveries"'::regclass AND conname = 'deliveries_kind_v49_d592be4e') THEN
     ALTER TABLE "deliveries" ADD CONSTRAINT "deliveries_kind_v49_d592be4e" CHECK (("kind" IN ('Report', 'Alert') OR "kind" = '')) NOT VALID; END IF;
+END $$;
+DO $$ DECLARE r record; BEGIN
+  FOR r IN SELECT conname FROM pg_constraint WHERE conrelid = '"deliveries"'::regclass AND conname LIKE 'deliveries_status_v49_%' AND conname <> 'deliveries_status_v49_c88f1a93' LOOP
+    EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', 'deliveries', r.conname); END LOOP;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = '"deliveries"'::regclass AND conname = 'deliveries_status_v49_c88f1a93') THEN
+    ALTER TABLE "deliveries" ADD CONSTRAINT "deliveries_status_v49_c88f1a93" CHECK (("status" IN ('Queued', 'Sent', 'Failed') OR "status" = '')) NOT VALID; END IF;
 END $$;
 ALTER TABLE "audit_log" ADD COLUMN IF NOT EXISTS "at" timestamptz;
 ALTER TABLE "audit_log" ADD COLUMN IF NOT EXISTS "who" text;

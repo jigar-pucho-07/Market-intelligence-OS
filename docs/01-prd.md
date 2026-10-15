@@ -21,12 +21,19 @@ _Generated 2026-10-15 from os.yaml._
 
 ## Workflows
 - **DAILY_SCHEDULE** — trigger `schedule.every_day`; writes reports
-  - `trigger` — model none, ~4s, ~4 credits; payload Trigger → result queued
+  - `trigger` — model none, ~4s, ~5 credits; payload Trigger → result queued
 - **MARKET_REPORT** — trigger `webhook.catch_webhook`; writes reports, news_articles, audit_log
-  - `run` — model none, ~45s, ~16 credits; payload Trigger, Report_ID → result Report_ID, Status, Articles_Analyzed
-- **BROADCAST** — trigger `webhook.catch_webhook`; writes reports, published_reports, deliveries, subscribers, audit_log
-  - `send` — model none, ~30s, ~105 credits; payload Report_ID → result sent, failed, skipped
-  - `retry` — model none, ~6s, ~6 credits; payload Delivery_ID → result sent
+  - `run` — model none, ~45s, ~19 credits; payload Trigger, Report_ID → result Report_ID, Status, Articles_Analyzed
+  - `rerun` — model none, ~45s, ~19 credits; payload Report_ID → result Report_ID, Status, Articles_Analyzed
+- **BROADCAST** — trigger `webhook.catch_webhook`; writes reports, published_reports, deliveries, audit_log
+  - `send` — model none, ~30s, ~258 credits; payload Report_ID → result sent, failed, skipped
+  - `retry` — model none, ~6s, ~12 credits; payload Delivery_ID → result sent
+- **DAILY_WATCHDOG** — trigger `schedule.cron_expression`; writes reports
+  - `check` — model none, ~4s, ~5 credits; payload  → result alerted
+- **MARKET_STORE** — trigger `webhook.catch_webhook`; writes reports, news_articles, audit_log
+  - `store` — model none, ~5s, ~12 credits; payload Mode, Trigger, Report_ID → result Report_ID, Status
+- **MARKET_PUBLISH** — trigger `webhook.catch_webhook`; writes reports, published_reports, audit_log
+  - `publish` — model none, ~6s, ~12 credits; payload Report_ID, Since → result sent, failed
 
 ## Rules in code
 - RSS parse, dedupe (first 60 normalised title characters), word-bounded categorisation in the source's order, impact rule and the 40-article cut are deterministic CODE in MARKET_REPORT (S2, S3 fixed)

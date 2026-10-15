@@ -1,68 +1,119 @@
 {
-  "total_credits": 3506.0,
+  "total_credits": 8650.0,
   "range": [
-    2454.2,
-    4557.8
+    6055.0,
+    11245.0
   ],
   "rate": 0.3,
-  "rupees": 1051.8,
+  "rupees": 2595.0,
   "rows": [
     {
       "workflow": "DAILY_SCHEDULE",
       "action": "trigger",
       "trigger": "schedule",
-      "runs": 44.0,
-      "credits_run": 4.0,
-      "declared_run": 4.0,
+      "runs": 22.0,
+      "credits_run": 5.0,
+      "declared_run": 5.0,
       "model": "none",
       "sends": null,
       "source": "declared",
-      "credits_month": 176.0
+      "credits_month": 110.0
     },
     {
       "workflow": "MARKET_REPORT",
       "action": "run",
       "trigger": "run from the OS",
-      "runs": 30.0,
-      "credits_run": 16.0,
-      "declared_run": 16.0,
+      "runs": 22.0,
+      "credits_run": 19.0,
+      "declared_run": 19.0,
       "model": "none",
       "sends": null,
       "source": "declared",
-      "credits_month": 480.0
+      "credits_month": 418.0
+    },
+    {
+      "workflow": "MARKET_REPORT",
+      "action": "rerun",
+      "trigger": "rerun from the OS",
+      "runs": 8.0,
+      "credits_run": 19.0,
+      "declared_run": 19.0,
+      "model": "none",
+      "sends": null,
+      "source": "declared",
+      "credits_month": 152.0
     },
     {
       "workflow": "BROADCAST",
       "action": "send",
       "trigger": "send from the OS",
       "runs": 26.0,
-      "credits_run": 105.0,
-      "declared_run": 105.0,
+      "credits_run": 258.0,
+      "declared_run": 258.0,
       "model": "none",
       "sends": null,
       "source": "declared",
-      "credits_month": 2730.0
+      "credits_month": 6708.0
     },
     {
       "workflow": "BROADCAST",
       "action": "retry",
       "trigger": "retry from the OS",
       "runs": 20.0,
-      "credits_run": 6.0,
-      "declared_run": 6.0,
+      "credits_run": 12.0,
+      "declared_run": 12.0,
       "model": "none",
       "sends": null,
       "source": "declared",
-      "credits_month": 120.0
+      "credits_month": 240.0
+    },
+    {
+      "workflow": "DAILY_WATCHDOG",
+      "action": "check",
+      "trigger": "schedule",
+      "runs": 22.0,
+      "credits_run": 5.0,
+      "declared_run": 5.0,
+      "model": "none",
+      "sends": null,
+      "source": "declared",
+      "credits_month": 110.0
+    },
+    {
+      "workflow": "MARKET_STORE",
+      "action": "store",
+      "trigger": "store from the OS",
+      "runs": 30.0,
+      "credits_run": 12.0,
+      "declared_run": 12.0,
+      "model": "none",
+      "sends": null,
+      "source": "declared",
+      "credits_month": 360.0
+    },
+    {
+      "workflow": "MARKET_PUBLISH",
+      "action": "publish",
+      "trigger": "publish from the OS",
+      "runs": 46.0,
+      "credits_run": 12.0,
+      "declared_run": 12.0,
+      "model": "none",
+      "sends": null,
+      "source": "declared",
+      "credits_month": 552.0
     }
   ],
   "by_flow": {
-    "DAILY_SCHEDULE": 176.0,
-    "MARKET_REPORT": 480.0,
-    "BROADCAST": 2850.0
+    "DAILY_SCHEDULE": 110.0,
+    "MARKET_REPORT": 570.0,
+    "BROADCAST": 6948.0,
+    "DAILY_WATCHDOG": 110.0,
+    "MARKET_STORE": 360.0,
+    "MARKET_PUBLISH": 552.0
   },
-  "total_month": 3506.0,
-  "declared_month": 3506.0,
+  "total_month": 8650.0,
+  "declared_month": 8650.0,
   "counted": false,
   "gap_ratio": 1.0
 }

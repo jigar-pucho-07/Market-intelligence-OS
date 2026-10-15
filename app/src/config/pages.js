@@ -167,7 +167,7 @@ export const PAGES = [
         "kind": "status",
         "title": "Re-run report now",
         "flow": "MARKET_REPORT",
-        "action": "run",
+        "action": "rerun",
         "entity": "reports",
         "submit": "Re-run report",
         "pending": "Fetching the five sources…",
@@ -239,100 +239,117 @@ export const PAGES = [
         "id": "today-custom"
       },
       {
-        "type": "table",
-        "label": "Today's report",
-        "where": "Report_Date in last 1 days",
-        "columns": [
+        "type": "tabs",
+        "tabs": [
           {
-            "key": "Report_Date",
-            "type": "date",
-            "sub": "Report_ID"
+            "label": "Today's report",
+            "blocks": [
+              {
+                "type": "table",
+                "label": "Today's report",
+                "where": "Report_Date in last 1 days",
+                "columns": [
+                  {
+                    "key": "Report_Date",
+                    "type": "date",
+                    "sub": "Report_ID"
+                  },
+                  {
+                    "key": "Sentiment",
+                    "type": "badge"
+                  },
+                  {
+                    "key": "Confidence_Pct",
+                    "header": "Confidence",
+                    "type": "number"
+                  },
+                  {
+                    "key": "Articles_Analyzed",
+                    "header": "News",
+                    "type": "number"
+                  },
+                  {
+                    "key": "Trigger",
+                    "type": "tag"
+                  },
+                  {
+                    "key": "Status",
+                    "type": "badge"
+                  },
+                  {
+                    "key": "Sent_Count",
+                    "header": "Sent",
+                    "type": "number"
+                  }
+                ],
+                "actions": {
+                  "row": [
+                    "review",
+                    "send_all",
+                    "pdf"
+                  ]
+                },
+                "empty": {
+                  "title": "No report yet today",
+                  "reason": "The 6:00 AM IST run has not written today's report yet (Mon–Fri only).",
+                  "action": "run_now"
+                }
+              }
+            ]
           },
           {
-            "key": "Sentiment",
-            "type": "badge"
-          },
-          {
-            "key": "Confidence_Pct",
-            "header": "Confidence",
-            "type": "number"
-          },
-          {
-            "key": "Articles_Analyzed",
-            "header": "News",
-            "type": "number"
-          },
-          {
-            "key": "Trigger",
-            "type": "tag"
-          },
-          {
-            "key": "Status",
-            "type": "badge"
-          },
-          {
-            "key": "Sent_Count",
-            "header": "Sent",
-            "type": "number"
+            "label": "Today's news",
+            "covers": [
+              "R18"
+            ],
+            "blocks": [
+              {
+                "type": "table",
+                "entity": "news_articles",
+                "label": "Today's news",
+                "where": "Fetched_At in last 1 days",
+                "covers": [
+                  "R18"
+                ],
+                "segments": {
+                  "column": "Category",
+                  "all": "All news"
+                },
+                "columns": [
+                  {
+                    "key": "Title",
+                    "type": "text",
+                    "sub": "Summary",
+                    "grow": true
+                  },
+                  {
+                    "key": "Impact",
+                    "type": "badge"
+                  },
+                  {
+                    "key": "Source",
+                    "type": "tag"
+                  },
+                  {
+                    "key": "Published_At",
+                    "header": "Published",
+                    "type": "text",
+                    "priority": "low"
+                  }
+                ],
+                "search": [
+                  "Title",
+                  "Summary"
+                ],
+                "filters": [
+                  "Source",
+                  "Impact"
+                ]
+              }
+            ]
           }
         ],
-        "actions": {
-          "row": [
-            "review",
-            "send_all",
-            "pdf"
-          ]
-        },
-        "empty": {
-          "title": "No report yet today",
-          "reason": "The 6:00 AM IST run has not written today's report yet (Mon–Fri only).",
-          "action": "run_now"
-        },
-        "id": "today-table"
-      },
-      {
-        "type": "table",
-        "entity": "news_articles",
-        "label": "Today's news",
-        "where": "Fetched_At in last 1 days",
-        "covers": [
-          "R18"
-        ],
-        "segments": {
-          "column": "Category",
-          "all": "All news"
-        },
-        "columns": [
-          {
-            "key": "Title",
-            "type": "text",
-            "sub": "Summary",
-            "grow": true
-          },
-          {
-            "key": "Impact",
-            "type": "badge"
-          },
-          {
-            "key": "Source",
-            "type": "tag"
-          },
-          {
-            "key": "Published_At",
-            "header": "Published",
-            "type": "text",
-            "priority": "low"
-          }
-        ],
-        "search": [
-          "Title",
-          "Summary"
-        ],
-        "filters": [
-          "Source",
-          "Impact"
-        ],
-        "id": "today-table"
+        "id": "today-tabs"
       }
     ],
     "modals": [
@@ -1041,7 +1058,7 @@ export const PAGES = [
         "kind": "status",
         "title": "Re-run report now",
         "flow": "MARKET_REPORT",
-        "action": "run",
+        "action": "rerun",
         "submit": "Re-run report",
         "pending": "Fetching the five sources…",
         "success": "The report is being prepared again — it turns Ready when done",
@@ -1131,12 +1148,6 @@ export const PAGES = [
             "header": "Opted in",
             "type": "date",
             "sub": "Opt_In_Source"
-          },
-          {
-            "key": "Last_Delivered_At",
-            "header": "Last delivered",
-            "type": "date",
-            "time": true
           },
           {
             "key": "Email",

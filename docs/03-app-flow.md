@@ -15,11 +15,11 @@
 ## Navigation and look
 Shell per portal: desk=sidebar, reader=sidebar (`src/config/design.js`); nav from `src/config/nav.js`; tone pucho, radius pucho, density comfortable, sidebar light (`src/config/tokens.css`); header title = active page label. Login → first permitted page. Roles: admin (overview, today, reports, news, pipeline, subscribers, deliveries, activity, settings, users), analyst (overview, today, reports, news, pipeline, subscribers, deliveries, settings), subscriber (me_today, me_reports, settings).
 ## Workflow wiring (screen → flow.action)
-- Overview `/` → `BROADCAST.send` (Send to subscribers), `MARKET_REPORT.run` (Re-run report now), `BROADCAST.retry` (Retry delivery)
+- Overview `/` → `BROADCAST.send` (Send to subscribers), `MARKET_REPORT.rerun` (Re-run report now), `BROADCAST.retry` (Retry delivery)
 - Today's report `/today` → `MARKET_REPORT.run` (Run report now), direct patch (Review & edit report), `BROADCAST.send` (Send to subscribers), document report_pdf
 - Reports `/reports` → direct patch (Review & edit report), `BROADCAST.send` (Send to subscribers), document report_pdf
 - News feed `/news` → no workflow
-- Pipeline `/pipeline` → `MARKET_REPORT.run` (Re-run report now)
+- Pipeline `/pipeline` → `MARKET_REPORT.rerun` (Re-run report now)
 - Subscribers `/subscribers` → direct insert (Add subscriber), direct patch (Edit subscriber), direct patch (Pause)
 - Deliveries `/deliveries` → `BROADCAST.retry` (Retry delivery)
 - Activity `/activity` → no workflow

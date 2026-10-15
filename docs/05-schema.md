@@ -119,7 +119,6 @@ id: Article_ID (NWS-…) · status: —
 | Opt_In_At | date |
 | Opt_In_Source | text |
 | Joined_At | timestamptz |
-| Last_Delivered_At | timestamptz |
 | Notes | text |
 
 id: Subscriber_ID (SUB-…) · status: Status ['Active', 'Paused', 'Unsubscribed']

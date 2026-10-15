@@ -12,7 +12,7 @@
 
 ## Workflows
 Flows never hold a database credential. They write through `POST/PATCH /api/data/<entity>` with `INBOUND_TOKEN` (unset = 403), under the same DAL rules and audit as a person's request; they read reports with the read-only `studio_reader` role (D4). The app calls a flow through `WEBHOOK_<FLOW>` from the server; until a URL is set the app applies the action's declared effect itself and says **simulated** in the header — a demo is usable before any import, and nothing pretends an AI step ran.
-Declared flows: MARKET_REPORT, BROADCAST.
+Declared flows: MARKET_REPORT, BROADCAST, MARKET_STORE, MARKET_PUBLISH.
 
 ## Known-broken until step 7 proves otherwise (write the date when each is closed)
 - [ ] `DB_SSL_CA` set and the startup line reads *ssl verified* (a Pucho DB CA bundle — ask the portal team).

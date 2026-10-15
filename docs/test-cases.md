@@ -3,8 +3,12 @@
 |---|---|---|---|
 | T1 | DAILY_SCHEDULE.trigger | call with the sample payload | result keys queued; row in reports |
 | T2 | MARKET_REPORT.run | call with the sample payload | result keys Report_ID, Status, Articles_Analyzed; row in reports, news_articles, audit_log |
-| T3 | BROADCAST.send | call with the sample payload | result keys sent, failed, skipped; row in reports, published_reports, deliveries, subscribers, audit_log |
-| T4 | BROADCAST.retry | call with the sample payload | result keys sent; row in reports, published_reports, deliveries, subscribers, audit_log |
+| T3 | MARKET_REPORT.rerun | call with the sample payload | result keys Report_ID, Status, Articles_Analyzed; row in reports, news_articles, audit_log |
+| T4 | BROADCAST.send | call with the sample payload | result keys sent, failed, skipped; row in reports, published_reports, deliveries, audit_log |
+| T5 | BROADCAST.retry | call with the sample payload | result keys sent; row in reports, published_reports, deliveries, audit_log |
+| T6 | DAILY_WATCHDOG.check | call with the sample payload | result keys alerted; row in reports |
+| T7 | MARKET_STORE.store | call with the sample payload | result keys Report_ID, Status; row in reports, news_articles, audit_log |
+| T8 | MARKET_PUBLISH.publish | call with the sample payload | result keys sent, failed; row in reports, published_reports, audit_log |
 | U1 | login | each persona signs in | sees only its pages; sign-out works |
 | U2 | every page | demo data | KPIs, charts, table, search, export, each modal succeeds with a toast |
 | U3 | detail routes | open from an id link | fields, related tables, custom sections |

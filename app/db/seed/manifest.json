@@ -209,7 +209,6 @@
         "Opt_In_At",
         "Opt_In_Source",
         "Joined_At",
-        "Last_Delivered_At",
         "Notes"
       ],
       "types": {
@@ -222,7 +221,6 @@
         "Opt_In_At": "date",
         "Opt_In_Source": "text",
         "Joined_At": "timestamptz",
-        "Last_Delivered_At": "timestamptz",
         "Notes": "text"
       }
     },

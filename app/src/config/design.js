@@ -9,11 +9,6 @@ export const DESIGN = {
   },
   "sidebar": {
     "footer": "profile",
-    "action": {
-      "label": "Run report now",
-      "page": "today",
-      "modal": "run_now"
-    },
     "style": "light",
     "width": 260
   },

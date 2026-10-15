@@ -5,6 +5,6 @@
 //   PUBLIC_ENTITIES[page] / PUBLIC_ACTIONS[page]  what a `public: true` page may read and submit without a sign-in
 export const ENTITY_ACCESS = {"admin": ["audit_log", "deliveries", "news_articles", "reports", "subscribers"], "analyst": ["deliveries", "news_articles", "reports", "subscribers"], "subscriber": ["news_articles", "published_reports"]};
 export const SCOPES = {};
-export const ACTIONS = {"admin": ["direct:insert:subscribers", "direct:patch:reports", "direct:patch:subscribers", "flow:BROADCAST.retry", "flow:BROADCAST.send", "flow:MARKET_REPORT.run"], "analyst": ["direct:insert:subscribers", "direct:patch:reports", "direct:patch:subscribers", "flow:BROADCAST.retry", "flow:BROADCAST.send", "flow:MARKET_REPORT.run"], "subscriber": []};
+export const ACTIONS = {"admin": ["direct:insert:subscribers", "direct:patch:reports", "direct:patch:subscribers", "flow:BROADCAST.retry", "flow:BROADCAST.send", "flow:MARKET_REPORT.rerun", "flow:MARKET_REPORT.run"], "analyst": ["direct:insert:subscribers", "direct:patch:reports", "direct:patch:subscribers", "flow:BROADCAST.retry", "flow:BROADCAST.send", "flow:MARKET_REPORT.rerun", "flow:MARKET_REPORT.run"], "subscriber": []};
 export const PUBLIC_ENTITIES = {};
 export const PUBLIC_ACTIONS = {};

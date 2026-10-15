@@ -11,16 +11,16 @@ Every client requirement and where the OS covers it. `scaffold_os.py` refuses to
 | R6 | Keep the 40 most relevant articles and count them by category | page news; flow MARKET_REPORT; rule 1 |
 | R7 | AI analysis as a senior Indian stock market analyst: sentiment, confidence, drivers, segment-wise analysis, top sectors, key risks, trading strategy | flow MARKET_REPORT; rule 5 |
 | R8 | Format the WhatsApp message with the day, date and report time in IST, the analysis and the footer Market Opens: 9:15 AM IST, within the WhatsApp limit | flow MARKET_REPORT; rule 2 |
-| R9 | Send the report on WhatsApp | page overview › modal send_now; page today › modal send_all; page reports › modal send_all; flow BROADCAST; rule 4 |
-| R10 | Log the result: status, WhatsApp message id, sent at, report date | page reports; page deliveries; flow MARKET_REPORT; flow BROADCAST |
-| R11 | Send an error alert on WhatsApp when the report cannot be generated | page pipeline; flow DAILY_SCHEDULE; flow BROADCAST; rule 3 |
+| R9 | Send the report on WhatsApp | page overview › modal send_now; page today › modal send_all; page reports › modal send_all; flow BROADCAST; flow MARKET_PUBLISH; rule 4 |
+| R10 | Log the result: status, WhatsApp message id, sent at, report date | page reports; page deliveries; flow MARKET_REPORT; flow BROADCAST; flow MARKET_STORE; flow MARKET_PUBLISH |
+| R11 | Send an error alert on WhatsApp when the report cannot be generated | page pipeline; flow DAILY_SCHEDULE; flow BROADCAST; flow DAILY_WATCHDOG; rule 3 |
 | R12 | Show the workflow pipeline with each step's status and the error branch | page pipeline; page pipeline › custom |
 | R13 | Show today's market sentiment: sentiment, confidence, key market drivers, news analyzed, AI model, report generated time, sources | page overview; page today; page today › custom; page me_today; page me_today › custom |
 | R14 | Show the stats row: Sensex expected move, Nifty expected move, India VIX, FII net buy | deferred (not_in_v1) |
 | R15 | Show segment-wise analysis cards: Sensex, Nifty 50, Bank Nifty, Nifty F&O (VIX, PCR), Mid & Small Cap, Commodities (gold, crude) | page today; page today › custom; page me_today; page me_today › custom; deferred 3 |
 | R16 | Show the sector watch: sector, call (BUY / WATCH / AVOID), previous performance, key reason | page today; page today › custom; page me_today; page me_today › custom; rule 5; deferred 3 |
 | R17 | Show the trading strategy (positional, intraday, long-term, F&O traders) and key risks today with their level | page today; page today › custom; page me_today; page me_today › custom; rule 5 |
-| R18 | Show the news feed with category filter chips, impact, source and time | page today; page today › table; page news; page me_today; page me_today › table |
+| R18 | Show the news feed with category filter chips, impact, source and time | page today; page today › tab Today's news; page today › table; page news; page me_today; page me_today › table |
 | R19 | Show the active news sources | page today; page today › custom; page news |
 | R20 | Show the WhatsApp delivery preview | page today; page today › custom; rule 2 |
 | R21 | Show the workflow configuration: schedule, timezone, AI model, temperature, max tokens, news limit, WhatsApp API, delivery days, error handling | page pipeline; page pipeline › custom |
