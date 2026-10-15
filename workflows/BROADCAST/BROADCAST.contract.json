@@ -1,0 +1,42 @@
+{
+  "flow": "BROADCAST",
+  "connections": "portable",
+  "fire_and_forget": false,
+  "allow_pieces": [
+    "@puchoaistudio/tool-http",
+    "@puchoaistudio/tool-pucho-whatsapp",
+    "@puchoaistudio/tool-webhook"
+  ],
+  "allow_names": [
+    "catch_webhook",
+    "return_response",
+    "send_request",
+    "send_template_message"
+  ],
+  "require_capabilities": [
+    "webhook=trigger:webhook:trigger",
+    "route=step_router:router:route",
+    "read_reports=step_send_reports:http:read",
+    "read_subscribers=step_send_subscribers:http:read",
+    "plan=step_send_plan:code:transform",
+    "queue=step_send_queue:http:write",
+    "gate=step_send_gate:code:transform",
+    "send=step_send_whatsapp:pucho-whatsapp:write",
+    "result=step_send_result:code:transform",
+    "delivery_update=step_send_update:http:write",
+    "publish=step_send_publish:http:write",
+    "answer_send=step_send_done:webhook:respond",
+    "retry_read_deliveries=step_retry_deliveries:http:read",
+    "retry_read_subscribers=step_retry_subscribers:http:read",
+    "retry_read_reports=step_retry_reports:http:read",
+    "retry_plan=step_retry_plan:code:transform",
+    "retry_send=step_retry_whatsapp:pucho-whatsapp:write",
+    "retry_result=step_retry_result:code:transform",
+    "retry_update=step_retry_update:http:write",
+    "retry_publish=step_retry_publish:http:write",
+    "answer_retry_sent=step_retry_sent:webhook:respond",
+    "answer_retry_refused=step_retry_done:webhook:respond",
+    "answer_unknown=step_unknown_done:webhook:respond"
+  ],
+  "built_by": "tools/build_market_flows.py"
+}

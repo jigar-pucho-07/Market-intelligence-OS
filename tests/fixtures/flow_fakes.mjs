@@ -1,0 +1,43 @@
+// tests/fixtures/flow_fakes.mjs — fakes for flow/flow_sim.mjs that answer like the real services AND fail like them:
+// the five feeds answer from the real samples in tests/fixtures/rss/ (captured once on 15 Oct 2026; Reuters' host no
+// longer resolves, so it throws), llm-ai answers the stand-in model JSON, pucho-whatsapp answers a message id, another
+// flow's webhook answers 200. The app's /api/data door is simulated by flow_sim itself (CLI); tests/flow_sim.test.mjs uses
+// makeFakes({ app }) with a stateful app that answers 201 / 409 / 403 the way app/src/app/api/data/[entity] does.
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const rss = (f, enc = 'utf8') => fs.readFileSync(path.join(HERE, 'rss', f), enc);
+export const MODEL = JSON.parse(fs.readFileSync(path.join(HERE, 'model-answer.json'), 'utf8'));
+export class ServiceError extends Error { constructor(status, msg) { super(`HTTP ${status}: ${msg}`); this.status = status; } }
+
+export const FEED_FILES = { 'economictimes.indiatimes.com': ['et-markets.xml'], 'moneycontrol.com': ['moneycontrol.xml', 'latin1'],
+  'q=India+stock': ['google-finance.xml'], 'q=SGX+Nifty': ['global-cues.xml'] };
+
+/** opts: { model: text the model answers, whatsapp: (inputs) => output | throws, app: (method, url, query, body) => {status, body}, calls: [] } */
+export function makeFakes(opts = {}) {
+  const calls = opts.calls || [];
+  return async (piece, inputs, node) => {
+    calls.push({ piece, node: node.name, inputs });
+    if (piece === 'http:send_request') {
+      const url = String(inputs.url || '');
+      if (/reuters\.com/.test(url)) throw new ServiceError(0, 'getaddrinfo ENOTFOUND feeds.reuters.com');
+      for (const [k, [file, enc]] of Object.entries(FEED_FILES)) if (url.includes(k)) return { status: 200, headers: {}, body: rss(file, enc) };
+      if (opts.app && /\/api\/(appdata|data|jobs)\//.test(url)) {
+        const r = opts.app(String(inputs.method || 'GET').toUpperCase(), url, inputs.queryParams || {}, inputs.body ? inputs.body.data : undefined);
+        if (r.status >= 400) throw new ServiceError(r.status, JSON.stringify(r.body));
+        return r;
+      }
+      return { status: 200, headers: {}, body: { ok: true } };          // another flow's webhook (bare URL: answers at once)
+    }
+    if (piece === 'llm-ai:askLlm') return { data: { response: opts.model ?? MODEL.fenced } };
+    if (piece === 'pucho-whatsapp:send_template_message') {
+      if (opts.whatsapp) return opts.whatsapp(inputs);
+      if (!inputs.to) throw new ServiceError(400, 'to is required');
+      return { success: true, messageId: `wamid.FAKE${calls.length}` };
+    }
+    return {};
+  };
+}
+export default makeFakes();

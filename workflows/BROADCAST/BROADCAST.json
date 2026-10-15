@@ -1,0 +1,1224 @@
+{
+  "created": "1700000000000",
+  "updated": "1700000000000",
+  "name": "BROADCAST",
+  "description": "Market Intelligence — the report to every Active, opted-in subscriber (template), the admin alert, one delivery again",
+  "tags": [],
+  "pieces": [
+    "@puchoaistudio/tool-webhook",
+    "@puchoaistudio/tool-http",
+    "@puchoaistudio/tool-pucho-whatsapp"
+  ],
+  "template": {
+    "displayName": "BROADCAST",
+    "trigger": {
+      "name": "trigger",
+      "valid": true,
+      "displayName": "Catch Webhook — BROADCAST (send · retry)",
+      "type": "TOOL_TRIGGER",
+      "settings": {
+        "pieceName": "@puchoaistudio/tool-webhook",
+        "pieceVersion": "^2.0.4",
+        "input": {
+          "authType": "none",
+          "authFields": {}
+        },
+        "sampleData": {},
+        "propertySettings": {
+          "authType": {
+            "type": "MANUAL"
+          },
+          "authFields": {
+            "type": "MANUAL",
+            "schema": {}
+          },
+          "liveMarkdown": {
+            "type": "MANUAL"
+          },
+          "syncMarkdown": {
+            "type": "MANUAL"
+          },
+          "testMarkdown": {
+            "type": "MANUAL"
+          }
+        },
+        "triggerName": "catch_webhook"
+      },
+      "nextAction": {
+        "name": "step_constants",
+        "skip": false,
+        "type": "CODE",
+        "valid": true,
+        "settings": {
+          "input": {},
+          "sampleData": {},
+          "sourceCode": {
+            "code": "// @ts-nocheck\nexport const code = async (inputs) => {\n  return {\n    \"flow\": \"BROADCAST\",\n    \"app_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"inbound_token\": \"SET_IN_STUDIO_INBOUND_TOKEN\",\n    \"whatsapp_account_id\": \"SET_IN_STUDIO_WHATSAPP_ACCOUNT_ID\",\n    \"whatsapp_templates\": {\n      \"report\": \"SET_IN_STUDIO_TEMPLATE_ID_MI_DAILY_REPORT\",\n      \"alert\": \"SET_IN_STUDIO_TEMPLATE_ID_MI_RUN_FAILED\"\n    },\n    \"whatsapp_template_names\": {\n      \"report\": \"mi_daily_report\",\n      \"alert\": \"mi_run_failed\"\n    },\n    \"alert_to\": \"SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS\",\n    \"portal_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"publish_webhook\": \"SET_IN_STUDIO_MARKET_PUBLISH_WEBHOOK_URL\"\n  };\n};",
+            "packageJson": "{}"
+          },
+          "errorHandlingOptions": {
+            "retryOnFailure": {
+              "value": false
+            },
+            "continueOnFailure": {
+              "value": false
+            }
+          }
+        },
+        "nextAction": {
+          "name": "step_router",
+          "skip": false,
+          "type": "ROUTER",
+          "valid": true,
+          "children": [
+            {
+              "name": "step_send_reports",
+              "skip": false,
+              "type": "PIECE",
+              "valid": true,
+              "settings": {
+                "input": {
+                  "method": "GET",
+                  "url": "{{step_constants['app_url']}}/api/data/reports",
+                  "headers": {
+                    "Accept": "application/json",
+                    "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                    "X-Flow": "{{step_constants['flow']}}"
+                  },
+                  "queryParams": {
+                    "select": "*"
+                  },
+                  "authType": "NONE"
+                },
+                "pieceName": "@puchoaistudio/tool-http",
+                "actionName": "send_request",
+                "sampleData": {},
+                "pieceVersion": "^2.0.0",
+                "propertySettings": {
+                  "method": {
+                    "type": "MANUAL"
+                  },
+                  "url": {
+                    "type": "MANUAL"
+                  },
+                  "headers": {
+                    "type": "MANUAL",
+                    "schema": {}
+                  },
+                  "queryParams": {
+                    "type": "MANUAL",
+                    "schema": {}
+                  },
+                  "authType": {
+                    "type": "MANUAL"
+                  }
+                },
+                "errorHandlingOptions": {
+                  "retryOnFailure": {
+                    "value": true
+                  },
+                  "continueOnFailure": {
+                    "value": true
+                  }
+                }
+              },
+              "nextAction": {
+                "name": "step_send_subscribers",
+                "skip": false,
+                "type": "PIECE",
+                "valid": true,
+                "settings": {
+                  "input": {
+                    "method": "GET",
+                    "url": "{{step_constants['app_url']}}/api/data/subscribers",
+                    "headers": {
+                      "Accept": "application/json",
+                      "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                      "X-Flow": "{{step_constants['flow']}}"
+                    },
+                    "queryParams": {
+                      "select": "*"
+                    },
+                    "authType": "NONE"
+                  },
+                  "pieceName": "@puchoaistudio/tool-http",
+                  "actionName": "send_request",
+                  "sampleData": {},
+                  "pieceVersion": "^2.0.0",
+                  "propertySettings": {
+                    "method": {
+                      "type": "MANUAL"
+                    },
+                    "url": {
+                      "type": "MANUAL"
+                    },
+                    "headers": {
+                      "type": "MANUAL",
+                      "schema": {}
+                    },
+                    "queryParams": {
+                      "type": "MANUAL",
+                      "schema": {}
+                    },
+                    "authType": {
+                      "type": "MANUAL"
+                    }
+                  },
+                  "errorHandlingOptions": {
+                    "retryOnFailure": {
+                      "value": true
+                    },
+                    "continueOnFailure": {
+                      "value": true
+                    }
+                  }
+                },
+                "nextAction": {
+                  "name": "step_send_plan",
+                  "skip": false,
+                  "type": "CODE",
+                  "valid": true,
+                  "settings": {
+                    "input": {
+                      "body": "{{trigger['body']}}",
+                      "C": "{{step_constants}}",
+                      "reports": "{{step_send_reports}}",
+                      "subscribers": "{{step_send_subscribers}}"
+                    },
+                    "sampleData": {},
+                    "sourceCode": {
+                      "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendPlan() reaches (tools/build_market_flows.py)\nconst ENUMS = {\n  Sentiment: ['BULLISH', 'CAUTIOUSLY BULLISH', 'NEUTRAL', 'CAUTIOUSLY BEARISH', 'BEARISH'],\n  Confidence_Level: ['HIGH', 'MEDIUM', 'LOW'],\n  Outlook: ['BULLISH', 'BEARISH', 'NEUTRAL', 'CAUTIOUS'],\n  FnO_View: ['BULLISH BIAS', 'BEARISH BIAS', 'RANGE-BOUND', 'VOLATILE'],\n  VIX_Expectation: ['LOW', 'MEDIUM', 'HIGH'],\n  SectorCall: ['POSITIVE', 'WATCH', 'NEGATIVE'],\n  RiskLevel: ['HIGH', 'MED'],\n  Trigger: ['Schedule', 'Manual'],\n  Opt_In_Source: ['WhatsApp reply', 'Web form', 'Signed form', 'Phone call'],\n};\nconst asDate = (at) => (at instanceof Date ? at : new Date(at || Date.now()));\nfunction istDate(at) {\n  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(asDate(at)).map((x) => [x.type, x.value]));\n  return `${p.year}-${p.month}-${p.day}`;\n}\nfunction istLabel(at) {\n  const f = (o) => new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', ...o }).format(asDate(at));\n  return { date: f({ day: '2-digit', month: 'short', year: 'numeric' }), time: f({ hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() + ' IST' };\n}\nconst clean = (v, max) => String(v ?? '').replace(/\\s+/g, ' ').trim().slice(0, max);\nfunction normaliseWhatsApp(n) {\n  const digits = String(n || '').replace(/\\D/g, '');\n  if (!/^\\d{10,15}$/.test(digits)) return '';\n  return digits.length === 10 ? `+91${digits}` : `+${digits}`;\n}\nfunction adminNumbers(alertTo) { return /SET_IN_STUDIO/.test(String(alertTo || '')) ? [] : [...new Set(String(alertTo || '').split(/[,;\\s]+/).map(normaliseWhatsApp).filter(Boolean))]; }\nfunction isEligible(s) { return !!s && s.Status === 'Active' && !!String(s.Opt_In_At || '').trim() && ENUMS.Opt_In_Source.includes(s.Opt_In_Source) && !!normaliseWhatsApp(s.WhatsApp); }\nfunction alreadyDelivered(s, report) {\n  const at = Date.parse((s && s.Last_Delivered_At) || ''); if (!Number.isFinite(at) || !report) return false;\n  return istDate(at) === report.Report_Date && at >= (Date.parse(report.Created_At || '') || 0);\n}\nfunction reportTemplateVars(r) {\n  const pct = r.Confidence_Pct !== '' && r.Confidence_Pct != null ? ` (${r.Confidence_Pct}%)` : '';\n  return { date: istLabel(`${r.Report_Date}T09:00:00+05:30`).date, sentiment: r.Sentiment || '', confidence: `${r.Confidence_Level || ''}${pct}`.trim(), driver: clean(r.Driver_1, 120) };\n}\nfunction alertTemplateVars({ error, reportDate, now = Date.now() }) {\n  const t = istLabel(now);\n  return { error: clean(error, 160) || 'The report could not be generated', date: reportDate ? istLabel(`${reportDate}T09:00:00+05:30`).date : t.date, time: t.time };\n}\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction sendPlan(inp) {\n  const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp);\n  const reports = rowsOf(inp && inp.reports); const subs = rowsOf(inp && inp.subscribers);\n  const report = reports && body.Report_ID ? reports.find((r) => r.Report_ID === String(body.Report_ID)) || null : null;\n  const tpl = C.whatsapp_templates || {};\n  const publish = { Report_ID: report ? report.Report_ID : '', Since: now.toISOString(), _job: String(body._job || '') };\n  const done = (kind, items, reason) => ({ kind, items, reason, Report_ID: publish.Report_ID, publish, queued: items.length });\n  if (body.Kind === 'Alert' || (report && report.Status === 'Failed')) {\n    const date = report ? report.Report_Date : istDate(now);\n    const error = (report && report.Error_Message) || String(body.Error_Message || '').replace(/[^\\p{L}\\p{N}\\s.,:;()'%/–-]/gu, ' ') || 'The report could not be generated';\n    const numbers = adminNumbers(C.alert_to);\n    const items = numbers.map((to, i) => ({ to, template_id: tpl.alert || '', template_variables: alertTemplateVars({ error, reportDate: date, now }),\n      delivery: { Kind: 'Alert', Report_ID: report ? report.Report_ID : '', Report_Date: date, Subscriber_ID: `ADMIN-${i + 1}`, Subscriber_Name: `Admin alert ${i + 1}`, Sentiment: '', Status: 'Queued' } }));\n    return done('Alert', items, numbers.length ? '' : 'constants.alert_to has no WhatsApp number yet — nobody was alerted');\n  }\n  if (!reports) return done('Report', [], doorError(inp.reports, 'reports'));\n  if (!report) return done('Report', [], `No report ${String(body.Report_ID || '').slice(0, 30)}`);\n  if (!['Ready', 'Sent'].includes(report.Status)) return done('Report', [], `${report.Report_ID} is ${report.Status} — not sent`);\n  if (!subs) return done('Report', [], doorError(inp.subscribers, 'subscribers'));\n  const vars = reportTemplateVars(report);\n  const items = subs.filter((s) => isEligible(s) && !alreadyDelivered(s, report)).map((s) => ({ to: normaliseWhatsApp(s.WhatsApp), template_id: tpl.report || '', template_variables: vars,\n    delivery: { Kind: 'Report', Report_ID: report.Report_ID, Report_Date: report.Report_Date, Subscriber_ID: s.Subscriber_ID, Subscriber_Name: s.Name || '', Sentiment: report.Sentiment || '', Status: 'Queued' } }));\n  return done('Report', items, items.length ? '' : 'No Active, opted-in subscriber is waiting for this report');\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendPlan(inputs);\n};",
+                      "packageJson": "{}"
+                    },
+                    "errorHandlingOptions": {
+                      "retryOnFailure": {
+                        "value": false
+                      },
+                      "continueOnFailure": {
+                        "value": false
+                      }
+                    }
+                  },
+                  "nextAction": {
+                    "name": "step_send_loop",
+                    "type": "LOOP_ON_ITEMS",
+                    "displayName": "For each recipient",
+                    "valid": true,
+                    "skip": false,
+                    "settings": {
+                      "items": "{{step_send_plan['items']}}",
+                      "sampleData": {}
+                    },
+                    "firstLoopAction": {
+                      "name": "step_send_queue",
+                      "skip": false,
+                      "type": "PIECE",
+                      "valid": true,
+                      "settings": {
+                        "input": {
+                          "method": "POST",
+                          "url": "{{step_constants['app_url']}}/api/data/deliveries",
+                          "headers": {
+                            "Content-Type": "application/json",
+                            "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                            "X-Flow": "{{step_constants['flow']}}"
+                          },
+                          "queryParams": {},
+                          "authType": "NONE",
+                          "body_type": "json",
+                          "body": {
+                            "data": {
+                              "Kind": "{{step_send_loop['item']['delivery']['Kind']}}",
+                              "Report_ID": "{{step_send_loop['item']['delivery']['Report_ID']}}",
+                              "Report_Date": "{{step_send_loop['item']['delivery']['Report_Date']}}",
+                              "Subscriber_ID": "{{step_send_loop['item']['delivery']['Subscriber_ID']}}",
+                              "Subscriber_Name": "{{step_send_loop['item']['delivery']['Subscriber_Name']}}",
+                              "Sentiment": "{{step_send_loop['item']['delivery']['Sentiment']}}",
+                              "Status": "{{step_send_loop['item']['delivery']['Status']}}",
+                              "Delivery_ID": ""
+                            }
+                          }
+                        },
+                        "pieceName": "@puchoaistudio/tool-http",
+                        "actionName": "send_request",
+                        "sampleData": {},
+                        "pieceVersion": "^2.0.0",
+                        "propertySettings": {
+                          "method": {
+                            "type": "MANUAL"
+                          },
+                          "url": {
+                            "type": "MANUAL"
+                          },
+                          "headers": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          },
+                          "queryParams": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          },
+                          "authType": {
+                            "type": "MANUAL"
+                          },
+                          "body_type": {
+                            "type": "MANUAL"
+                          },
+                          "body": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          }
+                        },
+                        "errorHandlingOptions": {
+                          "retryOnFailure": {
+                            "value": false
+                          },
+                          "continueOnFailure": {
+                            "value": true
+                          }
+                        }
+                      },
+                      "nextAction": {
+                        "name": "step_send_gate",
+                        "skip": false,
+                        "type": "CODE",
+                        "valid": true,
+                        "settings": {
+                          "input": {
+                            "queued": "{{step_send_queue}}",
+                            "item": "{{step_send_loop['item']}}"
+                          },
+                          "sampleData": {},
+                          "sourceCode": {
+                            "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what queueGate() reaches (tools/build_market_flows.py)\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction queueGate(inp) {\n  const item = (inp && inp.item) || {}; const rows = rowsOf(inp && inp.queued); const st = statusOf(inp && inp.queued);\n  const id = rows && rows[0] && rows[0].Delivery_ID ? rows[0].Delivery_ID : '';\n  if (!id) return { go: false, to: '', Delivery_ID: '', template_id: '', template_variables: {}, note: st === 409 || /409|already in use/i.test(JSON.stringify((inp && inp.queued) || {})) ? 'already sent — skipped' : `queue write refused (${st || 'no response'}) — skipped` };\n  return { go: true, to: item.to || '', Delivery_ID: id, template_id: item.template_id || '', template_variables: item.template_variables || {}, note: '' };\n}\n// end lib\nexport const code = async (inputs) => {\n  return queueGate(inputs);\n};",
+                            "packageJson": "{}"
+                          },
+                          "errorHandlingOptions": {
+                            "retryOnFailure": {
+                              "value": false
+                            },
+                            "continueOnFailure": {
+                              "value": false
+                            }
+                          }
+                        },
+                        "nextAction": {
+                          "name": "step_send_whatsapp",
+                          "skip": false,
+                          "type": "PIECE",
+                          "valid": true,
+                          "settings": {
+                            "input": {
+                              "account_id": "{{step_constants['whatsapp_account_id']}}",
+                              "to": "{{step_send_gate['to']}}",
+                              "template_id": "{{step_send_gate['template_id']}}",
+                              "template_variables": "{{step_send_gate['template_variables']}}"
+                            },
+                            "pieceName": "@puchoaistudio/tool-pucho-whatsapp",
+                            "actionName": "send_template_message",
+                            "sampleData": {},
+                            "pieceVersion": "^2.1.6",
+                            "propertySettings": {
+                              "account_id": {
+                                "type": "MANUAL"
+                              },
+                              "to": {
+                                "type": "MANUAL"
+                              },
+                              "template_id": {
+                                "type": "MANUAL"
+                              },
+                              "template_variables": {
+                                "type": "MANUAL"
+                              }
+                            },
+                            "errorHandlingOptions": {
+                              "retryOnFailure": {
+                                "value": false
+                              },
+                              "continueOnFailure": {
+                                "value": true
+                              }
+                            }
+                          },
+                          "nextAction": {
+                            "name": "step_send_result",
+                            "skip": false,
+                            "type": "CODE",
+                            "valid": true,
+                            "settings": {
+                              "input": {
+                                "gate": "{{step_send_gate}}",
+                                "sent": "{{step_send_whatsapp}}"
+                              },
+                              "sampleData": {},
+                              "sourceCode": {
+                                "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendResult() reaches (tools/build_market_flows.py)\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction sendResult(inp) {\n  const gate = (inp && inp.gate) || {}; const out = inp && inp.sent; const now = nowOf(inp).toISOString();\n  if (!gate.go) return { Delivery_ID: '', Status: '', Message_ID: '', Error_Message: '', Sent_At: '', sent: false, note: gate.note || 'skipped' };\n  const o = out && typeof out === 'object' ? out : {};\n  const pick = (...vals) => vals.find((v) => typeof v === 'string' && v.trim()) || '';\n  const msgId = pick(o.messageId, o.message_id, o.id, o.wamid, o.messages && o.messages[0] && o.messages[0].id, o.data && o.data.messages && o.data.messages[0] && o.data.messages[0].id,\n    o.body && o.body.messages && o.body.messages[0] && o.body.messages[0].id, o.data && o.data.id);\n  const err = pick(o.error && (o.error.message || o.error), o.errorMessage, o.success === false ? o.message : '', o.status === 'failed' ? o.message : '');\n  const failed = !!err || !out || (typeof out === 'object' && !Object.keys(o).length);\n  return { Delivery_ID: gate.Delivery_ID, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),\n    Error_Message: failed ? (err || 'WhatsApp step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed, note: '' };\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendResult(inputs);\n};",
+                                "packageJson": "{}"
+                              },
+                              "errorHandlingOptions": {
+                                "retryOnFailure": {
+                                  "value": false
+                                },
+                                "continueOnFailure": {
+                                  "value": false
+                                }
+                              }
+                            },
+                            "nextAction": {
+                              "name": "step_send_update",
+                              "skip": false,
+                              "type": "PIECE",
+                              "valid": true,
+                              "settings": {
+                                "input": {
+                                  "method": "PATCH",
+                                  "url": "{{step_constants['app_url']}}/api/data/deliveries",
+                                  "headers": {
+                                    "Content-Type": "application/json",
+                                    "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                                    "X-Flow": "{{step_constants['flow']}}"
+                                  },
+                                  "queryParams": {
+                                    "Delivery_ID": "eq.{{step_send_result['Delivery_ID']}}"
+                                  },
+                                  "authType": "NONE",
+                                  "body_type": "json",
+                                  "body": {
+                                    "data": {
+                                      "Status": "{{step_send_result['Status']}}",
+                                      "Message_ID": "{{step_send_result['Message_ID']}}",
+                                      "Error_Message": "{{step_send_result['Error_Message']}}",
+                                      "Sent_At": "{{step_send_result['Sent_At']}}"
+                                    }
+                                  }
+                                },
+                                "pieceName": "@puchoaistudio/tool-http",
+                                "actionName": "send_request",
+                                "sampleData": {},
+                                "pieceVersion": "^2.0.0",
+                                "propertySettings": {
+                                  "method": {
+                                    "type": "MANUAL"
+                                  },
+                                  "url": {
+                                    "type": "MANUAL"
+                                  },
+                                  "headers": {
+                                    "type": "MANUAL",
+                                    "schema": {}
+                                  },
+                                  "queryParams": {
+                                    "type": "MANUAL",
+                                    "schema": {}
+                                  },
+                                  "authType": {
+                                    "type": "MANUAL"
+                                  },
+                                  "body_type": {
+                                    "type": "MANUAL"
+                                  },
+                                  "body": {
+                                    "type": "MANUAL",
+                                    "schema": {}
+                                  }
+                                },
+                                "errorHandlingOptions": {
+                                  "retryOnFailure": {
+                                    "value": true
+                                  },
+                                  "continueOnFailure": {
+                                    "value": true
+                                  }
+                                }
+                              },
+                              "displayName": "PATCH the delivery Sent (message id) or Failed (error)"
+                            },
+                            "displayName": "Sent or Failed? (CODE)"
+                          },
+                          "displayName": "Send WhatsApp template (mi_daily_report · mi_run_failed)"
+                        },
+                        "displayName": "Queued? then send, else skip (CODE)"
+                      },
+                      "displayName": "POST deliveries — Queued (409 = already sent → skip)"
+                    },
+                    "nextAction": {
+                      "name": "step_send_publish",
+                      "skip": false,
+                      "type": "PIECE",
+                      "valid": true,
+                      "settings": {
+                        "input": {
+                          "method": "POST",
+                          "url": "{{step_constants['publish_webhook']}}",
+                          "headers": {
+                            "Content-Type": "application/json"
+                          },
+                          "queryParams": {},
+                          "authType": "NONE",
+                          "body_type": "json",
+                          "body": {
+                            "data": {
+                              "action": "publish",
+                              "Report_ID": "{{step_send_plan['publish']['Report_ID']}}",
+                              "Since": "{{step_send_plan['publish']['Since']}}",
+                              "_job": "{{step_send_plan['publish']['_job']}}",
+                              "_who": "flow:BROADCAST"
+                            }
+                          }
+                        },
+                        "pieceName": "@puchoaistudio/tool-http",
+                        "actionName": "send_request",
+                        "sampleData": {},
+                        "pieceVersion": "^2.0.0",
+                        "propertySettings": {
+                          "method": {
+                            "type": "MANUAL"
+                          },
+                          "url": {
+                            "type": "MANUAL"
+                          },
+                          "headers": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          },
+                          "queryParams": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          },
+                          "authType": {
+                            "type": "MANUAL"
+                          },
+                          "body_type": {
+                            "type": "MANUAL"
+                          },
+                          "body": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          }
+                        },
+                        "errorHandlingOptions": {
+                          "retryOnFailure": {
+                            "value": true
+                          },
+                          "continueOnFailure": {
+                            "value": true
+                          }
+                        }
+                      },
+                      "nextAction": {
+                        "name": "step_send_done",
+                        "skip": false,
+                        "type": "PIECE",
+                        "valid": true,
+                        "settings": {
+                          "input": {
+                            "fields": {
+                              "body": {
+                                "ok": true,
+                                "kind": "{{step_send_plan['kind']}}",
+                                "Report_ID": "{{step_send_plan['Report_ID']}}",
+                                "queued": "{{step_send_plan['queued']}}",
+                                "reason": "{{step_send_plan['reason']}}"
+                              },
+                              "status": 200,
+                              "headers": {}
+                            },
+                            "respond": "stop",
+                            "responseType": "json"
+                          },
+                          "pieceName": "@puchoaistudio/tool-webhook",
+                          "actionName": "return_response",
+                          "sampleData": {},
+                          "pieceVersion": "^2.0.4",
+                          "propertySettings": {
+                            "fields": {
+                              "type": "MANUAL",
+                              "schema": {
+                                "body": {
+                                  "type": "JSON",
+                                  "required": true,
+                                  "displayName": "JSON Body"
+                                },
+                                "status": {
+                                  "type": "NUMBER",
+                                  "required": false,
+                                  "displayName": "Status",
+                                  "defaultValue": 200
+                                },
+                                "headers": {
+                                  "type": "OBJECT",
+                                  "required": false,
+                                  "displayName": "Headers"
+                                }
+                              }
+                            },
+                            "respond": {
+                              "type": "MANUAL"
+                            },
+                            "responseType": {
+                              "type": "MANUAL"
+                            }
+                          },
+                          "errorHandlingOptions": {
+                            "retryOnFailure": {
+                              "value": false
+                            },
+                            "continueOnFailure": {
+                              "value": false
+                            }
+                          }
+                        },
+                        "displayName": "Return: handed to WhatsApp"
+                      },
+                      "displayName": "POST MARKET_PUBLISH — counts, reader copy, Last_Delivered_At, job"
+                    }
+                  },
+                  "displayName": "Who gets what: report → eligible subscribers · Failed / Alert → admins (CODE)"
+                },
+                "displayName": "GET subscribers"
+              },
+              "displayName": "GET reports"
+            },
+            {
+              "name": "step_retry_deliveries",
+              "skip": false,
+              "type": "PIECE",
+              "valid": true,
+              "settings": {
+                "input": {
+                  "method": "GET",
+                  "url": "{{step_constants['app_url']}}/api/data/deliveries",
+                  "headers": {
+                    "Accept": "application/json",
+                    "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                    "X-Flow": "{{step_constants['flow']}}"
+                  },
+                  "queryParams": {
+                    "select": "*"
+                  },
+                  "authType": "NONE"
+                },
+                "pieceName": "@puchoaistudio/tool-http",
+                "actionName": "send_request",
+                "sampleData": {},
+                "pieceVersion": "^2.0.0",
+                "propertySettings": {
+                  "method": {
+                    "type": "MANUAL"
+                  },
+                  "url": {
+                    "type": "MANUAL"
+                  },
+                  "headers": {
+                    "type": "MANUAL",
+                    "schema": {}
+                  },
+                  "queryParams": {
+                    "type": "MANUAL",
+                    "schema": {}
+                  },
+                  "authType": {
+                    "type": "MANUAL"
+                  }
+                },
+                "errorHandlingOptions": {
+                  "retryOnFailure": {
+                    "value": true
+                  },
+                  "continueOnFailure": {
+                    "value": true
+                  }
+                }
+              },
+              "nextAction": {
+                "name": "step_retry_subscribers",
+                "skip": false,
+                "type": "PIECE",
+                "valid": true,
+                "settings": {
+                  "input": {
+                    "method": "GET",
+                    "url": "{{step_constants['app_url']}}/api/data/subscribers",
+                    "headers": {
+                      "Accept": "application/json",
+                      "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                      "X-Flow": "{{step_constants['flow']}}"
+                    },
+                    "queryParams": {
+                      "select": "*"
+                    },
+                    "authType": "NONE"
+                  },
+                  "pieceName": "@puchoaistudio/tool-http",
+                  "actionName": "send_request",
+                  "sampleData": {},
+                  "pieceVersion": "^2.0.0",
+                  "propertySettings": {
+                    "method": {
+                      "type": "MANUAL"
+                    },
+                    "url": {
+                      "type": "MANUAL"
+                    },
+                    "headers": {
+                      "type": "MANUAL",
+                      "schema": {}
+                    },
+                    "queryParams": {
+                      "type": "MANUAL",
+                      "schema": {}
+                    },
+                    "authType": {
+                      "type": "MANUAL"
+                    }
+                  },
+                  "errorHandlingOptions": {
+                    "retryOnFailure": {
+                      "value": true
+                    },
+                    "continueOnFailure": {
+                      "value": true
+                    }
+                  }
+                },
+                "nextAction": {
+                  "name": "step_retry_reports",
+                  "skip": false,
+                  "type": "PIECE",
+                  "valid": true,
+                  "settings": {
+                    "input": {
+                      "method": "GET",
+                      "url": "{{step_constants['app_url']}}/api/data/reports",
+                      "headers": {
+                        "Accept": "application/json",
+                        "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                        "X-Flow": "{{step_constants['flow']}}"
+                      },
+                      "queryParams": {
+                        "select": "*"
+                      },
+                      "authType": "NONE"
+                    },
+                    "pieceName": "@puchoaistudio/tool-http",
+                    "actionName": "send_request",
+                    "sampleData": {},
+                    "pieceVersion": "^2.0.0",
+                    "propertySettings": {
+                      "method": {
+                        "type": "MANUAL"
+                      },
+                      "url": {
+                        "type": "MANUAL"
+                      },
+                      "headers": {
+                        "type": "MANUAL",
+                        "schema": {}
+                      },
+                      "queryParams": {
+                        "type": "MANUAL",
+                        "schema": {}
+                      },
+                      "authType": {
+                        "type": "MANUAL"
+                      }
+                    },
+                    "errorHandlingOptions": {
+                      "retryOnFailure": {
+                        "value": true
+                      },
+                      "continueOnFailure": {
+                        "value": true
+                      }
+                    }
+                  },
+                  "nextAction": {
+                    "name": "step_retry_plan",
+                    "skip": false,
+                    "type": "CODE",
+                    "valid": true,
+                    "settings": {
+                      "input": {
+                        "body": "{{trigger['body']}}",
+                        "C": "{{step_constants}}",
+                        "deliveries": "{{step_retry_deliveries}}",
+                        "subscribers": "{{step_retry_subscribers}}",
+                        "reports": "{{step_retry_reports}}"
+                      },
+                      "sampleData": {},
+                      "sourceCode": {
+                        "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what retryPlan() reaches (tools/build_market_flows.py)\nconst ENUMS = {\n  Sentiment: ['BULLISH', 'CAUTIOUSLY BULLISH', 'NEUTRAL', 'CAUTIOUSLY BEARISH', 'BEARISH'],\n  Confidence_Level: ['HIGH', 'MEDIUM', 'LOW'],\n  Outlook: ['BULLISH', 'BEARISH', 'NEUTRAL', 'CAUTIOUS'],\n  FnO_View: ['BULLISH BIAS', 'BEARISH BIAS', 'RANGE-BOUND', 'VOLATILE'],\n  VIX_Expectation: ['LOW', 'MEDIUM', 'HIGH'],\n  SectorCall: ['POSITIVE', 'WATCH', 'NEGATIVE'],\n  RiskLevel: ['HIGH', 'MED'],\n  Trigger: ['Schedule', 'Manual'],\n  Opt_In_Source: ['WhatsApp reply', 'Web form', 'Signed form', 'Phone call'],\n};\nconst asDate = (at) => (at instanceof Date ? at : new Date(at || Date.now()));\nfunction istLabel(at) {\n  const f = (o) => new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', ...o }).format(asDate(at));\n  return { date: f({ day: '2-digit', month: 'short', year: 'numeric' }), time: f({ hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() + ' IST' };\n}\nconst clean = (v, max) => String(v ?? '').replace(/\\s+/g, ' ').trim().slice(0, max);\nfunction normaliseWhatsApp(n) {\n  const digits = String(n || '').replace(/\\D/g, '');\n  if (!/^\\d{10,15}$/.test(digits)) return '';\n  return digits.length === 10 ? `+91${digits}` : `+${digits}`;\n}\nfunction isEligible(s) { return !!s && s.Status === 'Active' && !!String(s.Opt_In_At || '').trim() && ENUMS.Opt_In_Source.includes(s.Opt_In_Source) && !!normaliseWhatsApp(s.WhatsApp); }\nfunction reportTemplateVars(r) {\n  const pct = r.Confidence_Pct !== '' && r.Confidence_Pct != null ? ` (${r.Confidence_Pct}%)` : '';\n  return { date: istLabel(`${r.Report_Date}T09:00:00+05:30`).date, sentiment: r.Sentiment || '', confidence: `${r.Confidence_Level || ''}${pct}`.trim(), driver: clean(r.Driver_1, 120) };\n}\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction retryPlan(inp) {\n  const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp);\n  const dels = rowsOf(inp && inp.deliveries); const subs = rowsOf(inp && inp.subscribers); const reports = rowsOf(inp && inp.reports);\n  const none = (reason, d) => ({ items: [], reason, Delivery_ID: d ? d.Delivery_ID : '', publish: { Report_ID: d ? d.Report_ID : '', Since: now.toISOString(), _job: '' } });\n  if (!dels || !subs || !reports) return none(doorError(!dels ? inp.deliveries : !subs ? inp.subscribers : inp.reports, !dels ? 'deliveries' : !subs ? 'subscribers' : 'reports'));\n  const d = dels.find((x) => x.Delivery_ID === String(body.Delivery_ID || ''));\n  if (!d) return none(`No delivery ${String(body.Delivery_ID || '').slice(0, 30)}`);\n  if (d.Kind !== 'Report' || d.Status !== 'Failed') return none(`${d.Delivery_ID} is a ${d.Kind} delivery that is ${d.Status} — only a Failed report delivery is retried`, d);\n  const s = subs.find((x) => x.Subscriber_ID === d.Subscriber_ID);\n  if (!isEligible(s)) return none(`${d.Subscriber_Name || d.Subscriber_ID} is not Active and opted in — not sent`, d);\n  const r = reports.find((x) => x.Report_ID === d.Report_ID);\n  if (!r || !['Ready', 'Sent'].includes(r.Status)) return none(`Report ${d.Report_ID} is not Ready or Sent — not sent`, d);\n  const tpl = C.whatsapp_templates || {};\n  return { items: [{ go: true, to: normaliseWhatsApp(s.WhatsApp), Delivery_ID: d.Delivery_ID, template_id: tpl.report || '', template_variables: reportTemplateVars(r) }],\n    reason: '', Delivery_ID: d.Delivery_ID, publish: { Report_ID: r.Report_ID, Since: now.toISOString(), _job: '' } };\n}\n\n// ─────────────────────────────── MARKET_PUBLISH ───────────────────────────────\n// end lib\nexport const code = async (inputs) => {\n  return retryPlan(inputs);\n};",
+                        "packageJson": "{}"
+                      },
+                      "errorHandlingOptions": {
+                        "retryOnFailure": {
+                          "value": false
+                        },
+                        "continueOnFailure": {
+                          "value": false
+                        }
+                      }
+                    },
+                    "nextAction": {
+                      "name": "step_retry_loop",
+                      "type": "LOOP_ON_ITEMS",
+                      "displayName": "Send again (0 or 1)",
+                      "valid": true,
+                      "skip": false,
+                      "settings": {
+                        "items": "{{step_retry_plan['items']}}",
+                        "sampleData": {}
+                      },
+                      "firstLoopAction": {
+                        "name": "step_retry_whatsapp",
+                        "skip": false,
+                        "type": "PIECE",
+                        "valid": true,
+                        "settings": {
+                          "input": {
+                            "account_id": "{{step_constants['whatsapp_account_id']}}",
+                            "to": "{{step_retry_loop['item']['to']}}",
+                            "template_id": "{{step_retry_loop['item']['template_id']}}",
+                            "template_variables": "{{step_retry_loop['item']['template_variables']}}"
+                          },
+                          "pieceName": "@puchoaistudio/tool-pucho-whatsapp",
+                          "actionName": "send_template_message",
+                          "sampleData": {},
+                          "pieceVersion": "^2.1.6",
+                          "propertySettings": {
+                            "account_id": {
+                              "type": "MANUAL"
+                            },
+                            "to": {
+                              "type": "MANUAL"
+                            },
+                            "template_id": {
+                              "type": "MANUAL"
+                            },
+                            "template_variables": {
+                              "type": "MANUAL"
+                            }
+                          },
+                          "errorHandlingOptions": {
+                            "retryOnFailure": {
+                              "value": false
+                            },
+                            "continueOnFailure": {
+                              "value": true
+                            }
+                          }
+                        },
+                        "nextAction": {
+                          "name": "step_retry_result",
+                          "skip": false,
+                          "type": "CODE",
+                          "valid": true,
+                          "settings": {
+                            "input": {
+                              "gate": "{{step_retry_loop['item']}}",
+                              "sent": "{{step_retry_whatsapp}}"
+                            },
+                            "sampleData": {},
+                            "sourceCode": {
+                              "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendResult() reaches (tools/build_market_flows.py)\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction sendResult(inp) {\n  const gate = (inp && inp.gate) || {}; const out = inp && inp.sent; const now = nowOf(inp).toISOString();\n  if (!gate.go) return { Delivery_ID: '', Status: '', Message_ID: '', Error_Message: '', Sent_At: '', sent: false, note: gate.note || 'skipped' };\n  const o = out && typeof out === 'object' ? out : {};\n  const pick = (...vals) => vals.find((v) => typeof v === 'string' && v.trim()) || '';\n  const msgId = pick(o.messageId, o.message_id, o.id, o.wamid, o.messages && o.messages[0] && o.messages[0].id, o.data && o.data.messages && o.data.messages[0] && o.data.messages[0].id,\n    o.body && o.body.messages && o.body.messages[0] && o.body.messages[0].id, o.data && o.data.id);\n  const err = pick(o.error && (o.error.message || o.error), o.errorMessage, o.success === false ? o.message : '', o.status === 'failed' ? o.message : '');\n  const failed = !!err || !out || (typeof out === 'object' && !Object.keys(o).length);\n  return { Delivery_ID: gate.Delivery_ID, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),\n    Error_Message: failed ? (err || 'WhatsApp step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed, note: '' };\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendResult(inputs);\n};",
+                              "packageJson": "{}"
+                            },
+                            "errorHandlingOptions": {
+                              "retryOnFailure": {
+                                "value": false
+                              },
+                              "continueOnFailure": {
+                                "value": false
+                              }
+                            }
+                          },
+                          "nextAction": {
+                            "name": "step_retry_update",
+                            "skip": false,
+                            "type": "PIECE",
+                            "valid": true,
+                            "settings": {
+                              "input": {
+                                "method": "PATCH",
+                                "url": "{{step_constants['app_url']}}/api/data/deliveries",
+                                "headers": {
+                                  "Content-Type": "application/json",
+                                  "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                                  "X-Flow": "{{step_constants['flow']}}"
+                                },
+                                "queryParams": {
+                                  "Delivery_ID": "eq.{{step_retry_result['Delivery_ID']}}"
+                                },
+                                "authType": "NONE",
+                                "body_type": "json",
+                                "body": {
+                                  "data": {
+                                    "Status": "{{step_retry_result['Status']}}",
+                                    "Message_ID": "{{step_retry_result['Message_ID']}}",
+                                    "Error_Message": "{{step_retry_result['Error_Message']}}",
+                                    "Sent_At": "{{step_retry_result['Sent_At']}}"
+                                  }
+                                }
+                              },
+                              "pieceName": "@puchoaistudio/tool-http",
+                              "actionName": "send_request",
+                              "sampleData": {},
+                              "pieceVersion": "^2.0.0",
+                              "propertySettings": {
+                                "method": {
+                                  "type": "MANUAL"
+                                },
+                                "url": {
+                                  "type": "MANUAL"
+                                },
+                                "headers": {
+                                  "type": "MANUAL",
+                                  "schema": {}
+                                },
+                                "queryParams": {
+                                  "type": "MANUAL",
+                                  "schema": {}
+                                },
+                                "authType": {
+                                  "type": "MANUAL"
+                                },
+                                "body_type": {
+                                  "type": "MANUAL"
+                                },
+                                "body": {
+                                  "type": "MANUAL",
+                                  "schema": {}
+                                }
+                              },
+                              "errorHandlingOptions": {
+                                "retryOnFailure": {
+                                  "value": true
+                                },
+                                "continueOnFailure": {
+                                  "value": true
+                                }
+                              }
+                            },
+                            "nextAction": {
+                              "name": "step_retry_publish",
+                              "skip": false,
+                              "type": "PIECE",
+                              "valid": true,
+                              "settings": {
+                                "input": {
+                                  "method": "POST",
+                                  "url": "{{step_constants['publish_webhook']}}",
+                                  "headers": {
+                                    "Content-Type": "application/json"
+                                  },
+                                  "queryParams": {},
+                                  "authType": "NONE",
+                                  "body_type": "json",
+                                  "body": {
+                                    "data": {
+                                      "action": "publish",
+                                      "Report_ID": "{{step_retry_plan['publish']['Report_ID']}}",
+                                      "Since": "{{step_retry_plan['publish']['Since']}}",
+                                      "_job": "",
+                                      "_who": "flow:BROADCAST"
+                                    }
+                                  }
+                                },
+                                "pieceName": "@puchoaistudio/tool-http",
+                                "actionName": "send_request",
+                                "sampleData": {},
+                                "pieceVersion": "^2.0.0",
+                                "propertySettings": {
+                                  "method": {
+                                    "type": "MANUAL"
+                                  },
+                                  "url": {
+                                    "type": "MANUAL"
+                                  },
+                                  "headers": {
+                                    "type": "MANUAL",
+                                    "schema": {}
+                                  },
+                                  "queryParams": {
+                                    "type": "MANUAL",
+                                    "schema": {}
+                                  },
+                                  "authType": {
+                                    "type": "MANUAL"
+                                  },
+                                  "body_type": {
+                                    "type": "MANUAL"
+                                  },
+                                  "body": {
+                                    "type": "MANUAL",
+                                    "schema": {}
+                                  }
+                                },
+                                "errorHandlingOptions": {
+                                  "retryOnFailure": {
+                                    "value": true
+                                  },
+                                  "continueOnFailure": {
+                                    "value": true
+                                  }
+                                }
+                              },
+                              "nextAction": {
+                                "name": "step_retry_sent",
+                                "skip": false,
+                                "type": "PIECE",
+                                "valid": true,
+                                "settings": {
+                                  "input": {
+                                    "fields": {
+                                      "body": {
+                                        "ok": true,
+                                        "sent": "{{step_retry_result['sent']}}",
+                                        "Delivery_ID": "{{step_retry_result['Delivery_ID']}}",
+                                        "error": "{{step_retry_result['Error_Message']}}"
+                                      },
+                                      "status": 200,
+                                      "headers": {}
+                                    },
+                                    "respond": "stop",
+                                    "responseType": "json"
+                                  },
+                                  "pieceName": "@puchoaistudio/tool-webhook",
+                                  "actionName": "return_response",
+                                  "sampleData": {},
+                                  "pieceVersion": "^2.0.4",
+                                  "propertySettings": {
+                                    "fields": {
+                                      "type": "MANUAL",
+                                      "schema": {
+                                        "body": {
+                                          "type": "JSON",
+                                          "required": true,
+                                          "displayName": "JSON Body"
+                                        },
+                                        "status": {
+                                          "type": "NUMBER",
+                                          "required": false,
+                                          "displayName": "Status",
+                                          "defaultValue": 200
+                                        },
+                                        "headers": {
+                                          "type": "OBJECT",
+                                          "required": false,
+                                          "displayName": "Headers"
+                                        }
+                                      }
+                                    },
+                                    "respond": {
+                                      "type": "MANUAL"
+                                    },
+                                    "responseType": {
+                                      "type": "MANUAL"
+                                    }
+                                  },
+                                  "errorHandlingOptions": {
+                                    "retryOnFailure": {
+                                      "value": false
+                                    },
+                                    "continueOnFailure": {
+                                      "value": false
+                                    }
+                                  }
+                                },
+                                "displayName": "Return: the retry's outcome"
+                              },
+                              "displayName": "POST MARKET_PUBLISH — refresh the report's counts"
+                            },
+                            "displayName": "PATCH the same delivery Sent or Failed"
+                          },
+                          "displayName": "Sent or Failed? (CODE)"
+                        },
+                        "displayName": "Send WhatsApp template mi_daily_report to the number on the subscriber record"
+                      },
+                      "nextAction": {
+                        "name": "step_retry_done",
+                        "skip": false,
+                        "type": "PIECE",
+                        "valid": true,
+                        "settings": {
+                          "input": {
+                            "fields": {
+                              "body": {
+                                "ok": false,
+                                "sent": false,
+                                "Delivery_ID": "{{step_retry_plan['Delivery_ID']}}",
+                                "error": "{{step_retry_plan['reason']}}"
+                              },
+                              "status": 200,
+                              "headers": {}
+                            },
+                            "respond": "stop",
+                            "responseType": "json"
+                          },
+                          "pieceName": "@puchoaistudio/tool-webhook",
+                          "actionName": "return_response",
+                          "sampleData": {},
+                          "pieceVersion": "^2.0.4",
+                          "propertySettings": {
+                            "fields": {
+                              "type": "MANUAL",
+                              "schema": {
+                                "body": {
+                                  "type": "JSON",
+                                  "required": true,
+                                  "displayName": "JSON Body"
+                                },
+                                "status": {
+                                  "type": "NUMBER",
+                                  "required": false,
+                                  "displayName": "Status",
+                                  "defaultValue": 200
+                                },
+                                "headers": {
+                                  "type": "OBJECT",
+                                  "required": false,
+                                  "displayName": "Headers"
+                                }
+                              }
+                            },
+                            "respond": {
+                              "type": "MANUAL"
+                            },
+                            "responseType": {
+                              "type": "MANUAL"
+                            }
+                          },
+                          "errorHandlingOptions": {
+                            "retryOnFailure": {
+                              "value": false
+                            },
+                            "continueOnFailure": {
+                              "value": false
+                            }
+                          }
+                        },
+                        "displayName": "Return: refused (nothing sent)"
+                      }
+                    },
+                    "displayName": "Failed report delivery + Active, opted-in subscriber? (CODE)"
+                  },
+                  "displayName": "GET reports"
+                },
+                "displayName": "GET subscribers"
+              },
+              "displayName": "GET deliveries"
+            },
+            {
+              "name": "step_unknown_done",
+              "skip": false,
+              "type": "PIECE",
+              "valid": true,
+              "settings": {
+                "input": {
+                  "fields": {
+                    "body": {
+                      "ok": false,
+                      "error": "unknown action"
+                    },
+                    "status": 400,
+                    "headers": {}
+                  },
+                  "respond": "stop",
+                  "responseType": "json"
+                },
+                "pieceName": "@puchoaistudio/tool-webhook",
+                "actionName": "return_response",
+                "sampleData": {},
+                "pieceVersion": "^2.0.4",
+                "propertySettings": {
+                  "fields": {
+                    "type": "MANUAL",
+                    "schema": {
+                      "body": {
+                        "type": "JSON",
+                        "required": true,
+                        "displayName": "JSON Body"
+                      },
+                      "status": {
+                        "type": "NUMBER",
+                        "required": false,
+                        "displayName": "Status",
+                        "defaultValue": 200
+                      },
+                      "headers": {
+                        "type": "OBJECT",
+                        "required": false,
+                        "displayName": "Headers"
+                      }
+                    }
+                  },
+                  "respond": {
+                    "type": "MANUAL"
+                  },
+                  "responseType": {
+                    "type": "MANUAL"
+                  }
+                },
+                "errorHandlingOptions": {
+                  "retryOnFailure": {
+                    "value": false
+                  },
+                  "continueOnFailure": {
+                    "value": false
+                  }
+                }
+              },
+              "displayName": "Return 400: unknown action"
+            }
+          ],
+          "settings": {
+            "branches": [
+              {
+                "branchName": "send",
+                "branchType": "CONDITION",
+                "conditions": [
+                  [
+                    {
+                      "operator": "TEXT_EXACTLY_MATCHES",
+                      "firstValue": "{{trigger['body']['action']}}",
+                      "secondValue": "send",
+                      "caseSensitive": false
+                    }
+                  ]
+                ]
+              },
+              {
+                "branchName": "retry",
+                "branchType": "CONDITION",
+                "conditions": [
+                  [
+                    {
+                      "operator": "TEXT_EXACTLY_MATCHES",
+                      "firstValue": "{{trigger['body']['action']}}",
+                      "secondValue": "retry",
+                      "caseSensitive": false
+                    }
+                  ]
+                ]
+              },
+              {
+                "branchName": "Unknown action",
+                "branchType": "FALLBACK"
+              }
+            ],
+            "sampleData": {},
+            "executionType": "EXECUTE_FIRST_MATCH"
+          },
+          "displayName": "send · retry"
+        },
+        "displayName": "Constants — app_url, inbound_token and the flow's settings (set in Studio)"
+      }
+    },
+    "valid": true,
+    "agentIds": [],
+    "connectionIds": [],
+    "schemaVersion": "7"
+  },
+  "blogUrl": ""
+}

@@ -1,0 +1,27 @@
+{
+  "flow": "MARKET_PUBLISH",
+  "connections": "portable",
+  "fire_and_forget": false,
+  "allow_pieces": [
+    "@puchoaistudio/tool-http",
+    "@puchoaistudio/tool-webhook"
+  ],
+  "allow_names": [
+    "catch_webhook",
+    "return_response",
+    "send_request"
+  ],
+  "require_capabilities": [
+    "webhook=trigger:webhook:trigger",
+    "read_reports=step_read_reports:http:read",
+    "read_deliveries=step_read_deliveries:http:read",
+    "plan=step_plan:code:transform",
+    "report_sent=step_report_update:http:write",
+    "published_insert=step_published_insert:http:write",
+    "published_update=step_published_update:http:write",
+    "last_delivered=step_subscriber_update:http:write",
+    "job=step_job:http:write",
+    "answer=step_done:webhook:respond"
+  ],
+  "built_by": "tools/build_market_flows.py"
+}

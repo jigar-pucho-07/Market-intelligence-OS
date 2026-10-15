@@ -1,0 +1,24 @@
+{
+  "flow": "DAILY_SCHEDULE",
+  "connections": "portable",
+  "fire_and_forget": false,
+  "allow_pieces": [
+    "@puchoaistudio/tool-http",
+    "@puchoaistudio/tool-schedule",
+    "@puchoaistudio/tool-webhook"
+  ],
+  "allow_names": [
+    "every_day",
+    "return_response",
+    "send_request"
+  ],
+  "require_capabilities": [
+    "schedule=trigger:schedule:trigger",
+    "gate=step_gate:code:transform",
+    "route=step_router:router:route",
+    "start_report=step_run_post:http:write",
+    "answer_run=step_run_done:webhook:respond",
+    "answer_skip=step_skip_done:webhook:respond"
+  ],
+  "built_by": "tools/build_market_flows.py"
+}

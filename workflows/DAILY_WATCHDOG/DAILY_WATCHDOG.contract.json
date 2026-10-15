@@ -1,0 +1,25 @@
+{
+  "flow": "DAILY_WATCHDOG",
+  "connections": "portable",
+  "fire_and_forget": false,
+  "allow_pieces": [
+    "@puchoaistudio/tool-http",
+    "@puchoaistudio/tool-schedule",
+    "@puchoaistudio/tool-webhook"
+  ],
+  "allow_names": [
+    "cron_expression",
+    "return_response",
+    "send_request"
+  ],
+  "require_capabilities": [
+    "schedule=trigger:schedule:trigger",
+    "read_reports=step_read_reports:http:read",
+    "check=step_check:code:transform",
+    "route=step_router:router:route",
+    "alert=step_alert_post:http:write",
+    "answer_alert=step_alert_done:webhook:respond",
+    "answer_ok=step_ok_done:webhook:respond"
+  ],
+  "built_by": "tools/build_market_flows.py"
+}

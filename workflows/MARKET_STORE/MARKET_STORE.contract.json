@@ -1,0 +1,36 @@
+{
+  "flow": "MARKET_STORE",
+  "connections": "portable",
+  "fire_and_forget": false,
+  "allow_pieces": [
+    "@puchoaistudio/tool-http",
+    "@puchoaistudio/tool-webhook"
+  ],
+  "allow_names": [
+    "catch_webhook",
+    "return_response",
+    "send_request"
+  ],
+  "require_capabilities": [
+    "webhook=trigger:webhook:trigger",
+    "read_reports=step_read_reports:http:read",
+    "plan=step_plan:code:transform",
+    "route=step_router:router:route",
+    "refuse_job=step_refuse_job:http:write",
+    "answer_refuse=step_refuse_done:webhook:respond",
+    "insert_report=step_new_insert:http:write",
+    "after_new=step_new_after:code:transform",
+    "news_new=step_new_news:http:write",
+    "broadcast_new=step_new_bc:http:write",
+    "job_new=step_new_job:http:write",
+    "answer_new=step_new_done:webhook:respond",
+    "patch_report=step_rerun_update:http:write",
+    "after_rerun=step_rerun_after:code:transform",
+    "news_rerun=step_rerun_news:http:write",
+    "broadcast_rerun=step_rerun_bc:http:write",
+    "job_rerun=step_rerun_job:http:write",
+    "answer_rerun=step_rerun_done:webhook:respond",
+    "answer_unexpected=step_unexpected_done:webhook:respond"
+  ],
+  "built_by": "tools/build_market_flows.py"
+}

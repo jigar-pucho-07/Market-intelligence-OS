@@ -1,0 +1,373 @@
+{
+  "created": "1700000000000",
+  "updated": "1700000000000",
+  "name": "DAILY_WATCHDOG",
+  "description": "Market Intelligence — 06:20 IST: no report row for today → the admins get the mi_run_failed alert",
+  "tags": [],
+  "pieces": [
+    "@puchoaistudio/tool-schedule",
+    "@puchoaistudio/tool-http",
+    "@puchoaistudio/tool-webhook"
+  ],
+  "template": {
+    "displayName": "DAILY_WATCHDOG",
+    "trigger": {
+      "name": "trigger",
+      "valid": true,
+      "displayName": "Mon–Fri at 06:20 IST — the watchdog",
+      "type": "TOOL_TRIGGER",
+      "settings": {
+        "pieceName": "@puchoaistudio/tool-schedule",
+        "pieceVersion": "^2.0.0",
+        "input": {
+          "cronExpression": "20 6 * * 1-5",
+          "timezone": "Asia/Kolkata"
+        },
+        "sampleData": {},
+        "propertySettings": {
+          "cronExpression": {
+            "type": "MANUAL"
+          },
+          "timezone": {
+            "type": "MANUAL"
+          }
+        },
+        "triggerName": "cron_expression"
+      },
+      "nextAction": {
+        "name": "step_constants",
+        "skip": false,
+        "type": "CODE",
+        "valid": true,
+        "settings": {
+          "input": {},
+          "sampleData": {},
+          "sourceCode": {
+            "code": "// @ts-nocheck\nexport const code = async (inputs) => {\n  return {\n    \"flow\": \"DAILY_WATCHDOG\",\n    \"app_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"inbound_token\": \"SET_IN_STUDIO_INBOUND_TOKEN\",\n    \"holidays\": [],\n    \"broadcast_webhook\": \"SET_IN_STUDIO_BROADCAST_WEBHOOK_URL\"\n  };\n};",
+            "packageJson": "{}"
+          },
+          "errorHandlingOptions": {
+            "retryOnFailure": {
+              "value": false
+            },
+            "continueOnFailure": {
+              "value": false
+            }
+          }
+        },
+        "nextAction": {
+          "name": "step_read_reports",
+          "skip": false,
+          "type": "PIECE",
+          "valid": true,
+          "settings": {
+            "input": {
+              "method": "GET",
+              "url": "{{step_constants['app_url']}}/api/data/reports",
+              "headers": {
+                "Accept": "application/json",
+                "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                "X-Flow": "{{step_constants['flow']}}"
+              },
+              "queryParams": {
+                "select": "*"
+              },
+              "authType": "NONE"
+            },
+            "pieceName": "@puchoaistudio/tool-http",
+            "actionName": "send_request",
+            "sampleData": {},
+            "pieceVersion": "^2.0.0",
+            "propertySettings": {
+              "method": {
+                "type": "MANUAL"
+              },
+              "url": {
+                "type": "MANUAL"
+              },
+              "headers": {
+                "type": "MANUAL",
+                "schema": {}
+              },
+              "queryParams": {
+                "type": "MANUAL",
+                "schema": {}
+              },
+              "authType": {
+                "type": "MANUAL"
+              }
+            },
+            "errorHandlingOptions": {
+              "retryOnFailure": {
+                "value": true
+              },
+              "continueOnFailure": {
+                "value": true
+              }
+            }
+          },
+          "nextAction": {
+            "name": "step_check",
+            "skip": false,
+            "type": "CODE",
+            "valid": true,
+            "settings": {
+              "input": {
+                "C": "{{step_constants}}",
+                "reports": "{{step_read_reports}}"
+              },
+              "sampleData": {},
+              "sourceCode": {
+                "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what watchdogCheck() reaches (tools/build_market_flows.py)\nconst asDate = (at) => (at instanceof Date ? at : new Date(at || Date.now()));\nfunction istDate(at) {\n  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(asDate(at)).map((x) => [x.type, x.value]));\n  return `${p.year}-${p.month}-${p.day}`;\n}\nfunction istWeekday(at) { return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', weekday: 'short' }).format(asDate(at)); }\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nconst listOf = (v) => (Array.isArray(v) ? v : []);\nconst holidaysOf = (C) => listOf(C && C.holidays).map((d) => String(d).slice(0, 10));\nfunction scheduleGate(inp) {\n  const C = (inp && inp.C) || {}; const now = nowOf(inp); const today = istDate(now); const day = istWeekday(now);\n  if (day === 'Sat' || day === 'Sun') return { route: 'skip', today, reason: `${day} — the market is closed` };\n  if (holidaysOf(C).includes(today)) return { route: 'skip', today, reason: `${today} is in constants.holidays (NSE holiday)` };\n  return { route: 'run', today, reason: '' };\n}\nfunction watchdogCheck(inp) {\n  const C = (inp && inp.C) || {}; const gate = scheduleGate(inp); const rows = rowsOf(inp && inp.reports);\n  if (gate.route === 'skip') return { route: 'ok', today: gate.today, reason: gate.reason, Error_Message: '' };\n  if (!rows) return { route: 'alert', today: gate.today, reason: 'app unreadable', Error_Message: `Watchdog 06:20: ${doorError(inp.reports, 'reports')}` };\n  const row = rows.find((r) => r.Report_Date === gate.today);\n  if (row) return { route: 'ok', today: gate.today, reason: `${row.Report_ID} is ${row.Status}`, Error_Message: '' };\n  return { route: 'alert', today: gate.today, reason: 'no row', Error_Message: `No report row by 06:20 IST for ${gate.today} — the 06:00 run did not finish` };\n}\n// end lib\nexport const code = async (inputs) => {\n  return watchdogCheck(inputs);\n};",
+                "packageJson": "{}"
+              },
+              "errorHandlingOptions": {
+                "retryOnFailure": {
+                  "value": false
+                },
+                "continueOnFailure": {
+                  "value": false
+                }
+              }
+            },
+            "nextAction": {
+              "name": "step_router",
+              "skip": false,
+              "type": "ROUTER",
+              "valid": true,
+              "children": [
+                {
+                  "name": "step_alert_post",
+                  "skip": false,
+                  "type": "PIECE",
+                  "valid": true,
+                  "settings": {
+                    "input": {
+                      "method": "POST",
+                      "url": "{{step_constants['broadcast_webhook']}}",
+                      "headers": {
+                        "Content-Type": "application/json"
+                      },
+                      "queryParams": {},
+                      "authType": "NONE",
+                      "body_type": "json",
+                      "body": {
+                        "data": {
+                          "action": "send",
+                          "Kind": "Alert",
+                          "Report_ID": "",
+                          "Error_Message": "{{step_check['Error_Message']}}",
+                          "_who": "flow:DAILY_WATCHDOG"
+                        }
+                      }
+                    },
+                    "pieceName": "@puchoaistudio/tool-http",
+                    "actionName": "send_request",
+                    "sampleData": {},
+                    "pieceVersion": "^2.0.0",
+                    "propertySettings": {
+                      "method": {
+                        "type": "MANUAL"
+                      },
+                      "url": {
+                        "type": "MANUAL"
+                      },
+                      "headers": {
+                        "type": "MANUAL",
+                        "schema": {}
+                      },
+                      "queryParams": {
+                        "type": "MANUAL",
+                        "schema": {}
+                      },
+                      "authType": {
+                        "type": "MANUAL"
+                      },
+                      "body_type": {
+                        "type": "MANUAL"
+                      },
+                      "body": {
+                        "type": "MANUAL",
+                        "schema": {}
+                      }
+                    },
+                    "errorHandlingOptions": {
+                      "retryOnFailure": {
+                        "value": true
+                      },
+                      "continueOnFailure": {
+                        "value": false
+                      }
+                    }
+                  },
+                  "nextAction": {
+                    "name": "step_alert_done",
+                    "skip": false,
+                    "type": "PIECE",
+                    "valid": true,
+                    "settings": {
+                      "input": {
+                        "fields": {
+                          "body": {
+                            "ok": true,
+                            "alerted": true,
+                            "date": "{{step_check['today']}}",
+                            "reason": "{{step_check['reason']}}"
+                          },
+                          "status": 200,
+                          "headers": {}
+                        },
+                        "respond": "stop",
+                        "responseType": "json"
+                      },
+                      "pieceName": "@puchoaistudio/tool-webhook",
+                      "actionName": "return_response",
+                      "sampleData": {},
+                      "pieceVersion": "^2.0.4",
+                      "propertySettings": {
+                        "fields": {
+                          "type": "MANUAL",
+                          "schema": {
+                            "body": {
+                              "type": "JSON",
+                              "required": true,
+                              "displayName": "JSON Body"
+                            },
+                            "status": {
+                              "type": "NUMBER",
+                              "required": false,
+                              "displayName": "Status",
+                              "defaultValue": 200
+                            },
+                            "headers": {
+                              "type": "OBJECT",
+                              "required": false,
+                              "displayName": "Headers"
+                            }
+                          }
+                        },
+                        "respond": {
+                          "type": "MANUAL"
+                        },
+                        "responseType": {
+                          "type": "MANUAL"
+                        }
+                      },
+                      "errorHandlingOptions": {
+                        "retryOnFailure": {
+                          "value": false
+                        },
+                        "continueOnFailure": {
+                          "value": false
+                        }
+                      }
+                    },
+                    "displayName": "Return: alerted"
+                  },
+                  "displayName": "POST BROADCAST {action: send, Kind: Alert}"
+                },
+                {
+                  "name": "step_ok_done",
+                  "skip": false,
+                  "type": "PIECE",
+                  "valid": true,
+                  "settings": {
+                    "input": {
+                      "fields": {
+                        "body": {
+                          "ok": true,
+                          "alerted": false,
+                          "date": "{{step_check['today']}}",
+                          "reason": "{{step_check['reason']}}"
+                        },
+                        "status": 200,
+                        "headers": {}
+                      },
+                      "respond": "stop",
+                      "responseType": "json"
+                    },
+                    "pieceName": "@puchoaistudio/tool-webhook",
+                    "actionName": "return_response",
+                    "sampleData": {},
+                    "pieceVersion": "^2.0.4",
+                    "propertySettings": {
+                      "fields": {
+                        "type": "MANUAL",
+                        "schema": {
+                          "body": {
+                            "type": "JSON",
+                            "required": true,
+                            "displayName": "JSON Body"
+                          },
+                          "status": {
+                            "type": "NUMBER",
+                            "required": false,
+                            "displayName": "Status",
+                            "defaultValue": 200
+                          },
+                          "headers": {
+                            "type": "OBJECT",
+                            "required": false,
+                            "displayName": "Headers"
+                          }
+                        }
+                      },
+                      "respond": {
+                        "type": "MANUAL"
+                      },
+                      "responseType": {
+                        "type": "MANUAL"
+                      }
+                    },
+                    "errorHandlingOptions": {
+                      "retryOnFailure": {
+                        "value": false
+                      },
+                      "continueOnFailure": {
+                        "value": false
+                      }
+                    }
+                  },
+                  "displayName": "Return: nothing to do"
+                }
+              ],
+              "settings": {
+                "branches": [
+                  {
+                    "branchName": "No report row — alert the admins",
+                    "branchType": "CONDITION",
+                    "conditions": [
+                      [
+                        {
+                          "operator": "TEXT_EXACTLY_MATCHES",
+                          "firstValue": "{{step_check['route']}}",
+                          "secondValue": "alert",
+                          "caseSensitive": false
+                        }
+                      ]
+                    ]
+                  },
+                  {
+                    "branchName": "Report row present",
+                    "branchType": "FALLBACK"
+                  }
+                ],
+                "sampleData": {},
+                "executionType": "EXECUTE_FIRST_MATCH"
+              },
+              "displayName": "Alert?"
+            },
+            "displayName": "Today's report row there? (CODE)"
+          },
+          "displayName": "GET reports (the app's door)"
+        },
+        "displayName": "Constants — app_url, inbound_token and the flow's settings (set in Studio)"
+      }
+    },
+    "valid": true,
+    "agentIds": [],
+    "connectionIds": [],
+    "schemaVersion": "7"
+  },
+  "blogUrl": ""
+}

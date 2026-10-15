@@ -1,0 +1,1237 @@
+{
+  "created": "1700000000000",
+  "updated": "1700000000000",
+  "name": "MARKET_STORE",
+  "description": "Market Intelligence — writes the finished report (one per Report_Date), its news, then hands it to BROADCAST",
+  "tags": [],
+  "pieces": [
+    "@puchoaistudio/tool-webhook",
+    "@puchoaistudio/tool-http"
+  ],
+  "template": {
+    "displayName": "MARKET_STORE",
+    "trigger": {
+      "name": "trigger",
+      "valid": true,
+      "displayName": "Catch Webhook — MARKET_STORE (from MARKET_REPORT)",
+      "type": "TOOL_TRIGGER",
+      "settings": {
+        "pieceName": "@puchoaistudio/tool-webhook",
+        "pieceVersion": "^2.0.4",
+        "input": {
+          "authType": "none",
+          "authFields": {}
+        },
+        "sampleData": {},
+        "propertySettings": {
+          "authType": {
+            "type": "MANUAL"
+          },
+          "authFields": {
+            "type": "MANUAL",
+            "schema": {}
+          },
+          "liveMarkdown": {
+            "type": "MANUAL"
+          },
+          "syncMarkdown": {
+            "type": "MANUAL"
+          },
+          "testMarkdown": {
+            "type": "MANUAL"
+          }
+        },
+        "triggerName": "catch_webhook"
+      },
+      "nextAction": {
+        "name": "step_constants",
+        "skip": false,
+        "type": "CODE",
+        "valid": true,
+        "settings": {
+          "input": {},
+          "sampleData": {},
+          "sourceCode": {
+            "code": "// @ts-nocheck\nexport const code = async (inputs) => {\n  return {\n    \"flow\": \"MARKET_STORE\",\n    \"app_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"inbound_token\": \"SET_IN_STUDIO_INBOUND_TOKEN\",\n    \"auto_send\": true,\n    \"broadcast_webhook\": \"SET_IN_STUDIO_BROADCAST_WEBHOOK_URL\"\n  };\n};",
+            "packageJson": "{}"
+          },
+          "errorHandlingOptions": {
+            "retryOnFailure": {
+              "value": false
+            },
+            "continueOnFailure": {
+              "value": false
+            }
+          }
+        },
+        "nextAction": {
+          "name": "step_read_reports",
+          "skip": false,
+          "type": "PIECE",
+          "valid": true,
+          "settings": {
+            "input": {
+              "method": "GET",
+              "url": "{{step_constants['app_url']}}/api/data/reports",
+              "headers": {
+                "Accept": "application/json",
+                "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                "X-Flow": "{{step_constants['flow']}}"
+              },
+              "queryParams": {
+                "select": "*"
+              },
+              "authType": "NONE"
+            },
+            "pieceName": "@puchoaistudio/tool-http",
+            "actionName": "send_request",
+            "sampleData": {},
+            "pieceVersion": "^2.0.0",
+            "propertySettings": {
+              "method": {
+                "type": "MANUAL"
+              },
+              "url": {
+                "type": "MANUAL"
+              },
+              "headers": {
+                "type": "MANUAL",
+                "schema": {}
+              },
+              "queryParams": {
+                "type": "MANUAL",
+                "schema": {}
+              },
+              "authType": {
+                "type": "MANUAL"
+              }
+            },
+            "errorHandlingOptions": {
+              "retryOnFailure": {
+                "value": true
+              },
+              "continueOnFailure": {
+                "value": true
+              }
+            }
+          },
+          "nextAction": {
+            "name": "step_plan",
+            "skip": false,
+            "type": "CODE",
+            "valid": true,
+            "settings": {
+              "input": {
+                "body": "{{trigger['body']}}",
+                "reports": "{{step_read_reports}}"
+              },
+              "sampleData": {},
+              "sourceCode": {
+                "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what storePlan() reaches (tools/build_market_flows.py)\nconst ENUMS = {\n  Sentiment: ['BULLISH', 'CAUTIOUSLY BULLISH', 'NEUTRAL', 'CAUTIOUSLY BEARISH', 'BEARISH'],\n  Confidence_Level: ['HIGH', 'MEDIUM', 'LOW'],\n  Outlook: ['BULLISH', 'BEARISH', 'NEUTRAL', 'CAUTIOUS'],\n  FnO_View: ['BULLISH BIAS', 'BEARISH BIAS', 'RANGE-BOUND', 'VOLATILE'],\n  VIX_Expectation: ['LOW', 'MEDIUM', 'HIGH'],\n  SectorCall: ['POSITIVE', 'WATCH', 'NEGATIVE'],\n  RiskLevel: ['HIGH', 'MED'],\n  Trigger: ['Schedule', 'Manual'],\n  Opt_In_Source: ['WhatsApp reply', 'Web form', 'Signed form', 'Phone call'],\n};\nconst OUTLOOK_KEYS = ['Sensex_Outlook', 'Nifty_Outlook', 'BankNifty_Outlook', 'MidSmall_Outlook', 'Commodity_Outlook'];\nconst REPORT_WRITE_COLUMNS = ['Report_Date', 'Created_At', 'Trigger', 'Status', 'Sentiment', 'Confidence_Level', 'Confidence_Pct',\n  'Driver_1', 'Driver_2', 'Driver_3', 'Sensex_Outlook', 'Sensex_Range', 'Sensex_Reason', 'Nifty_Outlook', 'Nifty_Range', 'Nifty_Reason',\n  'BankNifty_Outlook', 'BankNifty_Range', 'BankNifty_Reason', 'FnO_View', 'VIX_Expectation', 'FnO_Reason', 'MidSmall_Outlook', 'MidSmall_Focus',\n  'MidSmall_Reason', 'Commodity_Outlook', 'Commodity_Reason', 'Sectors', 'Risks', 'View_Positional', 'View_Intraday', 'View_LongTerm', 'View_FnO',\n  'Articles_Analyzed', 'Category_Breakdown', 'Source_Status', 'Model', 'WhatsApp_Message', 'Message_Length', 'Error_Message'];\nconst asDate = (at) => (at instanceof Date ? at : new Date(at || Date.now()));\nfunction istDate(at) {\n  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(asDate(at)).map((x) => [x.type, x.value]));\n  return `${p.year}-${p.month}-${p.day}`;\n}\nfunction toIso(dateText) { const t = Date.parse(String(dateText || '').trim()); return Number.isFinite(t) ? new Date(t).toISOString() : ''; }\nfunction dedupeKey(title, n = 60) { const k = String(title || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, n); return k || String(title || '').trim().toLowerCase().slice(0, n); }\nconst enumOf = (v, list) => { const u = String(v ?? '').trim().toUpperCase().replace(/\\s+/g, ' '); return list.includes(u) ? u : ''; };\nconst clean = (v, max) => String(v ?? '').replace(/\\s+/g, ' ').trim().slice(0, max);\nfunction sanitizeReportRow(r) {\n  const src = r && typeof r === 'object' ? r : {};\n  const row = Object.fromEntries(REPORT_WRITE_COLUMNS.map((c) => [c, src[c] ?? '']));\n  row.Status = row.Status === 'Ready' ? 'Ready' : 'Failed';\n  row.Trigger = ENUMS.Trigger.includes(row.Trigger) ? row.Trigger : 'Manual';\n  row.Report_Date = /^\\d{4}-\\d{2}-\\d{2}$/.test(row.Report_Date) ? row.Report_Date : istDate();\n  row.Created_At = toIso(row.Created_At) || new Date().toISOString();\n  row.Sentiment = enumOf(row.Sentiment, ENUMS.Sentiment); row.Confidence_Level = enumOf(row.Confidence_Level, ENUMS.Confidence_Level);\n  for (const k of OUTLOOK_KEYS) row[k] = enumOf(row[k], ENUMS.Outlook);\n  row.FnO_View = enumOf(row.FnO_View, ENUMS.FnO_View); row.VIX_Expectation = enumOf(row.VIX_Expectation, ENUMS.VIX_Expectation);\n  const caps = { Confidence_Pct: 100, Articles_Analyzed: 40, Message_Length: 4096 };\n  for (const [k, max] of Object.entries(caps)) row[k] = Math.max(0, Math.min(max, Math.round(Number(row[k]) || 0)));\n  for (const k of REPORT_WRITE_COLUMNS) if (typeof row[k] === 'string') row[k] = row[k].slice(0, k === 'WhatsApp_Message' ? 4096 : 2000);\n  if (row.Status === 'Ready' && (!row.Sentiment || !row.Confidence_Level || !row.Driver_1 || !row.WhatsApp_Message))\n    return { ...row, Status: 'Failed', Error_Message: 'The analysis reached the store step incomplete — kept as Failed' };\n  if (row.Status === 'Failed' && !row.Error_Message) row.Error_Message = 'The report could not be generated';\n  if (row.Status === 'Ready') row.Error_Message = '';\n  return row;\n}\nfunction hash8(s) { let h = 0x811c9dc5; for (const ch of String(s)) { h ^= ch.codePointAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); }\nfunction articleId(reportId, key) { return `NWS-${reportId}-${hash8(key)}`; }\nfunction newsRows(articles, reportId, fetchedAt) {\n  if (!reportId) return [];\n  return (Array.isArray(articles) ? articles : []).filter((a) => a && a.title).map((a) => ({ Article_ID: articleId(reportId, a.key || dedupeKey(a.title)),\n    Fetched_At: fetchedAt, Report_ID: reportId, Source: a.source, Category: a.category, Impact: a.impact, Title: clean(a.title, 300),\n    Summary: clean(a.summary, 300), Published_At: toIso(a.publishedAt), Link: /^https?:\\/\\//i.test(a.link || '') ? a.link : '' }));\n}\n\n// ── broadcast planning ──\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst JOB = /^JOB-[0-9A-F]{12}$/;\nfunction jobItems(job, status, result) { return JOB.test(String(job || '')) ? [{ id: String(job), status, result }] : []; }\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nconst listOf = (v) => (Array.isArray(v) ? v : []);\nfunction storePlan(inp) {\n  const body = (inp && inp.body) || {}; const now = nowOf(inp); const today = istDate(now);\n  const rows = rowsOf(inp && inp.reports); const Mode = body.Mode === 'rerun' ? 'rerun' : body.Mode === 'run' ? 'run' : '';\n  const row = sanitizeReportRow(body.report);\n  const out = (route, code, error, target) => ({ route, code, error, Report_ID: target ? target.Report_ID : '', Report_Date: target ? target.Report_Date : row.Report_Date,\n    row, news: route === 'rerun' ? newsRows(body.articles, target.Report_ID, now.toISOString()) : [], articles: listOf(body.articles),\n    jobs: route === 'refuse' ? jobItems(body._job, 'failed', { code, error }) : [] });\n  if (!Mode) return out('refuse', 'INVALID_INPUT', 'store needs Mode run or rerun', null);\n  if (!rows) return out('refuse', statusOf(inp.reports) === 403 ? 'APP_CLOSED' : 'APP_READ_FAILED', doorError(inp.reports, 'reports'), null);\n  if (Mode === 'run') {\n    const existing = rows.find((r) => r.Report_Date === row.Report_Date);\n    if (!existing) return out('new', '', '', null);\n    if (existing.Status === 'Failed') return out('rerun', '', '', existing);\n    return out('refuse', 'EXISTS', `Today's report already exists (${existing.Report_ID}, ${existing.Status}) — a Ready or Sent report is not overwritten`, null);\n  }\n  const target = rows.find((r) => r.Report_ID === String(body.Report_ID || ''));\n  if (!target) return out('refuse', 'NOT_FOUND', `No report ${String(body.Report_ID || '').slice(0, 30)}`, null);\n  if (target.Status === 'Sent') return out('refuse', 'SENT', `${target.Report_ID} was already sent — a sent report is never re-run`, null);\n  if (target.Status !== 'Failed') return out('refuse', 'NOT_FAILED', `${target.Report_ID} is ${target.Status} — only a Failed report is re-run (edit a Ready one with Review)`, null);\n  if (target.Report_Date !== today) return out('refuse', 'STALE_DATE', `${target.Report_ID} is for ${target.Report_Date}; the feeds carry today's news, so only today's report can be re-run`, null);\n  return out('rerun', '', '', target);\n}\n// end lib\nexport const code = async (inputs) => {\n  return storePlan(inputs);\n};",
+                "packageJson": "{}"
+              },
+              "errorHandlingOptions": {
+                "retryOnFailure": {
+                  "value": false
+                },
+                "continueOnFailure": {
+                  "value": false
+                }
+              }
+            },
+            "nextAction": {
+              "name": "step_router",
+              "skip": false,
+              "type": "ROUTER",
+              "valid": true,
+              "children": [
+                {
+                  "name": "step_refuse_job_loop",
+                  "type": "LOOP_ON_ITEMS",
+                  "displayName": "Report the app's job failed (0 or 1)",
+                  "valid": true,
+                  "skip": false,
+                  "settings": {
+                    "items": "{{step_plan['jobs']}}",
+                    "sampleData": {}
+                  },
+                  "firstLoopAction": {
+                    "name": "step_refuse_job",
+                    "skip": false,
+                    "type": "PIECE",
+                    "valid": true,
+                    "settings": {
+                      "input": {
+                        "method": "POST",
+                        "url": "{{step_constants['app_url']}}/api/jobs/{{step_refuse_job_loop['item']['id']}}",
+                        "headers": {
+                          "Content-Type": "application/json",
+                          "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                          "X-Flow": "{{step_constants['flow']}}"
+                        },
+                        "queryParams": {},
+                        "authType": "NONE",
+                        "body_type": "json",
+                        "body": {
+                          "data": {
+                            "status": "{{step_refuse_job_loop['item']['status']}}",
+                            "result": "{{step_refuse_job_loop['item']['result']}}"
+                          }
+                        }
+                      },
+                      "pieceName": "@puchoaistudio/tool-http",
+                      "actionName": "send_request",
+                      "sampleData": {},
+                      "pieceVersion": "^2.0.0",
+                      "propertySettings": {
+                        "method": {
+                          "type": "MANUAL"
+                        },
+                        "url": {
+                          "type": "MANUAL"
+                        },
+                        "headers": {
+                          "type": "MANUAL",
+                          "schema": {}
+                        },
+                        "queryParams": {
+                          "type": "MANUAL",
+                          "schema": {}
+                        },
+                        "authType": {
+                          "type": "MANUAL"
+                        },
+                        "body_type": {
+                          "type": "MANUAL"
+                        },
+                        "body": {
+                          "type": "MANUAL",
+                          "schema": {}
+                        }
+                      },
+                      "errorHandlingOptions": {
+                        "retryOnFailure": {
+                          "value": true
+                        },
+                        "continueOnFailure": {
+                          "value": true
+                        }
+                      }
+                    },
+                    "displayName": "POST /api/jobs/<id> failed"
+                  },
+                  "nextAction": {
+                    "name": "step_refuse_done",
+                    "skip": false,
+                    "type": "PIECE",
+                    "valid": true,
+                    "settings": {
+                      "input": {
+                        "fields": {
+                          "body": {
+                            "ok": false,
+                            "code": "{{step_plan['code']}}",
+                            "error": "{{step_plan['error']}}"
+                          },
+                          "status": 200,
+                          "headers": {}
+                        },
+                        "respond": "stop",
+                        "responseType": "json"
+                      },
+                      "pieceName": "@puchoaistudio/tool-webhook",
+                      "actionName": "return_response",
+                      "sampleData": {},
+                      "pieceVersion": "^2.0.4",
+                      "propertySettings": {
+                        "fields": {
+                          "type": "MANUAL",
+                          "schema": {
+                            "body": {
+                              "type": "JSON",
+                              "required": true,
+                              "displayName": "JSON Body"
+                            },
+                            "status": {
+                              "type": "NUMBER",
+                              "required": false,
+                              "displayName": "Status",
+                              "defaultValue": 200
+                            },
+                            "headers": {
+                              "type": "OBJECT",
+                              "required": false,
+                              "displayName": "Headers"
+                            }
+                          }
+                        },
+                        "respond": {
+                          "type": "MANUAL"
+                        },
+                        "responseType": {
+                          "type": "MANUAL"
+                        }
+                      },
+                      "errorHandlingOptions": {
+                        "retryOnFailure": {
+                          "value": false
+                        },
+                        "continueOnFailure": {
+                          "value": false
+                        }
+                      }
+                    },
+                    "displayName": "Return: refused"
+                  }
+                },
+                {
+                  "name": "step_new_insert",
+                  "skip": false,
+                  "type": "PIECE",
+                  "valid": true,
+                  "settings": {
+                    "input": {
+                      "method": "POST",
+                      "url": "{{step_constants['app_url']}}/api/data/reports",
+                      "headers": {
+                        "Content-Type": "application/json",
+                        "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                        "X-Flow": "{{step_constants['flow']}}"
+                      },
+                      "queryParams": {},
+                      "authType": "NONE",
+                      "body_type": "json",
+                      "body": {
+                        "data": {
+                          "Report_Date": "{{step_plan['row']['Report_Date']}}",
+                          "Created_At": "{{step_plan['row']['Created_At']}}",
+                          "Trigger": "{{step_plan['row']['Trigger']}}",
+                          "Status": "{{step_plan['row']['Status']}}",
+                          "Sentiment": "{{step_plan['row']['Sentiment']}}",
+                          "Confidence_Level": "{{step_plan['row']['Confidence_Level']}}",
+                          "Confidence_Pct": "{{step_plan['row']['Confidence_Pct']}}",
+                          "Driver_1": "{{step_plan['row']['Driver_1']}}",
+                          "Driver_2": "{{step_plan['row']['Driver_2']}}",
+                          "Driver_3": "{{step_plan['row']['Driver_3']}}",
+                          "Sensex_Outlook": "{{step_plan['row']['Sensex_Outlook']}}",
+                          "Sensex_Range": "{{step_plan['row']['Sensex_Range']}}",
+                          "Sensex_Reason": "{{step_plan['row']['Sensex_Reason']}}",
+                          "Nifty_Outlook": "{{step_plan['row']['Nifty_Outlook']}}",
+                          "Nifty_Range": "{{step_plan['row']['Nifty_Range']}}",
+                          "Nifty_Reason": "{{step_plan['row']['Nifty_Reason']}}",
+                          "BankNifty_Outlook": "{{step_plan['row']['BankNifty_Outlook']}}",
+                          "BankNifty_Range": "{{step_plan['row']['BankNifty_Range']}}",
+                          "BankNifty_Reason": "{{step_plan['row']['BankNifty_Reason']}}",
+                          "FnO_View": "{{step_plan['row']['FnO_View']}}",
+                          "VIX_Expectation": "{{step_plan['row']['VIX_Expectation']}}",
+                          "FnO_Reason": "{{step_plan['row']['FnO_Reason']}}",
+                          "MidSmall_Outlook": "{{step_plan['row']['MidSmall_Outlook']}}",
+                          "MidSmall_Focus": "{{step_plan['row']['MidSmall_Focus']}}",
+                          "MidSmall_Reason": "{{step_plan['row']['MidSmall_Reason']}}",
+                          "Commodity_Outlook": "{{step_plan['row']['Commodity_Outlook']}}",
+                          "Commodity_Reason": "{{step_plan['row']['Commodity_Reason']}}",
+                          "Sectors": "{{step_plan['row']['Sectors']}}",
+                          "Risks": "{{step_plan['row']['Risks']}}",
+                          "View_Positional": "{{step_plan['row']['View_Positional']}}",
+                          "View_Intraday": "{{step_plan['row']['View_Intraday']}}",
+                          "View_LongTerm": "{{step_plan['row']['View_LongTerm']}}",
+                          "View_FnO": "{{step_plan['row']['View_FnO']}}",
+                          "Articles_Analyzed": "{{step_plan['row']['Articles_Analyzed']}}",
+                          "Category_Breakdown": "{{step_plan['row']['Category_Breakdown']}}",
+                          "Source_Status": "{{step_plan['row']['Source_Status']}}",
+                          "Model": "{{step_plan['row']['Model']}}",
+                          "WhatsApp_Message": "{{step_plan['row']['WhatsApp_Message']}}",
+                          "Message_Length": "{{step_plan['row']['Message_Length']}}",
+                          "Error_Message": "{{step_plan['row']['Error_Message']}}",
+                          "Report_ID": ""
+                        }
+                      }
+                    },
+                    "pieceName": "@puchoaistudio/tool-http",
+                    "actionName": "send_request",
+                    "sampleData": {},
+                    "pieceVersion": "^2.0.0",
+                    "propertySettings": {
+                      "method": {
+                        "type": "MANUAL"
+                      },
+                      "url": {
+                        "type": "MANUAL"
+                      },
+                      "headers": {
+                        "type": "MANUAL",
+                        "schema": {}
+                      },
+                      "queryParams": {
+                        "type": "MANUAL",
+                        "schema": {}
+                      },
+                      "authType": {
+                        "type": "MANUAL"
+                      },
+                      "body_type": {
+                        "type": "MANUAL"
+                      },
+                      "body": {
+                        "type": "MANUAL",
+                        "schema": {}
+                      }
+                    },
+                    "errorHandlingOptions": {
+                      "retryOnFailure": {
+                        "value": false
+                      },
+                      "continueOnFailure": {
+                        "value": true
+                      }
+                    }
+                  },
+                  "nextAction": {
+                    "name": "step_new_after",
+                    "skip": false,
+                    "type": "CODE",
+                    "valid": true,
+                    "settings": {
+                      "input": {
+                        "written": "{{step_new_insert}}",
+                        "plan": "{{step_plan}}",
+                        "C": "{{step_constants}}",
+                        "body": "{{trigger['body']}}"
+                      },
+                      "sampleData": {},
+                      "sourceCode": {
+                        "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what afterWrite() reaches (tools/build_market_flows.py)\nfunction toIso(dateText) { const t = Date.parse(String(dateText || '').trim()); return Number.isFinite(t) ? new Date(t).toISOString() : ''; }\nfunction dedupeKey(title, n = 60) { const k = String(title || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, n); return k || String(title || '').trim().toLowerCase().slice(0, n); }\nconst clean = (v, max) => String(v ?? '').replace(/\\s+/g, ' ').trim().slice(0, max);\nfunction hash8(s) { let h = 0x811c9dc5; for (const ch of String(s)) { h ^= ch.codePointAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); }\nfunction articleId(reportId, key) { return `NWS-${reportId}-${hash8(key)}`; }\nfunction newsRows(articles, reportId, fetchedAt) {\n  if (!reportId) return [];\n  return (Array.isArray(articles) ? articles : []).filter((a) => a && a.title).map((a) => ({ Article_ID: articleId(reportId, a.key || dedupeKey(a.title)),\n    Fetched_At: fetchedAt, Report_ID: reportId, Source: a.source, Category: a.category, Impact: a.impact, Title: clean(a.title, 300),\n    Summary: clean(a.summary, 300), Published_At: toIso(a.publishedAt), Link: /^https?:\\/\\//i.test(a.link || '') ? a.link : '' }));\n}\n\n// ── broadcast planning ──\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst JOB = /^JOB-[0-9A-F]{12}$/;\nfunction jobItems(job, status, result) { return JOB.test(String(job || '')) ? [{ id: String(job), status, result }] : []; }\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction afterWrite(inp) {\n  const plan = (inp && inp.plan) || {}; const C = (inp && inp.C) || {}; const body = (inp && inp.body) || {}; const now = nowOf(inp);\n  const written = rowsOf(inp && inp.written); const st = statusOf(inp && inp.written);\n  const id = written && written[0] && written[0].Report_ID ? written[0].Report_ID : '';\n  const Status = written && written[0] ? written[0].Status || plan.row.Status : plan.row && plan.row.Status;\n  const error = id ? '' : st === 409 ? \"EXISTS: today's report was written by another run meanwhile — this run's result was not stored\"\n    : st === 403 ? doorError(inp.written, 'reports') : `WRITE_FAILED: the app refused the report (${st || 'no response'})`;\n  const ok = !!id;\n  const autoSend = C.auto_send === true || String(C.auto_send) === 'true';\n  const broadcasts = !ok ? [] : Status === 'Failed' ? [{ action: 'send', Report_ID: id, Kind: 'Alert' }] : autoSend ? [{ action: 'send', Report_ID: id, Kind: '' }] : [];\n  const result = { Report_ID: id, Status: ok ? Status : '', Articles_Analyzed: ok ? Number(plan.row.Articles_Analyzed) || 0 : 0, ...(ok ? {} : { error }) };\n  return { ok, Report_ID: id, Status: ok ? Status : '', error, news: ok ? newsRows(plan.articles, id, now.toISOString()) : [], broadcasts,\n    jobs: jobItems(body._job, ok ? 'done' : 'failed', result) };\n}\n\n// ─────────────────────────────── BROADCAST ───────────────────────────────\n// end lib\nexport const code = async (inputs) => {\n  return afterWrite(inputs);\n};",
+                        "packageJson": "{}"
+                      },
+                      "errorHandlingOptions": {
+                        "retryOnFailure": {
+                          "value": false
+                        },
+                        "continueOnFailure": {
+                          "value": false
+                        }
+                      }
+                    },
+                    "nextAction": {
+                      "name": "step_new_news",
+                      "skip": false,
+                      "type": "PIECE",
+                      "valid": true,
+                      "settings": {
+                        "input": {
+                          "method": "POST",
+                          "url": "{{step_constants['app_url']}}/api/data/news_articles",
+                          "headers": {
+                            "Content-Type": "application/json",
+                            "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                            "X-Flow": "{{step_constants['flow']}}"
+                          },
+                          "queryParams": {},
+                          "authType": "NONE",
+                          "body_type": "json",
+                          "body": {
+                            "data": "{{step_new_after['news']}}"
+                          }
+                        },
+                        "pieceName": "@puchoaistudio/tool-http",
+                        "actionName": "send_request",
+                        "sampleData": {},
+                        "pieceVersion": "^2.0.0",
+                        "propertySettings": {
+                          "method": {
+                            "type": "MANUAL"
+                          },
+                          "url": {
+                            "type": "MANUAL"
+                          },
+                          "headers": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          },
+                          "queryParams": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          },
+                          "authType": {
+                            "type": "MANUAL"
+                          },
+                          "body_type": {
+                            "type": "MANUAL"
+                          },
+                          "body": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          }
+                        },
+                        "errorHandlingOptions": {
+                          "retryOnFailure": {
+                            "value": true
+                          },
+                          "continueOnFailure": {
+                            "value": true
+                          }
+                        }
+                      },
+                      "nextAction": {
+                        "name": "step_new_bc_loop",
+                        "type": "LOOP_ON_ITEMS",
+                        "displayName": "Hand to BROADCAST (0 or 1: Failed → admin alert · Ready → only when auto_send)",
+                        "valid": true,
+                        "skip": false,
+                        "settings": {
+                          "items": "{{step_new_after['broadcasts']}}",
+                          "sampleData": {}
+                        },
+                        "firstLoopAction": {
+                          "name": "step_new_bc",
+                          "skip": false,
+                          "type": "PIECE",
+                          "valid": true,
+                          "settings": {
+                            "input": {
+                              "method": "POST",
+                              "url": "{{step_constants['broadcast_webhook']}}",
+                              "headers": {
+                                "Content-Type": "application/json"
+                              },
+                              "queryParams": {},
+                              "authType": "NONE",
+                              "body_type": "json",
+                              "body": {
+                                "data": {
+                                  "action": "{{step_new_bc_loop['item']['action']}}",
+                                  "Report_ID": "{{step_new_bc_loop['item']['Report_ID']}}",
+                                  "Kind": "{{step_new_bc_loop['item']['Kind']}}",
+                                  "_who": "flow:MARKET_STORE"
+                                }
+                              }
+                            },
+                            "pieceName": "@puchoaistudio/tool-http",
+                            "actionName": "send_request",
+                            "sampleData": {},
+                            "pieceVersion": "^2.0.0",
+                            "propertySettings": {
+                              "method": {
+                                "type": "MANUAL"
+                              },
+                              "url": {
+                                "type": "MANUAL"
+                              },
+                              "headers": {
+                                "type": "MANUAL",
+                                "schema": {}
+                              },
+                              "queryParams": {
+                                "type": "MANUAL",
+                                "schema": {}
+                              },
+                              "authType": {
+                                "type": "MANUAL"
+                              },
+                              "body_type": {
+                                "type": "MANUAL"
+                              },
+                              "body": {
+                                "type": "MANUAL",
+                                "schema": {}
+                              }
+                            },
+                            "errorHandlingOptions": {
+                              "retryOnFailure": {
+                                "value": true
+                              },
+                              "continueOnFailure": {
+                                "value": true
+                              }
+                            }
+                          },
+                          "displayName": "POST BROADCAST {action: send}"
+                        },
+                        "nextAction": {
+                          "name": "step_new_job_loop",
+                          "type": "LOOP_ON_ITEMS",
+                          "displayName": "Report the app's job (0 or 1 — a scheduled run has none)",
+                          "valid": true,
+                          "skip": false,
+                          "settings": {
+                            "items": "{{step_new_after['jobs']}}",
+                            "sampleData": {}
+                          },
+                          "firstLoopAction": {
+                            "name": "step_new_job",
+                            "skip": false,
+                            "type": "PIECE",
+                            "valid": true,
+                            "settings": {
+                              "input": {
+                                "method": "POST",
+                                "url": "{{step_constants['app_url']}}/api/jobs/{{step_new_job_loop['item']['id']}}",
+                                "headers": {
+                                  "Content-Type": "application/json",
+                                  "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                                  "X-Flow": "{{step_constants['flow']}}"
+                                },
+                                "queryParams": {},
+                                "authType": "NONE",
+                                "body_type": "json",
+                                "body": {
+                                  "data": {
+                                    "status": "{{step_new_job_loop['item']['status']}}",
+                                    "result": "{{step_new_job_loop['item']['result']}}"
+                                  }
+                                }
+                              },
+                              "pieceName": "@puchoaistudio/tool-http",
+                              "actionName": "send_request",
+                              "sampleData": {},
+                              "pieceVersion": "^2.0.0",
+                              "propertySettings": {
+                                "method": {
+                                  "type": "MANUAL"
+                                },
+                                "url": {
+                                  "type": "MANUAL"
+                                },
+                                "headers": {
+                                  "type": "MANUAL",
+                                  "schema": {}
+                                },
+                                "queryParams": {
+                                  "type": "MANUAL",
+                                  "schema": {}
+                                },
+                                "authType": {
+                                  "type": "MANUAL"
+                                },
+                                "body_type": {
+                                  "type": "MANUAL"
+                                },
+                                "body": {
+                                  "type": "MANUAL",
+                                  "schema": {}
+                                }
+                              },
+                              "errorHandlingOptions": {
+                                "retryOnFailure": {
+                                  "value": true
+                                },
+                                "continueOnFailure": {
+                                  "value": true
+                                }
+                              }
+                            },
+                            "displayName": "POST /api/jobs/<id> done | failed"
+                          },
+                          "nextAction": {
+                            "name": "step_new_done",
+                            "skip": false,
+                            "type": "PIECE",
+                            "valid": true,
+                            "settings": {
+                              "input": {
+                                "fields": {
+                                  "body": {
+                                    "ok": "{{step_new_after['ok']}}",
+                                    "Report_ID": "{{step_new_after['Report_ID']}}",
+                                    "Status": "{{step_new_after['Status']}}",
+                                    "error": "{{step_new_after['error']}}"
+                                  },
+                                  "status": 200,
+                                  "headers": {}
+                                },
+                                "respond": "stop",
+                                "responseType": "json"
+                              },
+                              "pieceName": "@puchoaistudio/tool-webhook",
+                              "actionName": "return_response",
+                              "sampleData": {},
+                              "pieceVersion": "^2.0.4",
+                              "propertySettings": {
+                                "fields": {
+                                  "type": "MANUAL",
+                                  "schema": {
+                                    "body": {
+                                      "type": "JSON",
+                                      "required": true,
+                                      "displayName": "JSON Body"
+                                    },
+                                    "status": {
+                                      "type": "NUMBER",
+                                      "required": false,
+                                      "displayName": "Status",
+                                      "defaultValue": 200
+                                    },
+                                    "headers": {
+                                      "type": "OBJECT",
+                                      "required": false,
+                                      "displayName": "Headers"
+                                    }
+                                  }
+                                },
+                                "respond": {
+                                  "type": "MANUAL"
+                                },
+                                "responseType": {
+                                  "type": "MANUAL"
+                                }
+                              },
+                              "errorHandlingOptions": {
+                                "retryOnFailure": {
+                                  "value": false
+                                },
+                                "continueOnFailure": {
+                                  "value": false
+                                }
+                              }
+                            },
+                            "displayName": "Return: new report stored"
+                          }
+                        }
+                      },
+                      "displayName": "POST news_articles (ids: Report_ID + dedupe key — a re-run never doubles them)"
+                    },
+                    "displayName": "Read the write: Report_ID · news ids · hand-offs (CODE)"
+                  },
+                  "displayName": "POST reports — today's report (Report_ID numbered by the app; 409 = today's exists)"
+                },
+                {
+                  "name": "step_rerun_update",
+                  "skip": false,
+                  "type": "PIECE",
+                  "valid": true,
+                  "settings": {
+                    "input": {
+                      "method": "PATCH",
+                      "url": "{{step_constants['app_url']}}/api/data/reports",
+                      "headers": {
+                        "Content-Type": "application/json",
+                        "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                        "X-Flow": "{{step_constants['flow']}}"
+                      },
+                      "queryParams": {
+                        "Report_ID": "eq.{{step_plan['Report_ID']}}"
+                      },
+                      "authType": "NONE",
+                      "body_type": "json",
+                      "body": {
+                        "data": {
+                          "Report_Date": "{{step_plan['row']['Report_Date']}}",
+                          "Trigger": "{{step_plan['row']['Trigger']}}",
+                          "Status": "{{step_plan['row']['Status']}}",
+                          "Sentiment": "{{step_plan['row']['Sentiment']}}",
+                          "Confidence_Level": "{{step_plan['row']['Confidence_Level']}}",
+                          "Confidence_Pct": "{{step_plan['row']['Confidence_Pct']}}",
+                          "Driver_1": "{{step_plan['row']['Driver_1']}}",
+                          "Driver_2": "{{step_plan['row']['Driver_2']}}",
+                          "Driver_3": "{{step_plan['row']['Driver_3']}}",
+                          "Sensex_Outlook": "{{step_plan['row']['Sensex_Outlook']}}",
+                          "Sensex_Range": "{{step_plan['row']['Sensex_Range']}}",
+                          "Sensex_Reason": "{{step_plan['row']['Sensex_Reason']}}",
+                          "Nifty_Outlook": "{{step_plan['row']['Nifty_Outlook']}}",
+                          "Nifty_Range": "{{step_plan['row']['Nifty_Range']}}",
+                          "Nifty_Reason": "{{step_plan['row']['Nifty_Reason']}}",
+                          "BankNifty_Outlook": "{{step_plan['row']['BankNifty_Outlook']}}",
+                          "BankNifty_Range": "{{step_plan['row']['BankNifty_Range']}}",
+                          "BankNifty_Reason": "{{step_plan['row']['BankNifty_Reason']}}",
+                          "FnO_View": "{{step_plan['row']['FnO_View']}}",
+                          "VIX_Expectation": "{{step_plan['row']['VIX_Expectation']}}",
+                          "FnO_Reason": "{{step_plan['row']['FnO_Reason']}}",
+                          "MidSmall_Outlook": "{{step_plan['row']['MidSmall_Outlook']}}",
+                          "MidSmall_Focus": "{{step_plan['row']['MidSmall_Focus']}}",
+                          "MidSmall_Reason": "{{step_plan['row']['MidSmall_Reason']}}",
+                          "Commodity_Outlook": "{{step_plan['row']['Commodity_Outlook']}}",
+                          "Commodity_Reason": "{{step_plan['row']['Commodity_Reason']}}",
+                          "Sectors": "{{step_plan['row']['Sectors']}}",
+                          "Risks": "{{step_plan['row']['Risks']}}",
+                          "View_Positional": "{{step_plan['row']['View_Positional']}}",
+                          "View_Intraday": "{{step_plan['row']['View_Intraday']}}",
+                          "View_LongTerm": "{{step_plan['row']['View_LongTerm']}}",
+                          "View_FnO": "{{step_plan['row']['View_FnO']}}",
+                          "Articles_Analyzed": "{{step_plan['row']['Articles_Analyzed']}}",
+                          "Category_Breakdown": "{{step_plan['row']['Category_Breakdown']}}",
+                          "Source_Status": "{{step_plan['row']['Source_Status']}}",
+                          "Model": "{{step_plan['row']['Model']}}",
+                          "WhatsApp_Message": "{{step_plan['row']['WhatsApp_Message']}}",
+                          "Message_Length": "{{step_plan['row']['Message_Length']}}",
+                          "Error_Message": "{{step_plan['row']['Error_Message']}}"
+                        }
+                      }
+                    },
+                    "pieceName": "@puchoaistudio/tool-http",
+                    "actionName": "send_request",
+                    "sampleData": {},
+                    "pieceVersion": "^2.0.0",
+                    "propertySettings": {
+                      "method": {
+                        "type": "MANUAL"
+                      },
+                      "url": {
+                        "type": "MANUAL"
+                      },
+                      "headers": {
+                        "type": "MANUAL",
+                        "schema": {}
+                      },
+                      "queryParams": {
+                        "type": "MANUAL",
+                        "schema": {}
+                      },
+                      "authType": {
+                        "type": "MANUAL"
+                      },
+                      "body_type": {
+                        "type": "MANUAL"
+                      },
+                      "body": {
+                        "type": "MANUAL",
+                        "schema": {}
+                      }
+                    },
+                    "errorHandlingOptions": {
+                      "retryOnFailure": {
+                        "value": false
+                      },
+                      "continueOnFailure": {
+                        "value": true
+                      }
+                    }
+                  },
+                  "nextAction": {
+                    "name": "step_rerun_after",
+                    "skip": false,
+                    "type": "CODE",
+                    "valid": true,
+                    "settings": {
+                      "input": {
+                        "written": "{{step_rerun_update}}",
+                        "plan": "{{step_plan}}",
+                        "C": "{{step_constants}}",
+                        "body": "{{trigger['body']}}"
+                      },
+                      "sampleData": {},
+                      "sourceCode": {
+                        "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what afterWrite() reaches (tools/build_market_flows.py)\nfunction toIso(dateText) { const t = Date.parse(String(dateText || '').trim()); return Number.isFinite(t) ? new Date(t).toISOString() : ''; }\nfunction dedupeKey(title, n = 60) { const k = String(title || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, n); return k || String(title || '').trim().toLowerCase().slice(0, n); }\nconst clean = (v, max) => String(v ?? '').replace(/\\s+/g, ' ').trim().slice(0, max);\nfunction hash8(s) { let h = 0x811c9dc5; for (const ch of String(s)) { h ^= ch.codePointAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); }\nfunction articleId(reportId, key) { return `NWS-${reportId}-${hash8(key)}`; }\nfunction newsRows(articles, reportId, fetchedAt) {\n  if (!reportId) return [];\n  return (Array.isArray(articles) ? articles : []).filter((a) => a && a.title).map((a) => ({ Article_ID: articleId(reportId, a.key || dedupeKey(a.title)),\n    Fetched_At: fetchedAt, Report_ID: reportId, Source: a.source, Category: a.category, Impact: a.impact, Title: clean(a.title, 300),\n    Summary: clean(a.summary, 300), Published_At: toIso(a.publishedAt), Link: /^https?:\\/\\//i.test(a.link || '') ? a.link : '' }));\n}\n\n// ── broadcast planning ──\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst JOB = /^JOB-[0-9A-F]{12}$/;\nfunction jobItems(job, status, result) { return JOB.test(String(job || '')) ? [{ id: String(job), status, result }] : []; }\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction afterWrite(inp) {\n  const plan = (inp && inp.plan) || {}; const C = (inp && inp.C) || {}; const body = (inp && inp.body) || {}; const now = nowOf(inp);\n  const written = rowsOf(inp && inp.written); const st = statusOf(inp && inp.written);\n  const id = written && written[0] && written[0].Report_ID ? written[0].Report_ID : '';\n  const Status = written && written[0] ? written[0].Status || plan.row.Status : plan.row && plan.row.Status;\n  const error = id ? '' : st === 409 ? \"EXISTS: today's report was written by another run meanwhile — this run's result was not stored\"\n    : st === 403 ? doorError(inp.written, 'reports') : `WRITE_FAILED: the app refused the report (${st || 'no response'})`;\n  const ok = !!id;\n  const autoSend = C.auto_send === true || String(C.auto_send) === 'true';\n  const broadcasts = !ok ? [] : Status === 'Failed' ? [{ action: 'send', Report_ID: id, Kind: 'Alert' }] : autoSend ? [{ action: 'send', Report_ID: id, Kind: '' }] : [];\n  const result = { Report_ID: id, Status: ok ? Status : '', Articles_Analyzed: ok ? Number(plan.row.Articles_Analyzed) || 0 : 0, ...(ok ? {} : { error }) };\n  return { ok, Report_ID: id, Status: ok ? Status : '', error, news: ok ? newsRows(plan.articles, id, now.toISOString()) : [], broadcasts,\n    jobs: jobItems(body._job, ok ? 'done' : 'failed', result) };\n}\n\n// ─────────────────────────────── BROADCAST ───────────────────────────────\n// end lib\nexport const code = async (inputs) => {\n  return afterWrite(inputs);\n};",
+                        "packageJson": "{}"
+                      },
+                      "errorHandlingOptions": {
+                        "retryOnFailure": {
+                          "value": false
+                        },
+                        "continueOnFailure": {
+                          "value": false
+                        }
+                      }
+                    },
+                    "nextAction": {
+                      "name": "step_rerun_news",
+                      "skip": false,
+                      "type": "PIECE",
+                      "valid": true,
+                      "settings": {
+                        "input": {
+                          "method": "POST",
+                          "url": "{{step_constants['app_url']}}/api/data/news_articles",
+                          "headers": {
+                            "Content-Type": "application/json",
+                            "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                            "X-Flow": "{{step_constants['flow']}}"
+                          },
+                          "queryParams": {},
+                          "authType": "NONE",
+                          "body_type": "json",
+                          "body": {
+                            "data": "{{step_rerun_after['news']}}"
+                          }
+                        },
+                        "pieceName": "@puchoaistudio/tool-http",
+                        "actionName": "send_request",
+                        "sampleData": {},
+                        "pieceVersion": "^2.0.0",
+                        "propertySettings": {
+                          "method": {
+                            "type": "MANUAL"
+                          },
+                          "url": {
+                            "type": "MANUAL"
+                          },
+                          "headers": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          },
+                          "queryParams": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          },
+                          "authType": {
+                            "type": "MANUAL"
+                          },
+                          "body_type": {
+                            "type": "MANUAL"
+                          },
+                          "body": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          }
+                        },
+                        "errorHandlingOptions": {
+                          "retryOnFailure": {
+                            "value": true
+                          },
+                          "continueOnFailure": {
+                            "value": true
+                          }
+                        }
+                      },
+                      "nextAction": {
+                        "name": "step_rerun_bc_loop",
+                        "type": "LOOP_ON_ITEMS",
+                        "displayName": "Hand to BROADCAST (0 or 1: Failed → admin alert · Ready → only when auto_send)",
+                        "valid": true,
+                        "skip": false,
+                        "settings": {
+                          "items": "{{step_rerun_after['broadcasts']}}",
+                          "sampleData": {}
+                        },
+                        "firstLoopAction": {
+                          "name": "step_rerun_bc",
+                          "skip": false,
+                          "type": "PIECE",
+                          "valid": true,
+                          "settings": {
+                            "input": {
+                              "method": "POST",
+                              "url": "{{step_constants['broadcast_webhook']}}",
+                              "headers": {
+                                "Content-Type": "application/json"
+                              },
+                              "queryParams": {},
+                              "authType": "NONE",
+                              "body_type": "json",
+                              "body": {
+                                "data": {
+                                  "action": "{{step_rerun_bc_loop['item']['action']}}",
+                                  "Report_ID": "{{step_rerun_bc_loop['item']['Report_ID']}}",
+                                  "Kind": "{{step_rerun_bc_loop['item']['Kind']}}",
+                                  "_who": "flow:MARKET_STORE"
+                                }
+                              }
+                            },
+                            "pieceName": "@puchoaistudio/tool-http",
+                            "actionName": "send_request",
+                            "sampleData": {},
+                            "pieceVersion": "^2.0.0",
+                            "propertySettings": {
+                              "method": {
+                                "type": "MANUAL"
+                              },
+                              "url": {
+                                "type": "MANUAL"
+                              },
+                              "headers": {
+                                "type": "MANUAL",
+                                "schema": {}
+                              },
+                              "queryParams": {
+                                "type": "MANUAL",
+                                "schema": {}
+                              },
+                              "authType": {
+                                "type": "MANUAL"
+                              },
+                              "body_type": {
+                                "type": "MANUAL"
+                              },
+                              "body": {
+                                "type": "MANUAL",
+                                "schema": {}
+                              }
+                            },
+                            "errorHandlingOptions": {
+                              "retryOnFailure": {
+                                "value": true
+                              },
+                              "continueOnFailure": {
+                                "value": true
+                              }
+                            }
+                          },
+                          "displayName": "POST BROADCAST {action: send}"
+                        },
+                        "nextAction": {
+                          "name": "step_rerun_job_loop",
+                          "type": "LOOP_ON_ITEMS",
+                          "displayName": "Report the app's job (0 or 1 — a scheduled run has none)",
+                          "valid": true,
+                          "skip": false,
+                          "settings": {
+                            "items": "{{step_rerun_after['jobs']}}",
+                            "sampleData": {}
+                          },
+                          "firstLoopAction": {
+                            "name": "step_rerun_job",
+                            "skip": false,
+                            "type": "PIECE",
+                            "valid": true,
+                            "settings": {
+                              "input": {
+                                "method": "POST",
+                                "url": "{{step_constants['app_url']}}/api/jobs/{{step_rerun_job_loop['item']['id']}}",
+                                "headers": {
+                                  "Content-Type": "application/json",
+                                  "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                                  "X-Flow": "{{step_constants['flow']}}"
+                                },
+                                "queryParams": {},
+                                "authType": "NONE",
+                                "body_type": "json",
+                                "body": {
+                                  "data": {
+                                    "status": "{{step_rerun_job_loop['item']['status']}}",
+                                    "result": "{{step_rerun_job_loop['item']['result']}}"
+                                  }
+                                }
+                              },
+                              "pieceName": "@puchoaistudio/tool-http",
+                              "actionName": "send_request",
+                              "sampleData": {},
+                              "pieceVersion": "^2.0.0",
+                              "propertySettings": {
+                                "method": {
+                                  "type": "MANUAL"
+                                },
+                                "url": {
+                                  "type": "MANUAL"
+                                },
+                                "headers": {
+                                  "type": "MANUAL",
+                                  "schema": {}
+                                },
+                                "queryParams": {
+                                  "type": "MANUAL",
+                                  "schema": {}
+                                },
+                                "authType": {
+                                  "type": "MANUAL"
+                                },
+                                "body_type": {
+                                  "type": "MANUAL"
+                                },
+                                "body": {
+                                  "type": "MANUAL",
+                                  "schema": {}
+                                }
+                              },
+                              "errorHandlingOptions": {
+                                "retryOnFailure": {
+                                  "value": true
+                                },
+                                "continueOnFailure": {
+                                  "value": true
+                                }
+                              }
+                            },
+                            "displayName": "POST /api/jobs/<id> done | failed"
+                          },
+                          "nextAction": {
+                            "name": "step_rerun_done",
+                            "skip": false,
+                            "type": "PIECE",
+                            "valid": true,
+                            "settings": {
+                              "input": {
+                                "fields": {
+                                  "body": {
+                                    "ok": "{{step_rerun_after['ok']}}",
+                                    "Report_ID": "{{step_rerun_after['Report_ID']}}",
+                                    "Status": "{{step_rerun_after['Status']}}",
+                                    "error": "{{step_rerun_after['error']}}"
+                                  },
+                                  "status": 200,
+                                  "headers": {}
+                                },
+                                "respond": "stop",
+                                "responseType": "json"
+                              },
+                              "pieceName": "@puchoaistudio/tool-webhook",
+                              "actionName": "return_response",
+                              "sampleData": {},
+                              "pieceVersion": "^2.0.4",
+                              "propertySettings": {
+                                "fields": {
+                                  "type": "MANUAL",
+                                  "schema": {
+                                    "body": {
+                                      "type": "JSON",
+                                      "required": true,
+                                      "displayName": "JSON Body"
+                                    },
+                                    "status": {
+                                      "type": "NUMBER",
+                                      "required": false,
+                                      "displayName": "Status",
+                                      "defaultValue": 200
+                                    },
+                                    "headers": {
+                                      "type": "OBJECT",
+                                      "required": false,
+                                      "displayName": "Headers"
+                                    }
+                                  }
+                                },
+                                "respond": {
+                                  "type": "MANUAL"
+                                },
+                                "responseType": {
+                                  "type": "MANUAL"
+                                }
+                              },
+                              "errorHandlingOptions": {
+                                "retryOnFailure": {
+                                  "value": false
+                                },
+                                "continueOnFailure": {
+                                  "value": false
+                                }
+                              }
+                            },
+                            "displayName": "Return: re-run stored"
+                          }
+                        }
+                      },
+                      "displayName": "POST news_articles (ids: Report_ID + dedupe key — a re-run never doubles them)"
+                    },
+                    "displayName": "Read the write: Report_ID · news ids · hand-offs (CODE)"
+                  },
+                  "displayName": "PATCH reports — re-run a Failed report (Failed → Ready, or Failed with the new error)"
+                },
+                {
+                  "name": "step_unexpected_done",
+                  "skip": false,
+                  "type": "PIECE",
+                  "valid": true,
+                  "settings": {
+                    "input": {
+                      "fields": {
+                        "body": {
+                          "ok": false,
+                          "error": "unexpected plan route"
+                        },
+                        "status": 400,
+                        "headers": {}
+                      },
+                      "respond": "stop",
+                      "responseType": "json"
+                    },
+                    "pieceName": "@puchoaistudio/tool-webhook",
+                    "actionName": "return_response",
+                    "sampleData": {},
+                    "pieceVersion": "^2.0.4",
+                    "propertySettings": {
+                      "fields": {
+                        "type": "MANUAL",
+                        "schema": {
+                          "body": {
+                            "type": "JSON",
+                            "required": true,
+                            "displayName": "JSON Body"
+                          },
+                          "status": {
+                            "type": "NUMBER",
+                            "required": false,
+                            "displayName": "Status",
+                            "defaultValue": 200
+                          },
+                          "headers": {
+                            "type": "OBJECT",
+                            "required": false,
+                            "displayName": "Headers"
+                          }
+                        }
+                      },
+                      "respond": {
+                        "type": "MANUAL"
+                      },
+                      "responseType": {
+                        "type": "MANUAL"
+                      }
+                    },
+                    "errorHandlingOptions": {
+                      "retryOnFailure": {
+                        "value": false
+                      },
+                      "continueOnFailure": {
+                        "value": false
+                      }
+                    }
+                  },
+                  "displayName": "Return 400: unexpected"
+                }
+              ],
+              "settings": {
+                "branches": [
+                  {
+                    "branchName": "Refuse (exists / Sent / not Failed / app closed)",
+                    "branchType": "CONDITION",
+                    "conditions": [
+                      [
+                        {
+                          "operator": "TEXT_EXACTLY_MATCHES",
+                          "firstValue": "{{step_plan['route']}}",
+                          "secondValue": "refuse",
+                          "caseSensitive": false
+                        }
+                      ]
+                    ]
+                  },
+                  {
+                    "branchName": "New report (POST)",
+                    "branchType": "CONDITION",
+                    "conditions": [
+                      [
+                        {
+                          "operator": "TEXT_EXACTLY_MATCHES",
+                          "firstValue": "{{step_plan['route']}}",
+                          "secondValue": "new",
+                          "caseSensitive": false
+                        }
+                      ]
+                    ]
+                  },
+                  {
+                    "branchName": "Re-run (PATCH)",
+                    "branchType": "CONDITION",
+                    "conditions": [
+                      [
+                        {
+                          "operator": "TEXT_EXACTLY_MATCHES",
+                          "firstValue": "{{step_plan['route']}}",
+                          "secondValue": "rerun",
+                          "caseSensitive": false
+                        }
+                      ]
+                    ]
+                  },
+                  {
+                    "branchName": "Unexpected",
+                    "branchType": "FALLBACK"
+                  }
+                ],
+                "sampleData": {},
+                "executionType": "EXECUTE_FIRST_MATCH"
+              },
+              "displayName": "Refuse · new · re-run"
+            },
+            "displayName": "New, re-run or refuse? (CODE)"
+          },
+          "displayName": "GET reports (today's row, the re-run target)"
+        },
+        "displayName": "Constants — app_url, inbound_token and the flow's settings (set in Studio)"
+      }
+    },
+    "valid": true,
+    "agentIds": [],
+    "connectionIds": [],
+    "schemaVersion": "7"
+  },
+  "blogUrl": ""
+}
