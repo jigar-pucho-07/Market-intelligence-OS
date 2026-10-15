@@ -1,7 +1,7 @@
 # Fidelity · Market Intelligence
 _Market Intelligence — Daily pre-market report for NSE/BSE traders · 2026-10-15 · card: 01-problem-card.md + transcript_
 
-**F1 vocabulary:** 98 / 124 visible strings trace to the client's words (79%). Untraced:
+**F1 vocabulary:** 98 / 125 visible strings trace to the client's words (78%). Untraced:
 
 - subtitle `Add, pause or remove WhatsApp subscribers — only people who opted in` (subscribers) — 43% of its words in the vocabulary
 - subtitle `Every change by a person or a flow` (activity) — 33% of its words in the vocabulary
@@ -26,6 +26,7 @@ _Market Intelligence — Daily pre-market report for NSE/BSE traders · 2026-10-
 - string `Pause` () — 0% of its words in the vocabulary
 - string `Unsubscribed is final — the person must opt in again as a new subscriber.` () — 29% of its words in the vocabulary
 - string `Kind` () — 0% of its words in the vocabulary
+- string `Attempts` () — 0% of its words in the vocabulary
 - string `Goes to the WhatsApp number on the subscriber's record, only if they are still Active and opted in.` () — 43% of its words in the vocabulary
 - string `This morning's report, as sent on WhatsApp, in full` () — 33% of its words in the vocabulary
 - string `Every report that was sent` () — 0% of its words in the vocabulary
@@ -39,7 +40,7 @@ _Market Intelligence — Daily pre-market report for NSE/BSE traders · 2026-10-
 
 **F3 structure:** closest reference `energy-mission-lms.yaml` (Energy Mission Machineries (India) Limited, Sanand) at 21% page-label overlap; shared: activity, overview, pipeline, settings
 
-**Result: PASS** — 0 failing, 27 warnings
+**Result: PASS** — 0 failing, 28 warnings
 
 - warn F1 subtitle `Add, pause or remove WhatsApp subscribers — only people who opted in` (subscribers) — none of its words appear in the client's card or transcript
 - warn F1 subtitle `Every change by a person or a flow` (activity) — none of its words appear in the client's card or transcript
@@ -64,6 +65,7 @@ _Market Intelligence — Daily pre-market report for NSE/BSE traders · 2026-10-
 - warn F1 string `Pause` () — none of its words appear in the client's card or transcript
 - warn F1 string `Unsubscribed is final — the person must opt in again as a new subscriber.` () — none of its words appear in the client's card or transcript
 - warn F1 string `Kind` () — none of its words appear in the client's card or transcript
+- warn F1 string `Attempts` () — none of its words appear in the client's card or transcript
 - warn F1 string `Goes to the WhatsApp number on the subscriber's record, only if they are still Active and opted in.` () — none of its words appear in the client's card or transcript
 - warn F1 string `This morning's report, as sent on WhatsApp, in full` () — none of its words appear in the client's card or transcript
 - warn F1 string `Every report that was sent` () — none of its words appear in the client's card or transcript
