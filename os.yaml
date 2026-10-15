@@ -398,6 +398,7 @@ flows:
         payload: { Trigger: string, Report_ID: string }
         result: { Report_ID: string, Status: string, Articles_Analyzed: number }
         rules:
+          - "The door (owner fix round 1, SA-01..03): ?k= secret checked first (401), action validated (400), today's report state read before any spend (run with today Ready/Sent → 409; rerun only when today is Failed) → POST MARKET_ANALYSE ?k=. Steps below run in MARKET_ANALYSE"
           - "Five RSS fetches run as separate steps; a failed or empty source yields 0 items and is reported in Source_Status, never stops the run (CODE)"
           - "Parse <item> title / description (CDATA or plain, HTML stripped, ≤300 chars) / pubDate / link; dedupe on the first 60 lower-cased alphanumeric title characters; categorise with word-bounded keyword rules in the source's order; keep 40 (CODE — fixes S2, S3)"
           - "Impact: HIGH when the title names RBI, repo, Fed, FII, GDP, CPI, inflation, SGX/GIFT Nifty or a ≥ $1 billion deal; MED for Banking, IT, F&O, Benchmark; else LOW (CODE)"
@@ -408,7 +409,7 @@ flows:
           - "One report per Report_Date (unique). A payload Report_ID re-runs that row (Failed → Ready, PATCH); a Sent report is never re-run (refused). The report is written first, then news_articles with deterministic ids (Report_ID + dedupe key) so a re-run never doubles them"
           - "Last step: POST BROADCAST — always for Failed (the admin alert), for Ready only when constants.auto_send is true; then POST /api/jobs/<id> done"
         typical_seconds: 45
-        credits: 19
+        credits: 6
         runs_per_month: 22
         effect:
           insert: reports
@@ -425,7 +426,7 @@ flows:
         rules:
           - "The same pipeline as run, on an existing Failed report: fetch → analyse → PATCH that Report_ID Failed → Ready (or Failed again with the new error); a Sent report is refused"
         typical_seconds: 45
-        credits: 19
+        credits: 6
         runs_per_month: 8
         effect:
           patch: reports
@@ -463,7 +464,7 @@ flows:
         rules:
           - "Reads the delivery and its subscriber; refuses unless the subscriber is Active and opted in, the delivery is a Failed Report and Attempts < 3; increments Attempts; sends the same template to the number on the subscriber record (never a number from the payload); PATCHes the same delivery row Sent or Failed"
         typical_seconds: 6
-        credits: 12
+        credits: 13
         runs_per_month: 20
         effect: { patch: deliveries, fill: { Status: Sent, Sent_At: now, Error_Message: "" }, result: { sent: true } }
 
@@ -483,6 +484,32 @@ flows:
         typical_seconds: 4
         credits: 5
         runs_per_month: 22
+  - name: MARKET_ANALYSE
+    covers: [R2, R3, R4, R5, R6, R7, R8]
+    trigger: { tool: webhook, name: catch_webhook, auth: none }
+    constants: { news_limit: 40, summary_chars: 300, dedupe_chars: 60, max_age_hours: 48, webhook_secret: SET_IN_STUDIO_WEBHOOK_SECRET }
+    writes: [reports]
+    actions:
+      - name: run
+        model: none
+        async: true
+        via: custom
+        payload: { Trigger: string, Report_ID: string }
+        result: { Status: string, Articles_Analyzed: number }
+        rules: ["Called only by MARKET_REPORT (?k= secret checked first, 401 otherwise). Five RSS GETs (feeds.* constants, Google News per publisher) → parse / dedupe / categorise / impact → no news → Failed row; else ONE llm-ai call (model class standard) → parse + advice check → POST MARKET_STORE ?k="]
+        typical_seconds: 45
+        credits: 19
+        runs_per_month: 22
+      - name: rerun
+        model: none
+        async: true
+        via: custom
+        payload: { Report_ID: string }
+        result: { Status: string, Articles_Analyzed: number }
+        rules: ["As run, for today's Failed report"]
+        typical_seconds: 45
+        credits: 19
+        runs_per_month: 8
   - name: MARKET_STORE
     covers: [R10]
     trigger: { tool: webhook, name: catch_webhook, auth: none }
