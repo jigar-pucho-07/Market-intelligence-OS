@@ -115,5 +115,10 @@
   "total_month": 8650.0,
   "declared_month": 8650.0,
   "counted": false,
-  "gap_ratio": 1.0
+  "gap_ratio": 1.0,
+  "acknowledged": {
+    "by": "kahsyap@pucho.ai (owner), 15 Oct 2026 \u2014 chose 'Trim, then accept'; counted 8,650 credits/month at ~50 subscribers",
+    "on": "2026-10-15",
+    "credits_month": 8650.0
+  }
 }
