@@ -17,3 +17,4 @@ mitigation is listed.
 | K8 | `src/app/api/data` | no `Content-Type` → accepted (201), not 415 | db review | MINOR | — |
 | K9 | `/api/jobs/<id>` | any signed-in role can read any job | db review | MINOR | — |
 | K10 | `app/scripts/check.mjs` | exits 127 on Windows after printing its result | db review | MINOR (gate tooling) | the printed summary is the evidence |
+| K11 | `scripts/scaffold_os.py:2022` (skill) | `r.startswith(("src/custom", …))` compares a Windows path (`src\custom\index.js`) with forward slashes, so on Windows the authored `src/custom/index.js` is copied over and hashed as generated on every scaffold | re-scaffold refused: "app\src\custom\index.js edited by hand" | MAJOR on Windows (custom registry wiped) | re-scaffold with `--overwrite-drift`, then `git show <prev>:app/src/custom/index.js` back; fix = `r.replace(os.sep, "/")` in the kernel |
