@@ -1,0 +1,107 @@
+verify · app http://localhost:5000 · door http://127.0.0.1:5055 · 2026-10-15T08:20:11.971Z
+PASS 1.1   subscriber GET / → redirect to /me or 404
+PASS 1.1   subscriber GET /today → redirect to /me or 404
+PASS 1.1   subscriber GET /reports → redirect to /me or 404
+PASS 1.1   subscriber GET /subscribers → redirect to /me or 404
+PASS 1.1   subscriber GET /deliveries → redirect to /me or 404
+PASS 1.1   subscriber GET /activity → redirect to /me or 404
+PASS 1.1   subscriber GET /pipeline → redirect to /me or 404
+PASS 1.1   subscriber GET /news → redirect to /me or 404
+PASS 1.2   subscriber GET /me → 200
+PASS 1.3   /me payload carries no reports-only field, no subscriber/delivery/audit id, no phone number
+PASS 1.3   /me RSC payload carries no reports-only field or phone
+PASS 1.2   subscriber GET /me/reports → 200
+PASS 1.3   /me/reports payload carries no reports-only field, no subscriber/delivery/audit id, no phone number
+PASS 1.3   /me/reports RSC payload carries no reports-only field or phone
+FAIL 1.4   reader page shows only reports whose desk copy is Sent — got 8 published copies of Ready/Failed reports: MIR-2026-0300, MIR-2026-0298, MIR-2026-0297, MIR-2026-0295
+PASS 1.5   subscriber readEntity(reports) refused
+PASS 1.5   subscriber readEntity(deliveries) refused
+PASS 1.5   subscriber readEntity(subscribers) refused
+PASS 1.5   subscriber readEntity(audit_log) refused
+PASS 1.5   subscriber readEntity(users) refused
+PASS 1.5   subscriber readEntity(sessions) refused
+PASS 1.5   subscriber readEntity(published_reports) allowed (14 rows)
+PASS 1.5   subscriber readEntity(news_articles) allowed (47 rows)
+PASS 1.6   subscriber direct patch of reports refused
+PASS 1.6   subscriber BROADCAST.send refused
+PASS 1.6   subscriber direct insert of published_reports refused
+PASS 1.7   subscriber cookie on /api/data/reports → 403 (door needs the inbound token)
+PASS 1.7   subscriber cookie on /api/data/subscribers → 403 (door needs the inbound token)
+PASS 1.7   subscriber cookie on /api/data/audit_log → 403 (door needs the inbound token)
+PASS 1.9   subscriber listUsers refused
+PASS 2.1   analyst GET /activity → redirect/404
+PASS 2.2   analyst readEntity(audit_log) refused
+PASS 2.3   analyst listUsers refused
+PASS 2.3   analyst createUser(admin) refused
+PASS 2.3   analyst setUserRole(self → admin) refused
+PASS 2.3   analyst is still analyst afterwards
+PASS 3.1   reports Sent → Ready refused (400-equivalent, field Status)
+PASS 3.1   reports Failed → Sent refused
+PASS 3.2   Ready report cannot lose Driver_1 (requires_on)
+PASS 3.2   Failed → Ready without Sentiment/Driver_1/WhatsApp_Message refused (requires_on)
+PASS 3.3   Confidence_Pct 101 refused
+PASS 3.3   Confidence_Pct 50.5 refused (integer)
+PASS 3.3   Confidence_Pct -1 refused
+PASS 3.4   Sentiment outside one_of refused
+PASS 3.5   patching Report_Date onto another report’s date → DUPLICATE (409-equivalent)
+PASS 3.0   every refused write left the Ready fixture unchanged
+FAIL 3.6   direct patch limited to the modal’s fields (Status/Sent_Count not settable from Review & edit) — got ok=true, row now Status=Sent Sent_Count=9999 — a report marked Sent with no broadcast
+PASS 3.7   analyst direct insert of reports refused (no such action)
+PASS 3.8   WhatsApp "12345" refused (phone format)
+PASS 3.9   WhatsApp of SUB-2026-0001 refused as duplicate
+FAIL 3.10  the same number typed "+91 98765 43210" refused as duplicate — got ok=true id=SUB-2026-0301 (stored un-normalised; two rows → two WhatsApps to one person)
+FAIL 3.10  the same number without +91 refused as duplicate — got ok=true id=SUB-2026-0302
+PASS 3.11  Active without Opt_In_At refused (requires_on)
+PASS 3.12  Opt_In_Source outside one_of refused
+PASS 3.12  Opt_In_At 2026-02-30 refused (not a date)
+PASS 3.12  Email "not-an-email" refused
+FAIL 3.13  Status "Deleted" (not a declared status) refused on insert — got ok=true id=SUB-2026-0303 — the row is stuck: transitions["Deleted"] = []
+PASS 3.14  Unsubscribed → Active refused (final)
+PASS 3.14  Unsubscribed → Paused refused (final)
+PASS 3.9   edit_subscriber onto another subscriber’s number → DUPLICATE
+PASS 3.15  MARKET_REPORT.run (simulated) inserts a valid Ready report (MIR-2026-0301)
+FAIL 3.16  the simulated run’s report has a Report_Date (Today’s table filters on it; the unique rule needs it) — got Report_Date=null
+FAIL 3.17  Re-run on a Failed report either re-runs it or says it did not — got answered ok=true "Ready" yet the row is still Failed (insert ON CONFLICT DO NOTHING — a silent no-op)
+PASS 3.18  BROADCAST.send on a Failed report refused (Failed → Sent)
+PASS 3.19  BROADCAST.send (simulated) moves a Ready report to Sent through the guards
+FAIL 3.20  a sent report reaches the reader portal (published_reports row written) — got no published_reports row — the simulated effect only patches reports, so /me never shows a report the desk sends
+PASS 3.21  a flow payload value is still guarded (Sent_Count -5 refused)
+PASS 3.22  BROADCAST.retry (simulated) Failed → Sent, error cleared
+PASS 3.22  retry cannot move a Sent delivery back (fill wins over payload Status)
+PASS 4.1   GET /api/data/reports with no token → 403 "closed" (kernel answers 403, not 401)
+PASS 4.1   wrong token → 403
+PASS 4.1   POST with no token → 403 before the body is read
+PASS 4.2   Content-Type text/plain → 415
+PASS 4.2   300 KB body → 413
+FAIL 4.2   a body with NO Content-Type → 415 (JSON only) — got 201 — readJson lets an empty Content-Type through
+PASS 4.3   GET /api/data/reports with the token → 26 rows
+PASS 4.4   POST report on an existing Report_Date → 409
+PASS 4.5   Confidence_Pct 150 → 400
+PASS 4.5   Confidence_Pct 12.5 → 400
+PASS 4.6   Ready without WhatsApp_Message → 400 (requires_on)
+PASS 4.7   FnO_View "BUY CALLS" → 400 (one_of; SEBI wording)
+FAIL 4.8   Status "Draft" (undeclared) → 400 — got 201 — accepted: status values are not a one_of guard on insert
+PASS 4.9   an undeclared column → 400 (strict rows)
+PASS 4.10  PATCH Sent → Ready → 400
+PASS 4.10  PATCH Failed → Sent → 400
+PASS 4.10  PATCH Failed → Ready with the required fields → 200 (the real re-run path)
+PASS 4.11  PATCH subscriber Unsubscribed → Active → 400
+PASS 4.12  subscriber WhatsApp "98-765-432" → 400
+PASS 4.12  subscriber duplicate WhatsApp → 409
+PASS 4.13  Active subscriber without opt-in → 400
+PASS 4.14  delivery duplicate (Report_Date, Subscriber_ID, Kind) → 409
+PASS 4.14  same report + subscriber, Kind Alert → 201 (different composite key)
+PASS 4.15  delivery Kind "SMS" → 400
+PASS 4.16  PATCH delivery Sent → Queued → 400
+FAIL 4.17  a flow cannot forge audit_log rows through the door — got 201 — audit_log is an entity, so the door inserts into it
+PASS 4.17  users is not reachable through the door → 404
+NOTE 5.1   db/rls.sql: 0 statements ("-- db/rls.sql — GENERATED. This OS declares no per-role scope, so there is nothing to rest…"); pg_policies=0; tables with RLS on: 0
+NOTE 5.2   dev app connects as mi_dev (superuser=true) — RLS and the app role are bypassed locally
+NOTE 5.3   studio_reader SELECT grants: audit_log, deliveries, news_articles, published_reports, reports, subscribers
+PASS 5.3   studio_reader has no grant on users/sessions/otp_codes/files/jobs/signin_attempts
+PASS 5.4   the four declared UNIQUE indexes exist (4/4)
+PASS 5.5   database CHECK refuses Confidence_Pct 101: true
+PASS 5.5   database CHECK refuses Sentiment bogus: true
+NOTE 5.5   database CHECK refuses Status bogus: false
+
+89 PASS · 11 FAIL · 4 NOTE

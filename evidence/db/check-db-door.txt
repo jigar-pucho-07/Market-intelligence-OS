@@ -1,0 +1,3 @@
+  A2 no scoped role in this OS (no `Col={{user}}` self-service pages)
+  FAIL S1 secret-shaped NEXT_PUBLIC_ name(s): NEXT_PUBLIC_DB_TIMEZONE
+check: 13 passed, 1 failed
