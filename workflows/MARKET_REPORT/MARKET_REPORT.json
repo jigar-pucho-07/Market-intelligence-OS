@@ -73,68 +73,7 @@
           "type": "ROUTER",
           "valid": true,
           "children": [
-            {
-              "name": "step_denied_done",
-              "skip": false,
-              "type": "PIECE",
-              "valid": true,
-              "settings": {
-                "input": {
-                  "fields": {
-                    "body": {
-                      "ok": false,
-                      "error": "unauthorized"
-                    },
-                    "status": 401,
-                    "headers": {}
-                  },
-                  "respond": "stop",
-                  "responseType": "json"
-                },
-                "pieceName": "@puchoaistudio/tool-webhook",
-                "actionName": "return_response",
-                "sampleData": {},
-                "pieceVersion": "^2.0.4",
-                "propertySettings": {
-                  "fields": {
-                    "type": "MANUAL",
-                    "schema": {
-                      "body": {
-                        "type": "JSON",
-                        "required": true,
-                        "displayName": "JSON Body"
-                      },
-                      "status": {
-                        "type": "NUMBER",
-                        "required": false,
-                        "displayName": "Status",
-                        "defaultValue": 200
-                      },
-                      "headers": {
-                        "type": "OBJECT",
-                        "required": false,
-                        "displayName": "Headers"
-                      }
-                    }
-                  },
-                  "respond": {
-                    "type": "MANUAL"
-                  },
-                  "responseType": {
-                    "type": "MANUAL"
-                  }
-                },
-                "errorHandlingOptions": {
-                  "retryOnFailure": {
-                    "value": false
-                  },
-                  "continueOnFailure": {
-                    "value": false
-                  }
-                }
-              },
-              "displayName": "Return 401: missing or wrong webhook secret"
-            },
+            null,
             {
               "name": "step_bad_action_done",
               "skip": false,
@@ -197,20 +136,81 @@
               },
               "displayName": "Return 400: unknown action"
             },
-            null
+            {
+              "name": "step_denied_done",
+              "skip": false,
+              "type": "PIECE",
+              "valid": true,
+              "settings": {
+                "input": {
+                  "fields": {
+                    "body": {
+                      "ok": false,
+                      "error": "unauthorized"
+                    },
+                    "status": 401,
+                    "headers": {}
+                  },
+                  "respond": "stop",
+                  "responseType": "json"
+                },
+                "pieceName": "@puchoaistudio/tool-webhook",
+                "actionName": "return_response",
+                "sampleData": {},
+                "pieceVersion": "^2.0.4",
+                "propertySettings": {
+                  "fields": {
+                    "type": "MANUAL",
+                    "schema": {
+                      "body": {
+                        "type": "JSON",
+                        "required": true,
+                        "displayName": "JSON Body"
+                      },
+                      "status": {
+                        "type": "NUMBER",
+                        "required": false,
+                        "displayName": "Status",
+                        "defaultValue": 200
+                      },
+                      "headers": {
+                        "type": "OBJECT",
+                        "required": false,
+                        "displayName": "Headers"
+                      }
+                    }
+                  },
+                  "respond": {
+                    "type": "MANUAL"
+                  },
+                  "responseType": {
+                    "type": "MANUAL"
+                  }
+                },
+                "errorHandlingOptions": {
+                  "retryOnFailure": {
+                    "value": false
+                  },
+                  "continueOnFailure": {
+                    "value": false
+                  }
+                }
+              },
+              "displayName": "Return 401: missing or wrong webhook secret, or no gate"
+            }
           ],
           "settings": {
             "branches": [
               {
-                "branchName": "Unauthorized → 401",
+                "branchName": "Authorised",
                 "branchType": "CONDITION",
                 "conditions": [
                   [
                     {
                       "operator": "TEXT_EXACTLY_MATCHES",
                       "firstValue": "{{step_constants['gate']}}",
-                      "secondValue": "denied",
-                      "caseSensitive": false
+                      "secondValue": "ok",
+                      "caseSensitive": true
                     }
                   ]
                 ]
@@ -224,13 +224,13 @@
                       "operator": "TEXT_EXACTLY_MATCHES",
                       "firstValue": "{{step_constants['gate']}}",
                       "secondValue": "bad_action",
-                      "caseSensitive": false
+                      "caseSensitive": true
                     }
                   ]
                 ]
               },
               {
-                "branchName": "Authorised",
+                "branchName": "Anything else → 401",
                 "branchType": "FALLBACK"
               }
             ],
@@ -619,7 +619,7 @@
             },
             "displayName": "GET reports (today's row, the re-run target)"
           },
-          "displayName": "Webhook secret · action"
+          "displayName": "Webhook secret · action (allow-list)"
         },
         "displayName": "Constants + webhook secret check (first step)"
       }

@@ -17,7 +17,7 @@ File: `DAILY_WATCHDOG.json`. Do the steps in order. Tick each box.
   - **queryParams**: `*`
   - **authType**: `NONE`
 
-## 4. POST BROADCAST {action: send, Kind: Alert} ?k= (BROADCAST writes the fixed watchdog text) (`step_alert_post`, http)
+## 4. POST BROADCAST {action: alert} ?k= (BROADCAST writes the fixed watchdog text) (`step_alert_post`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
 - [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
   - **method**: `POST`
@@ -26,7 +26,7 @@ File: `DAILY_WATCHDOG.json`. Do the steps in order. Tick each box.
   - **queryParams**: `{{step_constants['broadcast_secret']}}`
   - **authType**: `NONE`
   - **body_type**: `json`
-  - **body**: `{"data": {"action": "send", "Kind": "Alert", "Report_ID": "", "_who": "flow:DAILY_WATCHDOG"}}`
+  - **body**: `{"data": {"action": "alert", "Report_ID": "", "_who": "flow:DAILY_WATCHDOG"}}`
 
 ## 5. Constants — holidays (NSE trading holidays, ⚑ G3: the SAME list in DAILY_SCHEDULE and DAILY_WATCHDOG), app_url, inbound_token and BROADCAST's URL + secret (`step_constants`, code)
 - [ ] Open the step's code and replace each placeholder with the real value, then save:

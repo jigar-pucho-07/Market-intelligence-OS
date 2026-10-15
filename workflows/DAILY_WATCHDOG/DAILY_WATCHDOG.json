@@ -155,8 +155,7 @@
                       "body_type": "json",
                       "body": {
                         "data": {
-                          "action": "send",
-                          "Kind": "Alert",
+                          "action": "alert",
                           "Report_ID": "",
                           "_who": "flow:DAILY_WATCHDOG"
                         }
@@ -265,7 +264,7 @@
                     },
                     "displayName": "Return: alerted"
                   },
-                  "displayName": "POST BROADCAST {action: send, Kind: Alert} ?k= (BROADCAST writes the fixed watchdog text)"
+                  "displayName": "POST BROADCAST {action: alert} ?k= (BROADCAST writes the fixed watchdog text)"
                 },
                 {
                   "name": "step_ok_done",

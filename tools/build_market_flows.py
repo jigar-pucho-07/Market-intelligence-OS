@@ -11,7 +11,7 @@ app/src/custom/lib/market-flow.js. Each CODE node carries only the library funct
 Seven flows (os.yaml has three; the other four keep every action path inside the simplicity budget — docs/flows-complexity.md).
 Every webhook flow's FIRST step checks ?k= against its own secret (constant time, fail closed) and answers 401 before any read:
   DAILY_SCHEDULE  schedule every_day 06:00 IST, weekends off → holiday? → POST MARKET_REPORT {action: run} ?k= → Return
-  DAILY_WATCHDOG  cron 06:20 IST Mon–Fri → GET reports → no row today → POST BROADCAST {Kind: Alert} ?k= → Return
+  DAILY_WATCHDOG  cron 06:20 IST Mon–Fri → GET reports → no row today → POST BROADCAST {action: alert} ?k= → Return
   MARKET_REPORT   webhook run | rerun (the app's door): secret → GET reports → today's state → 409 refused | POST MARKET_ANALYSE → Return
   MARKET_ANALYSE  webhook run | rerun: secret → 5 RSS GETs → CODE → router (no news / analyse) → ONE llm-ai → CODE → POST MARKET_STORE → Return
   MARKET_STORE    webhook store: secret → GET reports → CODE re-check + decide → router (refuse / new POST / re-run PATCH) → CODE → news → [BROADCAST] → [job] → Return
@@ -108,13 +108,16 @@ def auth_consts(name, extra, actions, app=True):
            "  const gate = !secretMatches(inputs.k, C.webhook_secret) ? 'denied' : actions.includes(String(inputs.action || '')) ? 'ok' : 'bad_action';\n"
            "  const { webhook_secret, ...rest } = C;\n  return { ...rest, gate };\n};")
     return code(C, src, {"k": "{{trigger['queryParams']['k']}}", "action": "{{trigger['body']['action']}}"}, "Constants + webhook secret check (first step)")
-def denied(): return ret("step_denied_done", {"ok": False, "error": "unauthorized"}, "Return 401: missing or wrong webhook secret", status=401)
+def denied(): return ret("step_denied_done", {"ok": False, "error": "unauthorized"}, "Return 401: missing or wrong webhook secret, or no gate", status=401)
 def bad_action(): return ret("step_bad_action_done", {"ok": False, "error": "unknown action"}, "Return 400: unknown action", status=400)
+def GATE(v): return {**TEXT_IS("{{step_constants['gate']}}", v), "caseSensitive": True}
 def auth_router(with_action=False):
-    """Router A: 401 / (400) and stop; otherwise the empty fallback branch and the flow carries on after the router."""
-    br = [("Unauthorized → 401", TEXT_IS("{{step_constants['gate']}}", "denied"), denied())]
-    if with_action: br.append(("Unknown action → 400", TEXT_IS("{{step_constants['gate']}}", "bad_action"), bad_action()))
-    return router("step_auth", "Webhook secret · action", br + [("Authorised", None, None)])
+    """Router A, an ALLOW-LIST (SA-21): only gate = 'ok' (exact) continues — its branch is empty and the flow carries on after the
+    router; gate = 'bad_action' answers 400; every other value, a missing gate included (a skipped or re-pasted first step), falls
+    to the FALLBACK, which answers 401 and stops."""
+    br = [("Authorised", GATE("ok"), None)]
+    if with_action: br.append(("Unknown action → 400", GATE("bad_action"), bad_action()))
+    return router("step_auth", "Webhook secret · action (allow-list)", br + [("Anything else → 401", None, denied())])
 def job_post(n, loop_name, disp):
     return http(n, "POST", f"{APP}/api/jobs/" + "{{" + loop_name + "['item']['id']}}", disp,
                 body={"status": "{{" + loop_name + "['item']['status']}}", "result": "{{" + loop_name + "['item']['result']}}"}, retry=True, cont=True)
@@ -143,8 +146,8 @@ def daily_watchdog():
     ck = lib("step_check", "watchdogCheck", {"C": "{{step_constants}}", "reports": "{{step_read_reports}}"}, "Today's report row there? (CODE)")
     r = router("step_router", "Alert?", [
         ("No report row — alert the admins", TEXT_IS("{{step_check['route']}}", "alert"), chain(
-            hook("step_alert_post", "broadcast_webhook", {"action": "send", "Kind": "Alert", "Report_ID": "", "_who": "flow:DAILY_WATCHDOG"},
-                 "POST BROADCAST {action: send, Kind: Alert} ?k= (BROADCAST writes the fixed watchdog text)"),
+            hook("step_alert_post", "broadcast_webhook", {"action": "alert", "Report_ID": "", "_who": "flow:DAILY_WATCHDOG"},
+                 "POST BROADCAST {action: alert} ?k= (BROADCAST writes the fixed watchdog text)"),
             ret("step_alert_done", {"ok": True, "alerted": True, "date": "{{step_check['today']}}", "reason": "{{step_check['reason']}}"}, "Return: alerted"))),
         ("Report row present", None,
          ret("step_ok_done", {"ok": True, "alerted": False, "date": "{{step_check['today']}}", "reason": "{{step_check['reason']}}"}, "Return: nothing to do"))])
@@ -210,7 +213,7 @@ def market_store():
         bcl = f"step_{prefix}_bc_loop"
         bc = loop(bcl, "{{step_" + prefix + "_after['broadcasts']}}", "Hand to BROADCAST (0 or 1: Failed → admin alert · Ready → only when auto_send)",
                   hook(f"step_{prefix}_bc", "broadcast_webhook", {"action": "{{" + bcl + "['item']['action']}}", "Report_ID": "{{" + bcl + "['item']['Report_ID']}}",
-                                                               "Kind": "{{" + bcl + "['item']['Kind']}}", "_who": "flow:MARKET_STORE"}, "POST BROADCAST {action: send} ?k=", cont=True))
+                                                               "_who": "flow:MARKET_STORE"}, "POST BROADCAST {action: send | alert} ?k=", cont=True))
         jl = f"step_{prefix}_job_loop"
         jb = loop(jl, "{{step_" + prefix + "_after['jobs']}}", "Report the app's job (0 or 1 — a scheduled run has none)", job_post(f"step_{prefix}_job", jl, "POST /api/jobs/<id> done | failed"))
         dn = ret(f"step_{prefix}_done", {"ok": "{{step_" + prefix + "_after['ok']}}", "Report_ID": "{{step_" + prefix + "_after['Report_ID']}}", "Status": "{{step_" + prefix + "_after['Status']}}",
@@ -236,7 +239,7 @@ def broadcast():
     k = auth_consts("BROADCAST", {"whatsapp_account_id": "SET_IN_STUDIO_WHATSAPP_ACCOUNT_ID",
                                   "whatsapp_templates": {"report": "SET_IN_STUDIO_TEMPLATE_ID_MI_DAILY_REPORT", "alert": "SET_IN_STUDIO_TEMPLATE_ID_MI_RUN_FAILED"},
                                   "whatsapp_template_names": {"report": "mi_daily_report", "alert": "mi_run_failed"},
-                                  "alert_to": "SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS", "portal_url": "SET_IN_STUDIO_APP_URL", **callee("MARKET_PUBLISH")}, ["send", "retry"])
+                                  "alert_to": "SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS", "portal_url": "SET_IN_STUDIO_APP_URL", **callee("MARKET_PUBLISH")}, ["send", "retry", "alert"])
     sl, ql = "step_send_loop", "step_send_queued"
     send = chain(
         read("step_send_reports", "reports", "GET reports"),
@@ -274,11 +277,13 @@ def broadcast():
              ret("step_retry_sent", {"ok": True, "sent": "{{step_retry_result['sent']}}", "Delivery_ID": "{{step_retry_result['Delivery_ID']}}",
                                      "error": "{{step_retry_result['Error_Message']}}"}, "Return: the retry's outcome")),
         ret("step_retry_done", {"ok": False, "sent": False, "Delivery_ID": "{{step_retry_plan['Delivery_ID']}}", "error": "{{step_retry_plan['reason']}}"}, "Return: refused (nothing sent)"))
-    r = router("step_router", "Webhook secret · send · retry", [
-        ("Unauthorized → 401", TEXT_IS("{{step_constants['gate']}}", "denied"), denied()),
-        ("send", [TEXT_IS("{{step_constants['gate']}}", "ok"), TEXT_IS("{{trigger['body']['action']}}", "send")], send),
-        ("retry", [TEXT_IS("{{step_constants['gate']}}", "ok"), TEXT_IS("{{trigger['body']['action']}}", "retry")], retry),
-        ("Unknown action", None, bad_action())])
+    ACT = lambda v: {**TEXT_IS("{{trigger['body']['action']}}", v), "caseSensitive": True}
+    r = router("step_router", "Webhook secret · send | alert · retry (allow-list)", [
+        ("send | alert", [GATE("ok"), ACT("send")], send),
+        ("retry", [GATE("ok"), ACT("retry")], retry),
+        ("Unknown action → 400", GATE("bad_action"), bad_action()),
+        ("Anything else → 401", None, denied())])
+    r["settings"]["branches"][0]["conditions"].append([GATE("ok"), ACT("alert")])   # OR: the flow-only alert action takes the same path
     chain(t, k, r)
     return flow("BROADCAST", "Market Intelligence — the report to every Active, opted-in subscriber (template), the admin alert, one delivery again", t, ["webhook", "http", "pucho-whatsapp"])
 
@@ -365,7 +370,7 @@ SAMPLES = {
     "MARKET_STORE": [("store — sent by MARKET_ANALYSE (shape only; test MARKET_REPORT instead) · URL ?k=<secret>", {"action": "store", "Mode": "run", "Trigger": "Manual", "Report_ID": "", "_job": "",
                       "report": {"Report_Date": "2026-10-15", "Status": "Failed", "Error_Message": "Studio test — no analysis", "Source_Status": "test"}, "articles": []})],
     "BROADCAST": [("send — today's Ready report to every Active, opted-in subscriber · URL ?k=<secret>", {"action": "send", "Report_ID": "MIR-2026-0101"}),
-                  ("send — admin alert (what the watchdog sends) · URL ?k=<secret>", {"action": "send", "Kind": "Alert", "Report_ID": ""}),
+                  ("alert — the admin alert (flows only: the watchdog, MARKET_STORE for a Failed report) · URL ?k=<secret>", {"action": "alert", "Report_ID": ""}),
                   ("retry — one Failed delivery · URL ?k=<secret>", {"action": "retry", "Delivery_ID": "DLV-2026-2402"})],
     "MARKET_PUBLISH": [("publish — sent by BROADCAST after a send · URL ?k=<secret>", {"action": "publish", "Report_ID": "MIR-2026-0101", "_job": ""})],
 }
@@ -522,7 +527,7 @@ MARKET_REPORT (the app's door: secret → today's row → refuse or go) → MARK
         via: custom
         payload: {}
         result: { alerted: boolean }
-        rules: ["06:20 IST Mon–Fri: GET reports; no row for today (or the app unreadable) → POST BROADCAST {action: send, Kind: Alert} ?k= → Return. BROADCAST writes the fixed alert text"]
+        rules: ["06:20 IST Mon–Fri: GET reports; no row for today (or the app unreadable) → POST BROADCAST {action: alert} ?k= → Return. BROADCAST writes the fixed alert text"]
         typical_seconds: 4
         credits: 5
         runs_per_month: 22
@@ -582,7 +587,8 @@ MARKET_REPORT (the app's door: secret → today's row → refuse or go) → MARK
 ```
 Also: MARKET_REPORT's rules become "the app's door: ?k= secret, action ∈ run | rerun, today's report read BEFORE any paid step (run refused 409
 when today is Ready / Sent; rerun only for today's Failed) → POST MARKET_ANALYSE ?k=", and its feeds / limits constants move to
-MARKET_ANALYSE; BROADCAST.send: "only today's Ready report (a Sent one re-sends: the 409 skips who has it); a queued 409 → no WhatsApp,
+MARKET_ANALYSE; BROADCAST gains a flow-only action  {Report_ID} (no role holds it; the watchdog and MARKET_STORE call it), and
+BROADCAST.send derives everything from the report row, never a caller Kind (SA-24): "only today's Ready report (a Sent one re-sends: the 409 skips who has it); a queued 409 → no WhatsApp,
 no PATCH; Kind Alert text only from the report row or the fixed watchdog text, one Alert row per admin per attempt (ADMIN-n-HHmm)";
 BROADCAST.retry: "Attempts < 3, claimed by PATCH Attempts + 1 where Attempts = the value read; only a claimed row is sent"; the
 send / retry rules gain "then POST MARKET_PUBLISH ?k="; DAILY_SCHEDULE's watchdog rule moves to DAILY_WATCHDOG. Flow-to-flow URLs

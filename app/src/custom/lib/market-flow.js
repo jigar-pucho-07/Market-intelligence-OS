@@ -5,7 +5,7 @@
 import {
   SOURCES, ENUMS, PUBLISHED_COLUMNS, selectArticles, buildPrompt, parseModel, buildReportRow, sanitizeReportRow, newsRows, istDate,
   istWeekday, rowsOf, statusOf, doorError, jobItems, isEligible, normaliseWhatsApp, adminNumbers, reportTemplateVars,
-  alertTemplateVars, toIso, istHHmm,
+  alertTemplateVars, toIso, istHHmm, scrubSecrets,
 } from './market.js';
 
 const nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());
@@ -104,7 +104,7 @@ export function afterWrite(inp) {
     : st === 403 ? doorError(inp.written, 'reports') : `WRITE_FAILED: the app refused the report (${st || 'no response'})`;
   const ok = !!id;
   const autoSend = C.auto_send === true || String(C.auto_send) === 'true';
-  const broadcasts = !ok ? [] : Status === 'Failed' ? [{ action: 'send', Report_ID: id, Kind: 'Alert' }] : autoSend ? [{ action: 'send', Report_ID: id, Kind: '' }] : [];
+  const broadcasts = !ok ? [] : Status === 'Failed' ? [{ action: 'alert', Report_ID: id }] : autoSend ? [{ action: 'send', Report_ID: id }] : [];
   const result = { Report_ID: id, Status: ok ? Status : '', Articles_Analyzed: ok ? Number(plan.row.Articles_Analyzed) || 0 : 0, ...(ok ? {} : { error }) };
   return { ok, Report_ID: id, Status: ok ? Status : '', error, news: ok ? newsRows(plan.articles, id, now.toISOString()) : [], broadcasts,
     jobs: jobItems(body._job, ok ? 'done' : 'failed', result) };
@@ -116,9 +116,12 @@ export function afterWrite(inp) {
 export function watchdogText(today) { return `No report row by 06:20 IST for ${today} (or the app could not be read) — the 06:00 run did not finish`; }
 
 /**
- * step_send_plan — who gets what. Kind=Alert, or a Failed report → mi_run_failed to constants.alert_to, one Kind=Alert delivery
- * per admin and attempt, nothing to subscribers; the text is the report's Error_Message or the fixed watchdog text. A Ready report
- * of today, or a Sent report (resend: those who have it answer 409 → skip) → mi_daily_report to every Active, opted-in subscriber.
+ * step_send_plan — who gets what, decided from the report row only (SA-24); a caller's `Kind` is never read.
+ *   action send (the app):  the row Failed → mi_run_failed to the admins · Ready or Sent of TODAY → mi_daily_report to every Active,
+ *                           opted-in subscriber (a Sent one re-sends idempotently: whoever has it answers 409 → skip) · another day → refused.
+ *   action alert (flows only — MARKET_STORE for a Failed report, the 06:20 watchdog with no report; no app role holds it):
+ *                           the admins, with the report's Error_Message or the fixed watchdog text. Never caller text (SA-03).
+ * Each item becomes a Queued delivery first; one admin row per attempt (ADMIN-n-HHmm), so a second alert the same day goes out.
  */
 export function sendPlan(inp) {
   const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp); const today = istDate(now);
@@ -126,9 +129,9 @@ export function sendPlan(inp) {
   const report = reports && body.Report_ID ? reports.find((r) => r.Report_ID === String(body.Report_ID)) || null : null;
   const tpl = C.whatsapp_templates || {};
   const publish = { Report_ID: report ? report.Report_ID : '', _job: String(body._job || '') };
-  const done = (kind, items, reason) => ({ kind, items, reason, Report_ID: publish.Report_ID, publish, queued: items.length });
-  if (body.Kind === 'Alert' || (report && report.Status === 'Failed')) {
-    if (body.Report_ID && (!report || report.Status !== 'Failed')) return done('Alert', [], `${String(body.Report_ID).slice(0, 30)} is not a Failed report — no alert`);
+  const done = (kind, items, reason, code = '') => ({ kind, items, reason, code, Report_ID: publish.Report_ID, publish, queued: items.length });
+  const alertWatchdog = body.action === 'alert' && !body.Report_ID;
+  if (alertWatchdog || (report && report.Status === 'Failed')) {
     const date = report ? report.Report_Date : today;
     const error = report ? report.Error_Message || 'The report could not be generated' : watchdogText(today);
     const numbers = adminNumbers(C.alert_to); const at = istHHmm(now);
@@ -136,11 +139,12 @@ export function sendPlan(inp) {
       delivery: { Kind: 'Alert', Report_ID: report ? report.Report_ID : '', Report_Date: date, Subscriber_ID: `ADMIN-${i + 1}-${at}`, Subscriber_Name: `Admin alert ${i + 1}`, Sentiment: '', Status: 'Queued' } }));
     return done('Alert', items, numbers.length ? '' : 'constants.alert_to has no WhatsApp number yet — nobody was alerted');
   }
-  if (!reports) return done('Report', [], doorError(inp.reports, 'reports'));
-  if (!report) return done('Report', [], `No report ${String(body.Report_ID || '').slice(0, 30)}`);
-  if (!['Ready', 'Sent'].includes(report.Status)) return done('Report', [], `${report.Report_ID} is ${report.Status} — not sent`);
-  if (report.Status === 'Ready' && report.Report_Date !== today) return done('Report', [], `${report.Report_ID} is a Ready report for ${report.Report_Date} — only today's report is sent`);
-  if (!subs) return done('Report', [], doorError(inp.subscribers, 'subscribers'));
+  if (!reports) return done('Report', [], doorError(inp.reports, 'reports'), 'APP_READ_FAILED');
+  if (!report) return done('Report', [], `No report ${String(body.Report_ID || '').slice(0, 30)}`, 'NOT_FOUND');
+  if (body.action === 'alert') return done('Alert', [], `${report.Report_ID} is ${report.Status} — no alert`, 'NOT_FAILED');
+  if (!['Ready', 'Sent'].includes(report.Status)) return done('Report', [], `${report.Report_ID} is ${report.Status} — not sent`, 'NOT_READY');
+  if (report.Report_Date !== today) return done('Report', [], `${report.Report_ID} is the report for ${report.Report_Date} — only today's report is sent`, 'NOT_TODAY');
+  if (!subs) return done('Report', [], doorError(inp.subscribers, 'subscribers'), 'APP_READ_FAILED');
   const vars = reportTemplateVars(report);
   const items = subs.filter(isEligible).map((s) => ({ to: normaliseWhatsApp(s.WhatsApp), template_id: tpl.report || '', template_variables: vars,
     delivery: { Kind: 'Report', Report_ID: report.Report_ID, Report_Date: report.Report_Date, Subscriber_ID: s.Subscriber_ID, Subscriber_Name: s.Name || '', Sentiment: report.Sentiment || '', Status: 'Queued' } }));
@@ -157,7 +161,7 @@ export function sendResult(inp) {
   const err = pick(o.error && (o.error.message || o.error), o.errorMessage, o.success === false ? o.message : '', o.status === 'failed' ? o.message : '');
   const failed = !!err || !out || (typeof out === 'object' && !Object.keys(o).length);
   return { Delivery_ID: id, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),
-    Error_Message: failed ? (err || 'WhatsApp step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed };
+    Error_Message: failed ? scrubSecrets(err || 'WhatsApp step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed };
 }
 
 export const MAX_ATTEMPTS = 3;

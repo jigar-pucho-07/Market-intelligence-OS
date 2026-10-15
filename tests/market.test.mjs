@@ -198,9 +198,9 @@ test('afterWrite: the app-numbered id stamps the news; Failed → alert, Ready �
   const plan = { row: { Status: 'Ready', Articles_Analyzed: 3 }, articles: [{ key: 'k', title: 'A title here', source: 'Moneycontrol', category: 'FNO', impact: 'MED' }] };
   const ok = FL.afterWrite({ written: { status: 201, body: [{ Report_ID: 'MIR-2026-0300', Status: 'Ready' }] }, plan, C: { auto_send: true }, body: { _job: 'JOB-3F9A1C22B7E0' } });
   assert.equal(ok.Report_ID, 'MIR-2026-0300'); assert.match(ok.news[0].Article_ID, /^NWS-MIR-2026-0300-/);
-  assert.deepEqual(ok.broadcasts, [{ action: 'send', Report_ID: 'MIR-2026-0300', Kind: '' }]); assert.equal(ok.jobs[0].status, 'done');
+  assert.deepEqual(ok.broadcasts, [{ action: 'send', Report_ID: 'MIR-2026-0300' }]); assert.equal(ok.jobs[0].status, 'done');
   assert.deepEqual(FL.afterWrite({ written: { status: 201, body: [{ Report_ID: 'X', Status: 'Ready' }] }, plan, C: { auto_send: false }, body: {} }).broadcasts, []);
-  assert.equal(FL.afterWrite({ written: { status: 201, body: [{ Report_ID: 'X', Status: 'Failed' }] }, plan, C: { auto_send: false }, body: {} }).broadcasts[0].Kind, 'Alert');
+  assert.equal(FL.afterWrite({ written: { status: 201, body: [{ Report_ID: 'X', Status: 'Failed' }] }, plan, C: { auto_send: false }, body: {} }).broadcasts[0].action, 'alert');
   const dup = FL.afterWrite({ written: { error: 'HTTP 409: already in use' }, plan, C: { auto_send: true }, body: { _job: 'JOB-3F9A1C22B7E0' } });
   assert.equal(dup.ok, false); assert.match(dup.error, /^EXISTS/); assert.deepEqual(dup.news, []); assert.deepEqual(dup.broadcasts, []); assert.equal(dup.jobs[0].status, 'failed');
 });
@@ -212,7 +212,7 @@ const SUBS = [
   { Subscriber_ID: 'SUB-4', Name: 'No opt-in', WhatsApp: '+919811100000', Status: 'Active', Opt_In_At: '', Opt_In_Source: '' },
 ];
 const C = { whatsapp_templates: { report: 'TPL-R', alert: 'TPL-A' }, alert_to: '+919800000001,+919800000002' };
-test('sendPlan: Ready → eligible subscribers only; Failed or Kind=Alert → the admins, never a subscriber', () => {
+test('sendPlan: Ready → eligible subscribers only; Failed or action alert → the admins, never a subscriber', () => {
   const rep = { Report_ID: 'MIR-1', Report_Date: today, Status: 'Ready', Sentiment: 'BULLISH', Confidence_Level: 'HIGH', Confidence_Pct: 70, Driver_1: 'd' };
   const p = FL.sendPlan({ body: { Report_ID: 'MIR-1', _job: 'JOB-3F9A1C22B7E0' }, C, reports: reportsOut([rep]), subscribers: reportsOut(SUBS) });
   assert.deepEqual(p.items.map((i) => i.delivery.Subscriber_ID), ['SUB-1', 'SUB-2']); assert.equal(p.items[1].to, '+919820011223');
@@ -220,9 +220,9 @@ test('sendPlan: Ready → eligible subscribers only; Failed or Kind=Alert → th
   const failed = FL.sendPlan({ body: { Report_ID: 'MIR-1' }, C, reports: reportsOut([{ ...rep, Status: 'Failed', Error_Message: 'NO_NEWS' }]), subscribers: reportsOut(SUBS) });
   assert.equal(failed.kind, 'Alert'); assert.deepEqual(failed.items.map((i) => i.to), ['+919800000001', '+919800000002']);
   assert.ok(failed.items.every((i) => i.delivery.Kind === 'Alert' && i.template_id === 'TPL-A' && i.template_variables.error === 'NO_NEWS'));
-  const wd = FL.sendPlan({ body: { Kind: 'Alert', Error_Message: 'No report row by 06:20 <script>' }, C, reports: { error: 'HTTP 403' }, subscribers: { error: 'HTTP 403' } });
+  const wd = FL.sendPlan({ body: { action: 'alert', Error_Message: 'No report row by 06:20 <script>' }, C, reports: { error: 'HTTP 403' }, subscribers: { error: 'HTTP 403' } });
   assert.equal(wd.items.length, 2, 'the watchdog alert goes out even when the app is unreadable'); assert.doesNotMatch(wd.items[0].template_variables.error, /[<>]/);
-  assert.equal(FL.sendPlan({ body: { Kind: 'Alert' }, C: { ...C, alert_to: 'SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS' } }).items.length, 0);
+  assert.equal(FL.sendPlan({ body: { action: 'alert' }, C: { ...C, alert_to: 'SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS' } }).items.length, 0);
 });
 
 test('sendResult: what WhatsApp answered → Sent with the message id, or Failed with the error; unconfirmed is Failed', () => {

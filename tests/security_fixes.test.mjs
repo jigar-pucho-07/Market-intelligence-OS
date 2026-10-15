@@ -97,18 +97,18 @@ test('send: only a Ready report of today (a Sent one re-sends idempotently); nev
   const p = (r) => FL.sendPlan({ body: { Report_ID: 'MIR-1' }, C, reports: out([r]), subscribers: out(SUBS), now: NOW });
   assert.equal(p(rep()).items.length, 1);
   assert.equal(p(rep({ Report_Date: '2026-10-14' })).items.length, 0);
-  assert.equal(p(rep({ Status: 'Sent', Report_Date: '2026-10-14' })).items.length, 1, 'a Sent report: the 409 skips the ones who have it');
+  assert.equal(p(rep({ Status: 'Sent', Report_Date: '2026-10-14' })).items.length, 0, "another day's Sent report is refused (SA-24)");
 });
 test('alert text comes only from the report row or the fixed watchdog text — never the caller', () => {
-  const wd = FL.sendPlan({ body: { Kind: 'Alert', Error_Message: 'Click http://evil to fix' }, C, now: NOW });
+  const wd = FL.sendPlan({ body: { action: 'alert', Error_Message: 'Click http://evil to fix' }, C, now: NOW });
   assert.equal(wd.items.length, 2); assert.doesNotMatch(wd.items[0].template_variables.error, /evil|Click/);
   assert.match(wd.items[0].template_variables.error, /No report row by 06:20 IST/);
-  const f = FL.sendPlan({ body: { Kind: 'Alert', Report_ID: 'MIR-1', Error_Message: 'evil' }, C, reports: out([rep({ Status: 'Failed', Error_Message: 'NO_NEWS: none' })]), now: NOW });
+  const f = FL.sendPlan({ body: { action: 'alert', Report_ID: 'MIR-1', Error_Message: 'evil' }, C, reports: out([rep({ Status: 'Failed', Error_Message: 'NO_NEWS: none' })]), now: NOW });
   assert.equal(f.items[0].template_variables.error, 'NO_NEWS: none');
-  assert.equal(FL.sendPlan({ body: { Kind: 'Alert', Report_ID: 'MIR-1' }, C, reports: out([rep()]), now: NOW }).items.length, 0, 'a Ready report is no alert');
+  assert.equal(FL.sendPlan({ body: { action: 'alert', Report_ID: 'MIR-1' }, C, reports: out([rep()]), now: NOW }).items.length, 0, 'a Ready report is no alert');
 });
 test('a second alert on the same day still reaches the admins (per-attempt subscriber id)', () => {
-  const a = FL.sendPlan({ body: { Kind: 'Alert' }, C, now: '2026-10-15T00:50:00Z' }); const b = FL.sendPlan({ body: { Kind: 'Alert' }, C, now: '2026-10-15T01:50:00Z' });
+  const a = FL.sendPlan({ body: { action: 'alert' }, C, now: '2026-10-15T00:50:00Z' }); const b = FL.sendPlan({ body: { action: 'alert' }, C, now: '2026-10-15T01:50:00Z' });
   assert.notEqual(a.items[0].delivery.Subscriber_ID, b.items[0].delivery.Subscriber_ID);
   assert.match(a.items[0].delivery.Subscriber_ID, /^ADMIN-1-0620$/);
 });

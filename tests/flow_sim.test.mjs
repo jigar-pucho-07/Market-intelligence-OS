@@ -216,10 +216,10 @@ test('SA-03: yesterday\'s Ready draft is never sent; an alert carries only the r
   const r = await run(w, 'BROADCAST', { action: 'send', Report_ID: 'MIR-2026-0101' });
   assert.equal(sends(w).length, 0); assert.match(r.responses[0].reason, /only today's report/);
   const a = newWorld({});
-  await run(a, 'BROADCAST', { action: 'send', Kind: 'Alert', Report_ID: '', Error_Message: 'Click http://evil' });
+  await run(a, 'BROADCAST', { action: 'alert', Report_ID: '', Error_Message: 'Click http://evil' });
   assert.equal(sends(a).length, 2); assert.ok(sends(a).every((c) => /No report row by 06:20 IST for 2026-10-15/.test(c.inputs.template_variables.error)));
   await atClock('2026-10-15T10:00:00Z', async () => {}); a.clock = '2026-10-15T10:00:00Z';
-  await run(a, 'BROADCAST', { action: 'send', Kind: 'Alert', Report_ID: '' });
+  await run(a, 'BROADCAST', { action: 'alert', Report_ID: '' });
   assert.equal(sends(a).length, 4, 'a second alert the same day still reaches the admins');
 });
 
@@ -282,4 +282,62 @@ test('every flow file is free of secrets and of free-text WhatsApp (S5, S7); the
   }
   const sched = load('DAILY_SCHEDULE').template.trigger.settings;
   assert.deepEqual([sched.triggerName, sched.input.hour_of_the_day, sched.input.timezone, sched.input.run_on_weekends], ['every_day', '6', 'Asia/Kolkata', false]);
+});
+
+// ── security audit round 2 ──
+const WEBHOOK_FLOWS = { MARKET_REPORT: { action: 'run' }, MARKET_ANALYSE: { action: 'run' }, MARKET_STORE: { action: 'store', Mode: 'run', report: readyToday(), articles: [] },
+  BROADCAST: { action: 'send', Report_ID: 'MIR-2026-0101' }, MARKET_PUBLISH: { action: 'publish', Report_ID: 'MIR-2026-0101' } };
+/** Every router that reads step_constants['gate'] is an allow-list: only gate = 'ok' (exact case) continues; the fallback answers 401. */
+function assertAllowList(flow, name) {
+  const routers = []; const walk = (n) => { if (!n) return; if (n.type === 'ROUTER') routers.push(n); (n.children || []).forEach(walk); walk(n.firstLoopAction); walk(n.nextAction); };
+  walk(flow.template.trigger);
+  const gates = routers.filter((r) => JSON.stringify(r.settings.branches).includes("step_constants['gate']"));
+  assert.equal(gates.length, 1, `${name}: one gate router`);
+  const [r] = gates; const br = r.settings.branches;
+  const fb = br.findIndex((b) => b.branchType === 'FALLBACK');
+  assert.equal(fb, br.length - 1, `${name}: fallback last`);
+  const fbChild = r.children[fb];
+  assert.ok(fbChild && fbChild.settings.actionName === 'return_response' && fbChild.settings.input.fields.status === 401, `${name}: the fallback answers 401`);
+  br.forEach((b, i) => {
+    const child = r.children[i]; const ends = (() => { let n = child; while (n && n.nextAction) n = n.nextAction; return n && n.settings && n.settings.actionName === 'return_response'; })();
+    const continues = !child || (!ends && child);
+    const allowed = (b.conditions || []).every((g) => g.some((c) => c.firstValue === "{{step_constants['gate']}}" && c.operator === 'TEXT_EXACTLY_MATCHES' && c.secondValue === 'ok' && c.caseSensitive === true));
+    if (b.branchType !== 'FALLBACK' && (continues || !(b.conditions || []).every((g) => g.some((c) => c.secondValue === 'bad_action'))))
+      assert.ok(allowed, `${name}: branch "${b.branchName}" continues without requiring gate = 'ok'`);
+  });
+}
+test('SA-21: every gate router is an allow-list (only gate = "ok" continues, the fallback answers 401) — and the old fail-open order is caught', () => {
+  for (const f of Object.keys(WEBHOOK_FLOWS)) assertAllowList(load(f), f);
+  const old = load('MARKET_ANALYSE'); const r = old.template.trigger.nextAction.nextAction;     // the round-1 shape: stop on denied / bad_action, fallback continues
+  r.settings.branches = [{ branchName: 'Unauthorized → 401', branchType: 'CONDITION', conditions: [[{ operator: 'TEXT_EXACTLY_MATCHES', firstValue: "{{step_constants['gate']}}", secondValue: 'denied', caseSensitive: false }]] },
+    { branchName: 'Unknown action → 400', branchType: 'CONDITION', conditions: [[{ operator: 'TEXT_EXACTLY_MATCHES', firstValue: "{{step_constants['gate']}}", secondValue: 'bad_action', caseSensitive: false }]] },
+    { branchName: 'Authorised', branchType: 'FALLBACK' }];
+  r.children = [r.children.find((c) => c && c.settings.input.fields.status === 401), r.children.find((c) => c && c.settings.input.fields.status === 400), null];
+  assert.throws(() => assertAllowList(old, 'mutant'), /fallback answers 401/);
+});
+test('SA-21: a gate that is missing, empty, mis-cased or padded stops the run before any read, fetch, AI step, send or write', async () => {
+  for (const [flow, body] of Object.entries(WEBHOOK_FLOWS)) {
+    for (const g of [undefined, '', 'OK', 'OK ', 'denied ', 'allowed']) {
+      const fl = load(flow); const k = fl.template.trigger.nextAction;
+      k.settings.sourceCode.code = k.settings.sourceCode.code.replace('return { ...rest, gate };', g === undefined ? 'return { ...rest };' : `return { ...rest, gate: ${JSON.stringify(g)} };`);
+      assert.ok(!k.settings.sourceCode.code.includes('return { ...rest, gate };'), 'the gate was injected');
+      const calls = []; const w = newWorld({ reports: [readyToday()], subscribers: SUBS });
+      const r = await atClock(THU, () => simulate(fl, { ...body, __k: SECRET(flow) }, makeFakes({ app: w.app.app, calls })));
+      assert.deepEqual(r.failures, []); assert.equal(calls.length, 0, `${flow} gate=${JSON.stringify(g)}: nothing called`);
+      assert.equal(r.responses[0].error, 'unauthorized', `${flow} gate=${JSON.stringify(g)}`);
+    }
+  }
+});
+test('SA-20: only the secret-check step reads the query string; no Return, write or job result carries it or a secret', () => {
+  for (const f of FLOWS) {
+    const fl = JSON.parse(fs.readFileSync(path.join(ROOT, 'workflows', f, `${f}.json`), 'utf8'));
+    const nodes = []; const walk = (n) => { if (!n) return; nodes.push(n); (n.children || []).forEach(walk); walk(n.firstLoopAction); walk(n.nextAction); };
+    walk(fl.template.trigger);
+    for (const n of nodes) {
+      const input = JSON.stringify((n.settings || {}).input || {});
+      if (n.name !== 'step_constants') assert.doesNotMatch(input, /trigger\['queryParams'\]/, `${f}.${n.name} reads the query string`);
+      const outBound = n.settings && (n.settings.actionName === 'return_response' || (n.settings.input && n.settings.input.body));
+      if (outBound) assert.doesNotMatch(JSON.stringify(n.settings.input.fields || n.settings.input.body), /_secret'\]|webhook_secret|queryParams|\?k=/, `${f}.${n.name} writes a secret`);
+    }
+  }
 });

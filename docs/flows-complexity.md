@@ -6,10 +6,10 @@ Budget per action path: ≤ 14 steps · ≤ 1 AI call (2 with a code check betwe
 
 | action path | steps | AI calls | router depth | longest CODE |
 |---|---:|---:|---:|---:|
-| Unauthorized → 401 | 4 | 0 | 1 | — |
-| send | 9 | 0 | 1 | — |
+| send | alert | 9 | 0 | 1 | — |
 | retry | 10 | 0 | 1 | — |
-| Unknown action | 4 | 0 | 1 | — |
+| Unknown action → 400 | 4 | 0 | 1 | — |
+| Anything else → 401 | 4 | 0 | 1 | — |
 
 ## DAILY_SCHEDULE — 2 action(s), longest path 6 steps, within budget
 
@@ -29,39 +29,39 @@ Budget per action path: ≤ 14 steps · ≤ 1 AI call (2 with a code check betwe
 
 | action path | steps | AI calls | router depth | longest CODE |
 |---|---:|---:|---:|---:|
-| Unauthorized → 401 | 4 | 0 | 1 | — |
-| Unknown action → 400 | 4 | 0 | 1 | — |
 | Authorised › No news → Failed row | 12 | 0 | 1 | — |
 | Authorised › Analyse | 14 | 1 | 1 | — |
 | Authorised › Invalid | 11 | 0 | 1 | — |
+| Unknown action → 400 | 4 | 0 | 1 | — |
+| Anything else → 401 | 4 | 0 | 1 | — |
 
 ## MARKET_PUBLISH — 3 action(s), longest path 9 steps, within budget
 
 | action path | steps | AI calls | router depth | longest CODE |
 |---|---:|---:|---:|---:|
-| Unauthorized → 401 | 4 | 0 | 1 | — |
-| Unknown action → 400 | 4 | 0 | 1 | — |
 | Authorised | 9 | 0 | 1 | — |
+| Unknown action → 400 | 4 | 0 | 1 | — |
+| Anything else → 401 | 4 | 0 | 1 | — |
 
 ## MARKET_REPORT — 4 action(s), longest path 8 steps, within budget
 
 | action path | steps | AI calls | router depth | longest CODE |
 |---|---:|---:|---:|---:|
-| Unauthorized → 401 | 4 | 0 | 1 | — |
-| Unknown action → 400 | 4 | 0 | 1 | — |
 | Authorised › Refuse (today's report exists / not Failed / app closed) → 409 | 8 | 0 | 1 | — |
 | Authorised › Analyse | 8 | 0 | 1 | — |
+| Unknown action → 400 | 4 | 0 | 1 | — |
+| Anything else → 401 | 4 | 0 | 1 | — |
 
 ## MARKET_STORE — 6 action(s), longest path 12 steps, within budget
 
 | action path | steps | AI calls | router depth | longest CODE |
 |---|---:|---:|---:|---:|
-| Unauthorized → 401 | 4 | 0 | 1 | — |
-| Unknown action → 400 | 4 | 0 | 1 | — |
 | Authorised › Refuse (exists / Sent / not Failed / app closed) | 8 | 0 | 1 | — |
 | Authorised › New report (POST) | 12 | 0 | 1 | — |
 | Authorised › Re-run (PATCH) | 12 | 0 | 1 | — |
 | Authorised › Unexpected | 7 | 0 | 1 | — |
+| Unknown action → 400 | 4 | 0 | 1 | — |
+| Anything else → 401 | 4 | 0 | 1 | — |
 
 
 ## Paths with loop bodies counted (tools/build_market_flows.py)
@@ -76,29 +76,29 @@ its path (the budget question) and its credits once per item; a router is a step
 | DAILY_SCHEDULE | Run the report | 6 | 5 |
 | DAILY_WATCHDOG | No report row — alert the admins | 7 | 6 |
 | DAILY_WATCHDOG | Report row present | 6 | 5 |
-| MARKET_REPORT | Unauthorized → 401 | 4 | 3 |
-| MARKET_REPORT | Unknown action → 400 | 4 | 3 |
 | MARKET_REPORT | Authorised › Refuse (today's report exists / not Failed / app closed) → 409 | 9 | 6 + step_refuse_job_loop×1 |
 | MARKET_REPORT | Authorised › Analyse | 8 | 6 |
-| MARKET_ANALYSE | Unauthorized → 401 | 4 | 3 |
-| MARKET_ANALYSE | Unknown action → 400 | 4 | 3 |
+| MARKET_REPORT | Unknown action → 400 | 4 | 3 |
+| MARKET_REPORT | Anything else → 401 | 4 | 3 |
 | MARKET_ANALYSE | Authorised › No news → Failed row | 12 | 10 |
 | MARKET_ANALYSE | Authorised › Analyse | 14 | 12 |
 | MARKET_ANALYSE | Authorised › Invalid | 11 | 9 |
-| MARKET_STORE | Unauthorized → 401 | 4 | 3 |
-| MARKET_STORE | Unknown action → 400 | 4 | 3 |
+| MARKET_ANALYSE | Unknown action → 400 | 4 | 3 |
+| MARKET_ANALYSE | Anything else → 401 | 4 | 3 |
 | MARKET_STORE | Authorised › Refuse (exists / Sent / not Failed / app closed) | 9 | 6 + step_refuse_job_loop×1 |
 | MARKET_STORE | Authorised › New report (POST) | 14 | 10 + step_new_bc_loop×1 + step_new_job_loop×1 |
 | MARKET_STORE | Authorised › Re-run (PATCH) | 14 | 10 + step_rerun_bc_loop×1 + step_rerun_job_loop×1 |
 | MARKET_STORE | Authorised › Unexpected | 7 | 5 |
-| BROADCAST | Unauthorized → 401 | 4 | 3 |
-| BROADCAST | send | 14 | 8 + step_send_loop×5 |
+| MARKET_STORE | Unknown action → 400 | 4 | 3 |
+| MARKET_STORE | Anything else → 401 | 4 | 3 |
+| BROADCAST | send | alert | 14 | 8 + step_send_loop×5 |
 | BROADCAST | retry › inner Return | 14 | 13 |
 | BROADCAST | retry ›  (0 items) | 10 | 9 |
-| BROADCAST | Unknown action | 4 | 3 |
-| MARKET_PUBLISH | Unauthorized → 401 | 4 | 3 |
-| MARKET_PUBLISH | Unknown action → 400 | 4 | 3 |
+| BROADCAST | Unknown action → 400 | 4 | 3 |
+| BROADCAST | Anything else → 401 | 4 | 3 |
 | MARKET_PUBLISH | Authorised | 13 | 8 + step_pub_loop×3 + step_job_loop×1 |
+| MARKET_PUBLISH | Unknown action → 400 | 4 | 3 |
+| MARKET_PUBLISH | Anything else → 401 | 4 | 3 |
 
 Longest path with loop bodies counted: **14 steps** (budget 14).
 
@@ -124,7 +124,7 @@ MARKET_REPORT (the app's door: secret → today's row → refuse or go) → MARK
         via: custom
         payload: {}
         result: { alerted: boolean }
-        rules: ["06:20 IST Mon–Fri: GET reports; no row for today (or the app unreadable) → POST BROADCAST {action: send, Kind: Alert} ?k= → Return. BROADCAST writes the fixed alert text"]
+        rules: ["06:20 IST Mon–Fri: GET reports; no row for today (or the app unreadable) → POST BROADCAST {action: alert} ?k= → Return. BROADCAST writes the fixed alert text"]
         typical_seconds: 4
         credits: 5
         runs_per_month: 22
@@ -184,7 +184,8 @@ MARKET_REPORT (the app's door: secret → today's row → refuse or go) → MARK
 ```
 Also: MARKET_REPORT's rules become "the app's door: ?k= secret, action ∈ run | rerun, today's report read BEFORE any paid step (run refused 409
 when today is Ready / Sent; rerun only for today's Failed) → POST MARKET_ANALYSE ?k=", and its feeds / limits constants move to
-MARKET_ANALYSE; BROADCAST.send: "only today's Ready report (a Sent one re-sends: the 409 skips who has it); a queued 409 → no WhatsApp,
+MARKET_ANALYSE; BROADCAST gains a flow-only action  {Report_ID} (no role holds it; the watchdog and MARKET_STORE call it), and
+BROADCAST.send derives everything from the report row, never a caller Kind (SA-24): "only today's Ready report (a Sent one re-sends: the 409 skips who has it); a queued 409 → no WhatsApp,
 no PATCH; Kind Alert text only from the report row or the fixed watchdog text, one Alert row per admin per attempt (ADMIN-n-HHmm)";
 BROADCAST.retry: "Attempts < 3, claimed by PATCH Attempts + 1 where Attempts = the value read; only a claimed row is sent"; the
 send / retry rules gain "then POST MARKET_PUBLISH ?k="; DAILY_SCHEDULE's watchdog rule moves to DAILY_WATCHDOG. Flow-to-flow URLs

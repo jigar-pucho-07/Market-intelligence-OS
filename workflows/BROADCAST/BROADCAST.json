@@ -56,7 +56,7 @@
           },
           "sampleData": {},
           "sourceCode": {
-            "code": "// @ts-nocheck\n// lib: secretMatches — app/src/custom/lib/market.js (constant-time, fail closed)\nfunction secretMatches(given, expected) {\n  const a = String(given ?? ''); const b = String(expected ?? '');\n  if (b.length < 16 || /SET_IN_STUDIO/.test(b)) return false;\n  let d = a.length ^ b.length;\n  for (let i = 0; i < b.length; i++) d |= (a.charCodeAt(i) || 0) ^ b.charCodeAt(i);\n  return d === 0;\n}\n// end lib\nexport const code = async (inputs) => {\n  const C = {\n    \"flow\": \"BROADCAST\",\n    \"app_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"inbound_token\": \"SET_IN_STUDIO_INBOUND_TOKEN\",\n    \"webhook_secret\": \"SET_IN_STUDIO_BROADCAST_WEBHOOK_SECRET\",\n    \"whatsapp_account_id\": \"SET_IN_STUDIO_WHATSAPP_ACCOUNT_ID\",\n    \"whatsapp_templates\": {\n      \"report\": \"SET_IN_STUDIO_TEMPLATE_ID_MI_DAILY_REPORT\",\n      \"alert\": \"SET_IN_STUDIO_TEMPLATE_ID_MI_RUN_FAILED\"\n    },\n    \"whatsapp_template_names\": {\n      \"report\": \"mi_daily_report\",\n      \"alert\": \"mi_run_failed\"\n    },\n    \"alert_to\": \"SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS\",\n    \"portal_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"market_publish_webhook\": \"SET_IN_STUDIO_MARKET_PUBLISH_WEBHOOK_URL\",\n    \"market_publish_secret\": \"SET_IN_STUDIO_MARKET_PUBLISH_WEBHOOK_SECRET\"\n  };\n  const actions = [\"send\", \"retry\"];\n  const gate = !secretMatches(inputs.k, C.webhook_secret) ? 'denied' : actions.includes(String(inputs.action || '')) ? 'ok' : 'bad_action';\n  const { webhook_secret, ...rest } = C;\n  return { ...rest, gate };\n};",
+            "code": "// @ts-nocheck\n// lib: secretMatches — app/src/custom/lib/market.js (constant-time, fail closed)\nfunction secretMatches(given, expected) {\n  const a = String(given ?? ''); const b = String(expected ?? '');\n  if (b.length < 16 || /SET_IN_STUDIO/.test(b)) return false;\n  let d = a.length ^ b.length;\n  for (let i = 0; i < b.length; i++) d |= (a.charCodeAt(i) || 0) ^ b.charCodeAt(i);\n  return d === 0;\n}\n// end lib\nexport const code = async (inputs) => {\n  const C = {\n    \"flow\": \"BROADCAST\",\n    \"app_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"inbound_token\": \"SET_IN_STUDIO_INBOUND_TOKEN\",\n    \"webhook_secret\": \"SET_IN_STUDIO_BROADCAST_WEBHOOK_SECRET\",\n    \"whatsapp_account_id\": \"SET_IN_STUDIO_WHATSAPP_ACCOUNT_ID\",\n    \"whatsapp_templates\": {\n      \"report\": \"SET_IN_STUDIO_TEMPLATE_ID_MI_DAILY_REPORT\",\n      \"alert\": \"SET_IN_STUDIO_TEMPLATE_ID_MI_RUN_FAILED\"\n    },\n    \"whatsapp_template_names\": {\n      \"report\": \"mi_daily_report\",\n      \"alert\": \"mi_run_failed\"\n    },\n    \"alert_to\": \"SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS\",\n    \"portal_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"market_publish_webhook\": \"SET_IN_STUDIO_MARKET_PUBLISH_WEBHOOK_URL\",\n    \"market_publish_secret\": \"SET_IN_STUDIO_MARKET_PUBLISH_WEBHOOK_SECRET\"\n  };\n  const actions = [\"send\", \"retry\", \"alert\"];\n  const gate = !secretMatches(inputs.k, C.webhook_secret) ? 'denied' : actions.includes(String(inputs.action || '')) ? 'ok' : 'bad_action';\n  const { webhook_secret, ...rest } = C;\n  return { ...rest, gate };\n};",
             "packageJson": "{}"
           },
           "errorHandlingOptions": {
@@ -74,68 +74,6 @@
           "type": "ROUTER",
           "valid": true,
           "children": [
-            {
-              "name": "step_denied_done",
-              "skip": false,
-              "type": "PIECE",
-              "valid": true,
-              "settings": {
-                "input": {
-                  "fields": {
-                    "body": {
-                      "ok": false,
-                      "error": "unauthorized"
-                    },
-                    "status": 401,
-                    "headers": {}
-                  },
-                  "respond": "stop",
-                  "responseType": "json"
-                },
-                "pieceName": "@puchoaistudio/tool-webhook",
-                "actionName": "return_response",
-                "sampleData": {},
-                "pieceVersion": "^2.0.4",
-                "propertySettings": {
-                  "fields": {
-                    "type": "MANUAL",
-                    "schema": {
-                      "body": {
-                        "type": "JSON",
-                        "required": true,
-                        "displayName": "JSON Body"
-                      },
-                      "status": {
-                        "type": "NUMBER",
-                        "required": false,
-                        "displayName": "Status",
-                        "defaultValue": 200
-                      },
-                      "headers": {
-                        "type": "OBJECT",
-                        "required": false,
-                        "displayName": "Headers"
-                      }
-                    }
-                  },
-                  "respond": {
-                    "type": "MANUAL"
-                  },
-                  "responseType": {
-                    "type": "MANUAL"
-                  }
-                },
-                "errorHandlingOptions": {
-                  "retryOnFailure": {
-                    "value": false
-                  },
-                  "continueOnFailure": {
-                    "value": false
-                  }
-                }
-              },
-              "displayName": "Return 401: missing or wrong webhook secret"
-            },
             {
               "name": "step_send_reports",
               "skip": false,
@@ -252,7 +190,7 @@
                     },
                     "sampleData": {},
                     "sourceCode": {
-                      "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendPlan() reaches (tools/build_market_flows.py)\nconst ENUMS = {\n  Sentiment: ['BULLISH', 'CAUTIOUSLY BULLISH', 'NEUTRAL', 'CAUTIOUSLY BEARISH', 'BEARISH'],\n  Confidence_Level: ['HIGH', 'MEDIUM', 'LOW'],\n  Outlook: ['BULLISH', 'BEARISH', 'NEUTRAL', 'CAUTIOUS'],\n  FnO_View: ['BULLISH BIAS', 'BEARISH BIAS', 'RANGE-BOUND', 'VOLATILE'],\n  VIX_Expectation: ['LOW', 'MEDIUM', 'HIGH'],\n  SectorCall: ['POSITIVE', 'WATCH', 'NEGATIVE'],\n  RiskLevel: ['HIGH', 'MED'],\n  Trigger: ['Schedule', 'Manual'],\n  Opt_In_Source: ['WhatsApp reply', 'Web form', 'Signed form', 'Phone call'],\n};\nconst asDate = (at) => (at instanceof Date ? at : new Date(at || Date.now()));\nfunction istDate(at) {\n  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(asDate(at)).map((x) => [x.type, x.value]));\n  return `${p.year}-${p.month}-${p.day}`;\n}\nfunction istHHmm(at) { return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).format(asDate(at)).replace(':', ''); }\nfunction istLabel(at) {\n  const f = (o) => new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', ...o }).format(asDate(at));\n  return { date: f({ day: '2-digit', month: 'short', year: 'numeric' }), time: f({ hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() + ' IST' };\n}\nfunction cut(s, n) { const a = Array.from(String(s ?? '')); return a.length <= n ? a.join('') : a.slice(0, Math.max(0, n)).join(''); }\nconst clean = (v, max) => cut(String(v ?? '').replace(/\\s+/g, ' ').trim(), max);\nfunction pctText(v) { return v === '' || v == null || !Number.isFinite(Number(v)) ? '' : ` (${Math.round(Number(v))}%)`; }\nfunction normaliseWhatsApp(n) {\n  const digits = String(n || '').replace(/\\D/g, '');\n  if (!/^\\d{10,15}$/.test(digits)) return '';\n  return digits.length === 10 ? `+91${digits}` : `+${digits}`;\n}\nfunction adminNumbers(alertTo) { return /SET_IN_STUDIO/.test(String(alertTo || '')) ? [] : [...new Set(String(alertTo || '').split(/[,;\\s]+/).map(normaliseWhatsApp).filter(Boolean))]; }\nfunction isEligible(s) { return !!s && s.Status === 'Active' && !!String(s.Opt_In_At || '').trim() && ENUMS.Opt_In_Source.includes(s.Opt_In_Source) && !!normaliseWhatsApp(s.WhatsApp); }\nfunction reportTemplateVars(r) {\n  const pct = pctText(r.Confidence_Pct);\n  return { date: istLabel(`${r.Report_Date}T09:00:00+05:30`).date, sentiment: r.Sentiment || '', confidence: `${r.Confidence_Level || ''}${pct}`.trim(), driver: clean(r.Driver_1, 120) };\n}\nfunction alertTemplateVars({ error, reportDate, now = Date.now() }) {\n  const t = istLabel(now);\n  return { error: clean(error, 160) || 'The report could not be generated', date: reportDate ? istLabel(`${reportDate}T09:00:00+05:30`).date : t.date, time: t.time };\n}\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction watchdogText(today) { return `No report row by 06:20 IST for ${today} (or the app could not be read) — the 06:00 run did not finish`; }\nfunction sendPlan(inp) {\n  const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp); const today = istDate(now);\n  const reports = rowsOf(inp && inp.reports); const subs = rowsOf(inp && inp.subscribers);\n  const report = reports && body.Report_ID ? reports.find((r) => r.Report_ID === String(body.Report_ID)) || null : null;\n  const tpl = C.whatsapp_templates || {};\n  const publish = { Report_ID: report ? report.Report_ID : '', _job: String(body._job || '') };\n  const done = (kind, items, reason) => ({ kind, items, reason, Report_ID: publish.Report_ID, publish, queued: items.length });\n  if (body.Kind === 'Alert' || (report && report.Status === 'Failed')) {\n    if (body.Report_ID && (!report || report.Status !== 'Failed')) return done('Alert', [], `${String(body.Report_ID).slice(0, 30)} is not a Failed report — no alert`);\n    const date = report ? report.Report_Date : today;\n    const error = report ? report.Error_Message || 'The report could not be generated' : watchdogText(today);\n    const numbers = adminNumbers(C.alert_to); const at = istHHmm(now);\n    const items = numbers.map((to, i) => ({ to, template_id: tpl.alert || '', template_variables: alertTemplateVars({ error, reportDate: date, now }),\n      delivery: { Kind: 'Alert', Report_ID: report ? report.Report_ID : '', Report_Date: date, Subscriber_ID: `ADMIN-${i + 1}-${at}`, Subscriber_Name: `Admin alert ${i + 1}`, Sentiment: '', Status: 'Queued' } }));\n    return done('Alert', items, numbers.length ? '' : 'constants.alert_to has no WhatsApp number yet — nobody was alerted');\n  }\n  if (!reports) return done('Report', [], doorError(inp.reports, 'reports'));\n  if (!report) return done('Report', [], `No report ${String(body.Report_ID || '').slice(0, 30)}`);\n  if (!['Ready', 'Sent'].includes(report.Status)) return done('Report', [], `${report.Report_ID} is ${report.Status} — not sent`);\n  if (report.Status === 'Ready' && report.Report_Date !== today) return done('Report', [], `${report.Report_ID} is a Ready report for ${report.Report_Date} — only today's report is sent`);\n  if (!subs) return done('Report', [], doorError(inp.subscribers, 'subscribers'));\n  const vars = reportTemplateVars(report);\n  const items = subs.filter(isEligible).map((s) => ({ to: normaliseWhatsApp(s.WhatsApp), template_id: tpl.report || '', template_variables: vars,\n    delivery: { Kind: 'Report', Report_ID: report.Report_ID, Report_Date: report.Report_Date, Subscriber_ID: s.Subscriber_ID, Subscriber_Name: s.Name || '', Sentiment: report.Sentiment || '', Status: 'Queued' } }));\n  return done('Report', items, items.length ? '' : 'No Active, opted-in subscriber');\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendPlan(inputs);\n};",
+                      "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendPlan() reaches (tools/build_market_flows.py)\nconst ENUMS = {\n  Sentiment: ['BULLISH', 'CAUTIOUSLY BULLISH', 'NEUTRAL', 'CAUTIOUSLY BEARISH', 'BEARISH'],\n  Confidence_Level: ['HIGH', 'MEDIUM', 'LOW'],\n  Outlook: ['BULLISH', 'BEARISH', 'NEUTRAL', 'CAUTIOUS'],\n  FnO_View: ['BULLISH BIAS', 'BEARISH BIAS', 'RANGE-BOUND', 'VOLATILE'],\n  VIX_Expectation: ['LOW', 'MEDIUM', 'HIGH'],\n  SectorCall: ['POSITIVE', 'WATCH', 'NEGATIVE'],\n  RiskLevel: ['HIGH', 'MED'],\n  Trigger: ['Schedule', 'Manual'],\n  Opt_In_Source: ['WhatsApp reply', 'Web form', 'Signed form', 'Phone call'],\n};\nconst asDate = (at) => (at instanceof Date ? at : new Date(at || Date.now()));\nfunction istDate(at) {\n  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(asDate(at)).map((x) => [x.type, x.value]));\n  return `${p.year}-${p.month}-${p.day}`;\n}\nfunction istHHmm(at) { return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).format(asDate(at)).replace(':', ''); }\nfunction istLabel(at) {\n  const f = (o) => new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', ...o }).format(asDate(at));\n  return { date: f({ day: '2-digit', month: 'short', year: 'numeric' }), time: f({ hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() + ' IST' };\n}\nfunction cut(s, n) { const a = Array.from(String(s ?? '')); return a.length <= n ? a.join('') : a.slice(0, Math.max(0, n)).join(''); }\nconst clean = (v, max) => cut(String(v ?? '').replace(/\\s+/g, ' ').trim(), max);\nfunction pctText(v) { return v === '' || v == null || !Number.isFinite(Number(v)) ? '' : ` (${Math.round(Number(v))}%)`; }\nfunction normaliseWhatsApp(n) {\n  const digits = String(n || '').replace(/\\D/g, '');\n  if (!/^\\d{10,15}$/.test(digits)) return '';\n  return digits.length === 10 ? `+91${digits}` : `+${digits}`;\n}\nfunction adminNumbers(alertTo) { return /SET_IN_STUDIO/.test(String(alertTo || '')) ? [] : [...new Set(String(alertTo || '').split(/[,;\\s]+/).map(normaliseWhatsApp).filter(Boolean))]; }\nfunction isEligible(s) { return !!s && s.Status === 'Active' && !!String(s.Opt_In_At || '').trim() && ENUMS.Opt_In_Source.includes(s.Opt_In_Source) && !!normaliseWhatsApp(s.WhatsApp); }\nfunction reportTemplateVars(r) {\n  const pct = pctText(r.Confidence_Pct);\n  return { date: istLabel(`${r.Report_Date}T09:00:00+05:30`).date, sentiment: r.Sentiment || '', confidence: `${r.Confidence_Level || ''}${pct}`.trim(), driver: clean(r.Driver_1, 120) };\n}\nfunction alertTemplateVars({ error, reportDate, now = Date.now() }) {\n  const t = istLabel(now);\n  return { error: clean(error, 160) || 'The report could not be generated', date: reportDate ? istLabel(`${reportDate}T09:00:00+05:30`).date : t.date, time: t.time };\n}\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction watchdogText(today) { return `No report row by 06:20 IST for ${today} (or the app could not be read) — the 06:00 run did not finish`; }\nfunction sendPlan(inp) {\n  const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp); const today = istDate(now);\n  const reports = rowsOf(inp && inp.reports); const subs = rowsOf(inp && inp.subscribers);\n  const report = reports && body.Report_ID ? reports.find((r) => r.Report_ID === String(body.Report_ID)) || null : null;\n  const tpl = C.whatsapp_templates || {};\n  const publish = { Report_ID: report ? report.Report_ID : '', _job: String(body._job || '') };\n  const done = (kind, items, reason, code = '') => ({ kind, items, reason, code, Report_ID: publish.Report_ID, publish, queued: items.length });\n  const alertWatchdog = body.action === 'alert' && !body.Report_ID;\n  if (alertWatchdog || (report && report.Status === 'Failed')) {\n    const date = report ? report.Report_Date : today;\n    const error = report ? report.Error_Message || 'The report could not be generated' : watchdogText(today);\n    const numbers = adminNumbers(C.alert_to); const at = istHHmm(now);\n    const items = numbers.map((to, i) => ({ to, template_id: tpl.alert || '', template_variables: alertTemplateVars({ error, reportDate: date, now }),\n      delivery: { Kind: 'Alert', Report_ID: report ? report.Report_ID : '', Report_Date: date, Subscriber_ID: `ADMIN-${i + 1}-${at}`, Subscriber_Name: `Admin alert ${i + 1}`, Sentiment: '', Status: 'Queued' } }));\n    return done('Alert', items, numbers.length ? '' : 'constants.alert_to has no WhatsApp number yet — nobody was alerted');\n  }\n  if (!reports) return done('Report', [], doorError(inp.reports, 'reports'), 'APP_READ_FAILED');\n  if (!report) return done('Report', [], `No report ${String(body.Report_ID || '').slice(0, 30)}`, 'NOT_FOUND');\n  if (body.action === 'alert') return done('Alert', [], `${report.Report_ID} is ${report.Status} — no alert`, 'NOT_FAILED');\n  if (!['Ready', 'Sent'].includes(report.Status)) return done('Report', [], `${report.Report_ID} is ${report.Status} — not sent`, 'NOT_READY');\n  if (report.Report_Date !== today) return done('Report', [], `${report.Report_ID} is the report for ${report.Report_Date} — only today's report is sent`, 'NOT_TODAY');\n  if (!subs) return done('Report', [], doorError(inp.subscribers, 'subscribers'), 'APP_READ_FAILED');\n  const vars = reportTemplateVars(report);\n  const items = subs.filter(isEligible).map((s) => ({ to: normaliseWhatsApp(s.WhatsApp), template_id: tpl.report || '', template_variables: vars,\n    delivery: { Kind: 'Report', Report_ID: report.Report_ID, Report_Date: report.Report_Date, Subscriber_ID: s.Subscriber_ID, Subscriber_Name: s.Name || '', Sentiment: report.Sentiment || '', Status: 'Queued' } }));\n  return done('Report', items, items.length ? '' : 'No Active, opted-in subscriber');\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendPlan(inputs);\n};",
                       "packageJson": "{}"
                     },
                     "errorHandlingOptions": {
@@ -405,7 +343,7 @@
                               },
                               "sampleData": {},
                               "sourceCode": {
-                                "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendResult() reaches (tools/build_market_flows.py)\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction sendResult(inp) {\n  const id = String((inp && inp.Delivery_ID) || ''); const out = inp && inp.sent; const now = nowOf(inp).toISOString();\n  const o = out && typeof out === 'object' ? out : {};\n  const pick = (...vals) => vals.find((v) => typeof v === 'string' && v.trim()) || '';\n  const msgId = pick(o.messageId, o.message_id, o.id, o.wamid, o.messages && o.messages[0] && o.messages[0].id, o.data && o.data.messages && o.data.messages[0] && o.data.messages[0].id,\n    o.body && o.body.messages && o.body.messages[0] && o.body.messages[0].id, o.data && o.data.id);\n  const err = pick(o.error && (o.error.message || o.error), o.errorMessage, o.success === false ? o.message : '', o.status === 'failed' ? o.message : '');\n  const failed = !!err || !out || (typeof out === 'object' && !Object.keys(o).length);\n  return { Delivery_ID: id, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),\n    Error_Message: failed ? (err || 'WhatsApp step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed };\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendResult(inputs);\n};",
+                                "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendResult() reaches (tools/build_market_flows.py)\nfunction scrubSecrets(text) {\n  return String(text ?? '').replace(/\\bhttps?:\\/\\/[^\\s\"'<>]+/gi, '<url>').replace(/\\b(k|key|secret|token)=[^&\\s\"'<>]+/gi, '$1=…');\n}\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction sendResult(inp) {\n  const id = String((inp && inp.Delivery_ID) || ''); const out = inp && inp.sent; const now = nowOf(inp).toISOString();\n  const o = out && typeof out === 'object' ? out : {};\n  const pick = (...vals) => vals.find((v) => typeof v === 'string' && v.trim()) || '';\n  const msgId = pick(o.messageId, o.message_id, o.id, o.wamid, o.messages && o.messages[0] && o.messages[0].id, o.data && o.data.messages && o.data.messages[0] && o.data.messages[0].id,\n    o.body && o.body.messages && o.body.messages[0] && o.body.messages[0].id, o.data && o.data.id);\n  const err = pick(o.error && (o.error.message || o.error), o.errorMessage, o.success === false ? o.message : '', o.status === 'failed' ? o.message : '');\n  const failed = !!err || !out || (typeof out === 'object' && !Object.keys(o).length);\n  return { Delivery_ID: id, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),\n    Error_Message: failed ? scrubSecrets(err || 'WhatsApp step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed };\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendResult(inputs);\n};",
                                 "packageJson": "{}"
                               },
                               "errorHandlingOptions": {
@@ -938,7 +876,7 @@
                               },
                               "sampleData": {},
                               "sourceCode": {
-                                "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendResult() reaches (tools/build_market_flows.py)\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction sendResult(inp) {\n  const id = String((inp && inp.Delivery_ID) || ''); const out = inp && inp.sent; const now = nowOf(inp).toISOString();\n  const o = out && typeof out === 'object' ? out : {};\n  const pick = (...vals) => vals.find((v) => typeof v === 'string' && v.trim()) || '';\n  const msgId = pick(o.messageId, o.message_id, o.id, o.wamid, o.messages && o.messages[0] && o.messages[0].id, o.data && o.data.messages && o.data.messages[0] && o.data.messages[0].id,\n    o.body && o.body.messages && o.body.messages[0] && o.body.messages[0].id, o.data && o.data.id);\n  const err = pick(o.error && (o.error.message || o.error), o.errorMessage, o.success === false ? o.message : '', o.status === 'failed' ? o.message : '');\n  const failed = !!err || !out || (typeof out === 'object' && !Object.keys(o).length);\n  return { Delivery_ID: id, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),\n    Error_Message: failed ? (err || 'WhatsApp step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed };\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendResult(inputs);\n};",
+                                "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendResult() reaches (tools/build_market_flows.py)\nfunction scrubSecrets(text) {\n  return String(text ?? '').replace(/\\bhttps?:\\/\\/[^\\s\"'<>]+/gi, '<url>').replace(/\\b(k|key|secret|token)=[^&\\s\"'<>]+/gi, '$1=…');\n}\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction sendResult(inp) {\n  const id = String((inp && inp.Delivery_ID) || ''); const out = inp && inp.sent; const now = nowOf(inp).toISOString();\n  const o = out && typeof out === 'object' ? out : {};\n  const pick = (...vals) => vals.find((v) => typeof v === 'string' && v.trim()) || '';\n  const msgId = pick(o.messageId, o.message_id, o.id, o.wamid, o.messages && o.messages[0] && o.messages[0].id, o.data && o.data.messages && o.data.messages[0] && o.data.messages[0].id,\n    o.body && o.body.messages && o.body.messages[0] && o.body.messages[0].id, o.data && o.data.id);\n  const err = pick(o.error && (o.error.message || o.error), o.errorMessage, o.success === false ? o.message : '', o.status === 'failed' ? o.message : '');\n  const failed = !!err || !out || (typeof out === 'object' && !Object.keys(o).length);\n  return { Delivery_ID: id, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),\n    Error_Message: failed ? scrubSecrets(err || 'WhatsApp step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed };\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendResult(inputs);\n};",
                                 "packageJson": "{}"
                               },
                               "errorHandlingOptions": {
@@ -1290,26 +1228,74 @@
                 }
               },
               "displayName": "Return 400: unknown action"
+            },
+            {
+              "name": "step_denied_done",
+              "skip": false,
+              "type": "PIECE",
+              "valid": true,
+              "settings": {
+                "input": {
+                  "fields": {
+                    "body": {
+                      "ok": false,
+                      "error": "unauthorized"
+                    },
+                    "status": 401,
+                    "headers": {}
+                  },
+                  "respond": "stop",
+                  "responseType": "json"
+                },
+                "pieceName": "@puchoaistudio/tool-webhook",
+                "actionName": "return_response",
+                "sampleData": {},
+                "pieceVersion": "^2.0.4",
+                "propertySettings": {
+                  "fields": {
+                    "type": "MANUAL",
+                    "schema": {
+                      "body": {
+                        "type": "JSON",
+                        "required": true,
+                        "displayName": "JSON Body"
+                      },
+                      "status": {
+                        "type": "NUMBER",
+                        "required": false,
+                        "displayName": "Status",
+                        "defaultValue": 200
+                      },
+                      "headers": {
+                        "type": "OBJECT",
+                        "required": false,
+                        "displayName": "Headers"
+                      }
+                    }
+                  },
+                  "respond": {
+                    "type": "MANUAL"
+                  },
+                  "responseType": {
+                    "type": "MANUAL"
+                  }
+                },
+                "errorHandlingOptions": {
+                  "retryOnFailure": {
+                    "value": false
+                  },
+                  "continueOnFailure": {
+                    "value": false
+                  }
+                }
+              },
+              "displayName": "Return 401: missing or wrong webhook secret, or no gate"
             }
           ],
           "settings": {
             "branches": [
               {
-                "branchName": "Unauthorized → 401",
-                "branchType": "CONDITION",
-                "conditions": [
-                  [
-                    {
-                      "operator": "TEXT_EXACTLY_MATCHES",
-                      "firstValue": "{{step_constants['gate']}}",
-                      "secondValue": "denied",
-                      "caseSensitive": false
-                    }
-                  ]
-                ]
-              },
-              {
-                "branchName": "send",
+                "branchName": "send | alert",
                 "branchType": "CONDITION",
                 "conditions": [
                   [
@@ -1317,13 +1303,27 @@
                       "operator": "TEXT_EXACTLY_MATCHES",
                       "firstValue": "{{step_constants['gate']}}",
                       "secondValue": "ok",
-                      "caseSensitive": false
+                      "caseSensitive": true
                     },
                     {
                       "operator": "TEXT_EXACTLY_MATCHES",
                       "firstValue": "{{trigger['body']['action']}}",
                       "secondValue": "send",
-                      "caseSensitive": false
+                      "caseSensitive": true
+                    }
+                  ],
+                  [
+                    {
+                      "operator": "TEXT_EXACTLY_MATCHES",
+                      "firstValue": "{{step_constants['gate']}}",
+                      "secondValue": "ok",
+                      "caseSensitive": true
+                    },
+                    {
+                      "operator": "TEXT_EXACTLY_MATCHES",
+                      "firstValue": "{{trigger['body']['action']}}",
+                      "secondValue": "alert",
+                      "caseSensitive": true
                     }
                   ]
                 ]
@@ -1337,26 +1337,40 @@
                       "operator": "TEXT_EXACTLY_MATCHES",
                       "firstValue": "{{step_constants['gate']}}",
                       "secondValue": "ok",
-                      "caseSensitive": false
+                      "caseSensitive": true
                     },
                     {
                       "operator": "TEXT_EXACTLY_MATCHES",
                       "firstValue": "{{trigger['body']['action']}}",
                       "secondValue": "retry",
-                      "caseSensitive": false
+                      "caseSensitive": true
                     }
                   ]
                 ]
               },
               {
-                "branchName": "Unknown action",
+                "branchName": "Unknown action → 400",
+                "branchType": "CONDITION",
+                "conditions": [
+                  [
+                    {
+                      "operator": "TEXT_EXACTLY_MATCHES",
+                      "firstValue": "{{step_constants['gate']}}",
+                      "secondValue": "bad_action",
+                      "caseSensitive": true
+                    }
+                  ]
+                ]
+              },
+              {
+                "branchName": "Anything else → 401",
                 "branchType": "FALLBACK"
               }
             ],
             "sampleData": {},
             "executionType": "EXECUTE_FIRST_MATCH"
           },
-          "displayName": "Webhook secret · send · retry"
+          "displayName": "Webhook secret · send | alert · retry (allow-list)"
         },
         "displayName": "Constants + webhook secret check (first step)"
       }

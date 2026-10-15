@@ -145,7 +145,7 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
 
 ## 16. Publish
 - [ ] Press **Publish**. Edits do nothing until Studio says the flow is published.
-- [ ] Self-check: open **Sent or Failed? (CODE)**. Its code has **18 lines** and line 1 is `// @ts-nocheck`. If not, paste it again and publish.
+- [ ] Self-check: open **Sent or Failed? (CODE)**. Its code has **21 lines** and line 1 is `// @ts-nocheck`. If not, paste it again and publish.
 ## 17. Test the trigger — one payload per action
 - [ ] Open the trigger step → **Test** → paste a payload below → send. Studio then shows every later step's input filled in, and `{{trigger['body'][…]}}` picks resolve in the UI.
 - [ ] After the test, open each **http** step: the **JSON Body** box lists the fields it writes (named, one per column). If a box is empty, the import did not take `body.data` — tell Claude.
@@ -161,11 +161,10 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
 }
 ```
 
-**send — admin alert (what the watchdog sends) · URL ?k=<secret>**
+**alert — the admin alert (flows only: the watchdog, MARKET_STORE for a Failed report) · URL ?k=<secret>**
 ```json
 {
-  "action": "send",
-  "Kind": "Alert",
+  "action": "alert",
   "Report_ID": ""
 }
 ```

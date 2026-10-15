@@ -44,7 +44,7 @@ File: `MARKET_STORE.json`. Do the steps in order. Tick each box.
   - **body_type**: `json`
   - **body**: `{{step_new_after['news']}}`
 
-## 6. POST BROADCAST {action: send} ?k= (`step_new_bc`, http)
+## 6. POST BROADCAST {action: send | alert} ?k= (`step_new_bc`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
 - [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
   - **method**: `POST`
@@ -53,7 +53,7 @@ File: `MARKET_STORE.json`. Do the steps in order. Tick each box.
   - **queryParams**: `{{step_constants['broadcast_secret']}}`
   - **authType**: `NONE`
   - **body_type**: `json`
-  - **body**: `{"data": {"action": "{{step_new_bc_loop['item']['action']}}", "Report_ID": "{{step_new_bc_loop['item']['Report_ID']}}", "Kind": "{{step_new_bc_loop['item']['Kind']}}", "_who": "flow:MARKET_STORE"}}`
+  - **body**: `{"data": {"action": "{{step_new_bc_loop['item']['action']}}", "Report_ID": "{{step_new_bc_loop['item']['Report_ID']}}", "_who": "flow:MARKET_STORE"}}`
 
 ## 7. POST /api/jobs/<id> done | failed (`step_new_job`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
@@ -86,7 +86,7 @@ File: `MARKET_STORE.json`. Do the steps in order. Tick each box.
   - **body_type**: `json`
   - **body**: `{{step_rerun_after['news']}}`
 
-## 10. POST BROADCAST {action: send} ?k= (`step_rerun_bc`, http)
+## 10. POST BROADCAST {action: send | alert} ?k= (`step_rerun_bc`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
 - [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
   - **method**: `POST`
@@ -95,7 +95,7 @@ File: `MARKET_STORE.json`. Do the steps in order. Tick each box.
   - **queryParams**: `{{step_constants['broadcast_secret']}}`
   - **authType**: `NONE`
   - **body_type**: `json`
-  - **body**: `{"data": {"action": "{{step_rerun_bc_loop['item']['action']}}", "Report_ID": "{{step_rerun_bc_loop['item']['Report_ID']}}", "Kind": "{{step_rerun_bc_loop['item']['Kind']}}", "_who": "flow:MARKET_STORE"}}`
+  - **body**: `{"data": {"action": "{{step_rerun_bc_loop['item']['action']}}", "Report_ID": "{{step_rerun_bc_loop['item']['Report_ID']}}", "_who": "flow:MARKET_STORE"}}`
 
 ## 11. POST /api/jobs/<id> done | failed (`step_rerun_job`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.

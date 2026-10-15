@@ -196,7 +196,7 @@ export function impactOf(title, category) {
 export function fetchedText(out) {
   if (typeof out === 'string') return { text: out, error: '' };
   if (!out || typeof out !== 'object') return { text: '', error: 'no response' };
-  if (out.error) return { text: '', error: String(out.error.message || out.error).slice(0, 80) };
+  if (out.error) return { text: '', error: cut(scrubSecrets(out.error.message || out.error), 80) };
   const status = Number(out.status ?? out.statusCode ?? 200);
   if (status >= 400) return { text: '', error: `HTTP ${status}` };
   const body = out.body ?? out.data;
@@ -425,6 +425,11 @@ export function doorError(out, entity) {
 const JOB = /^JOB-[0-9A-F]{12}$/;
 /** The app's async job (when the app asked) → [{ id, status, result }] for a 0-or-1 loop; a flow-to-flow call carries none. */
 export function jobItems(job, status, result) { return JOB.test(String(job || '')) ? [{ id: String(job), status, result }] : []; }
+
+/** Error text a flow writes (Source_Status, a delivery's Error_Message, a job result) never carries a URL or a ?k= secret (SA-20). */
+export function scrubSecrets(text) {
+  return String(text ?? '').replace(/\bhttps?:\/\/[^\s"'<>]+/gi, '<url>').replace(/\b(k|key|secret|token)=[^&\s"'<>]+/gi, '$1=…');
+}
 
 /**
  * The webhook secret check every webhook flow runs first (SA-01..SA-04): the caller's ?k= against the flow's constant, in time that
