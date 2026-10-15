@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Market Intelligence Dashboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg-primary: #090e1a;
+    --bg-secondary: #0d1526;
+    --bg-card: #111d35;
+    --bg-card-hover: #162240;
+    --border: #1e3058;
+    --border-bright: #2a4580;
+    --accent-green: #00e5a0;
+    --accent-red: #ff4d6d;
+    --accent-yellow: #f5c842;
+    --accent-blue: #3b82f6;
+    --accent-purple: #a855f7;
+    --accent-orange: #f97316;
+    --text-primary: #e8f0fe;
+    --text-secondary: #7a95c0;
+    --text-muted: #3d5a8a;
+    --green-glow: rgba(0,229,160,0.15);
+    --red-glow: rgba(255,77,109,0.15);
+    --blue-glow: rgba(59,130,246,0.12);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(59,130,246,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59,130,246,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ─── TOPBAR ─── */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(9,14,26,0.92);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .topbar-left { display:flex; align-items:center; gap:14px; }
+  .logo-dot {
+    width: 10px; height: 10px;
+    background: var(--accent-green);
+    border-radius: 50%;
+    box-shadow: 0 0 12px var(--accent-green);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50% { opacity:0.5; transform:scale(0.8); }
+  }
+  .logo-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: var(--text-primary);
+  }
+  .logo-text span { color: var(--accent-green); }
+  .topbar-right { display:flex; align-items:center; gap:16px; }
+  .live-badge {
+    display:flex; align-items:center; gap:6px;
+    background: rgba(0,229,160,0.1);
+    border: 1px solid rgba(0,229,160,0.3);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent-green);
+    letter-spacing: 1px;
+  }
+  .live-dot {
+    width:6px; height:6px;
+    background: var(--accent-green);
+    border-radius:50%;
+    animation: pulse 1s infinite;
+  }
+  .topbar-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .workflow-badge {
+    background: rgba(59,130,246,0.1);
+    border: 1px solid rgba(59,130,246,0.25);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: var(--accent-blue);
+    font-weight: 500;
+  }
+
+  /* ─── TICKER ─── */
+  .ticker-wrapper {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+  }
+  .ticker-label {
+    background: var(--accent-blue);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 0 12px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    z-index: 2;
+  }
+  .ticker-track {
+    display:flex; gap:0;
+    animation: ticker 30s linear infinite;
+    white-space: nowrap;
+  }
+  @keyframes ticker {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  .ticker-item {
+    display:inline-flex; align-items:center; gap:8px;
+    padding: 0 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    border-right: 1px solid var(--border);
+  }
+  .ticker-name { color: var(--text-secondary); font-weight: 600; }
+  .ticker-val { color: var(--text-primary); font-weight: 700; }
+  .ticker-chg.up { color: var(--accent-green); }
+  .ticker-chg.dn { color: var(--accent-red); }
+
+  /* ─── MAIN LAYOUT ─── */
+  .main { padding: 20px 24px; max-width: 1600px; margin: 0 auto; position:relative; z-index:1; }
+
+  /* ─── SECTION HEADERS ─── */
+  .section-hdr {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+  }
+  .section-hdr-line {
+    flex:1; height:1px;
+    background: linear-gradient(90deg, var(--border-bright), transparent);
+  }
+  .section-hdr-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .section-hdr-icon { font-size:14px; }
+
+  /* ─── SENTIMENT HERO ─── */
+  .sentiment-hero {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 32px;
+    margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 32px;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .sentiment-hero::before {
+    content:'';
+    position:absolute;
+    top:-60px; left:-60px;
+    width:200px; height:200px;
+    background: radial-gradient(circle, rgba(0,229,160,0.08), transparent 70%);
+    pointer-events:none;
+  }
+  .sentiment-big {
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+  }
+  .sentiment-label {
+    font-size: 10px; font-weight:700; letter-spacing:2px;
+    color: var(--text-secondary); text-transform:uppercase;
+  }
+  .sentiment-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--accent-green);
+    text-shadow: 0 0 30px rgba(0,229,160,0.4);
+    letter-spacing: 2px;
+  }
+  .sentiment-value.bearish { color: var(--accent-red); text-shadow: 0 0 30px rgba(255,77,109,0.4); }
+  .sentiment-conf {
+    font-size: 12px; color: var(--text-secondary);
+    background: rgba(0,229,160,0.1);
+    border: 1px solid rgba(0,229,160,0.2);
+    border-radius: 20px;
+    padding: 3px 10px;
+  }
+  .sentiment-drivers { flex:1; }
+  .driver-title {
+    font-size:11px; font-weight:700; letter-spacing:1.5px;
+    color: var(--text-secondary); text-transform:uppercase;
+    margin-bottom:12px;
+  }
+  .driver-item {
+    display:flex; align-items:flex-start; gap:10px;
+    margin-bottom:8px;
+    font-size: 13px; color: var(--text-primary);
+    line-height:1.5;
+  }
+  .driver-bullet {
+    width:6px; height:6px; border-radius:50%;
+    background: var(--accent-green);
+    flex-shrink:0; margin-top:6px;
+  }
+  .sentiment-meta {
+    display:flex; flex-direction:column; gap:12px; align-items:flex-end;
+  }
+  .meta-item { text-align:right; }
+  .meta-label { font-size:10px; color:var(--text-muted); letter-spacing:1px; text-transform:uppercase; }
+  .meta-value { font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:600; color:var(--text-primary); margin-top:2px; }
+
+  /* ─── GRID LAYOUTS ─── */
+  .grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+  .grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
+  .grid-2-1 { display:grid; grid-template-columns:2fr 1fr; gap:14px; margin-bottom:20px; }
+  .grid-1-2 { display:grid; grid-template-columns:1fr 2fr; gap:14px; margin-bottom:20px; }
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
+
+  /* ─── CARDS ─── */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    transition: border-color 0.2s, transform 0.2s;
+    position:relative; overflow:hidden;
+  }
+  .card:hover { border-color: var(--border-bright); transform: translateY(-1px); }
+  .card-title {
+    font-size:10px; font-weight:700; letter-spacing:2px;
+    color: var(--text-muted); text-transform:uppercase;
+    margin-bottom:10px; display:flex; align-items:center; gap:6px;
+  }
+
+  /* ─── SEGMENT CARDS ─── */
+  .segment-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    position:relative; overflow:hidden;
+    transition: all 0.2s;
+  }
+  .segment-card:hover { border-color: var(--border-bright); transform: translateY(-1px); }
+  .segment-card::after {
+    content:'';
+    position:absolute;
+    top:0; left:0; right:0; height:3px;
+    border-radius:12px 12px 0 0;
+  }
+  .segment-card.bullish::after { background: linear-gradient(90deg, var(--accent-green), transparent); }
+  .segment-card.bearish::after { background: linear-gradient(90deg, var(--accent-red), transparent); }
+  .segment-card.neutral::after { background: linear-gradient(90deg, var(--accent-yellow), transparent); }
+  .segment-card.cautious::after { background: linear-gradient(90deg, var(--accent-orange), transparent); }
+  .seg-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
+  .seg-name { font-size:13px; font-weight:700; color:var(--text-primary); }
+  .seg-sub { font-size:10px; color:var(--text-secondary); margin-top:2px; }
+  .seg-badge {
+    font-size:10px; font-weight:700; letter-spacing:1px;
+    padding: 4px 10px; border-radius:20px; text-transform:uppercase;
+  }
+  .seg-badge.bullish { background:rgba(0,229,160,0.12); color:var(--accent-green); border:1px solid rgba(0,229,160,0.25); }
+  .seg-badge.bearish { background:rgba(255,77,109,0.12); color:var(--accent-red); border:1px solid rgba(255,77,109,0.25); }
+  .seg-badge.neutral { background:rgba(245,200,66,0.12); color:var(--accent-yellow); border:1px solid rgba(245,200,66,0.25); }
+  .seg-badge.cautious { background:rgba(249,115,22,0.12); color:var(--accent-orange); border:1px solid rgba(249,115,22,0.25); }
+  .seg-range {
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px; color:var(--text-secondary); margin-bottom:8px;
+  }
+  .seg-range span { color:var(--text-primary); font-weight:600; }
+  .seg-reason { font-size:12px; color:var(--text-secondary); line-height:1.6; }
+  .seg-mini-chart { height:40px; margin-top:12px; position:relative; overflow:hidden; }
+  .seg-mini-chart svg { width:100%; height:100%; }
+
+  /* ─── NEWS FEED ─── */
+  .news-feed { display:flex; flex-direction:column; gap:8px; }
+  .news-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    transition: all 0.2s;
+    cursor:pointer;
+  }
+  .news-item:hover { border-color:var(--border-bright); background:var(--bg-card-hover); }
+  .news-cat-tag {
+    flex-shrink:0;
+    font-size:9px; font-weight:700; letter-spacing:1px;
+    padding: 3px 8px; border-radius:4px; text-transform:uppercase;
+    margin-top:2px;
+  }
+  .cat-MACRO { background:rgba(168,85,247,0.15); color:#c084fc; }
+  .cat-BANKING { background:rgba(59,130,246,0.15); color:#60a5fa; }
+  .cat-IT { background:rgba(20,184,166,0.15); color:#2dd4bf; }
+  .cat-GLOBAL { background:rgba(249,115,22,0.15); color:#fb923c; }
+  .cat-FNO { background:rgba(245,200,66,0.15); color:#fbbf24; }
+  .cat-BENCHMARK { background:rgba(0,229,160,0.15); color:#00e5a0; }
+  .cat-COMMODITY { background:rgba(234,179,8,0.15); color:#eab308; }
+  .cat-PHARMA { background:rgba(16,185,129,0.15); color:#34d399; }
+  .cat-AUTO { background:rgba(99,102,241,0.15); color:#818cf8; }
+  .cat-GENERAL { background:rgba(100,116,139,0.15); color:#94a3b8; }
+  .news-content { flex:1; }
+  .news-title { font-size:13px; font-weight:500; color:var(--text-primary); line-height:1.5; margin-bottom:4px; }
+  .news-meta { display:flex; gap:10px; font-size:11px; color:var(--text-muted); }
+  .news-source { color:var(--accent-blue); }
+  .news-impact {
+    margin-left:auto; flex-shrink:0;
+    font-size:9px; font-weight:700; letter-spacing:1px;
+    padding:2px 7px; border-radius:4px; text-transform:uppercase;
+  }
+  .impact-high { background:rgba(255,77,109,0.15); color:var(--accent-red); }
+  .impact-med { background:rgba(245,200,66,0.15); color:var(--accent-yellow); }
+  .impact-low { background:rgba(100,116,139,0.15); color:#94a3b8; }
+
+  /* ─── SECTOR TABLE ─── */
+  .sector-table { width:100%; border-collapse:collapse; }
+  .sector-table th {
+    font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase;
+    color:var(--text-muted); padding:8px 12px; text-align:left;
+    border-bottom:1px solid var(--border);
+  }
+  .sector-table td {
+    padding:10px 12px; border-bottom:1px solid rgba(30,48,88,0.5);
+    font-size:13px;
+  }
+  .sector-table tr:last-child td { border-bottom:none; }
+  .sector-table tr:hover td { background:rgba(255,255,255,0.02); }
+  .sector-name { color:var(--text-primary); font-weight:500; }
+  .sector-call {
+    font-size:10px; font-weight:700; letter-spacing:1px;
+    padding:3px 9px; border-radius:4px; text-transform:uppercase; display:inline-block;
+  }
+  .call-buy { background:rgba(0,229,160,0.12); color:var(--accent-green); }
+  .call-avoid { background:rgba(255,77,109,0.12); color:var(--accent-red); }
+  .call-watch { background:rgba(245,200,66,0.12); color:var(--accent-yellow); }
+  .sector-reason { font-size:12px; color:var(--text-secondary); }
+  .sector-perf {
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px; font-weight:600;
+  }
+  .perf-pos { color:var(--accent-green); }
+  .perf-neg { color:var(--accent-red); }
+
+  /* ─── WORKFLOW PIPELINE ─── */
+  .pipeline {
+    display:flex; align-items:center; gap:0;
+    overflow-x:auto; padding:8px 0 12px;
+    scrollbar-width:thin; scrollbar-color:var(--border) transparent;
+  }
+  .pipe-node {
+    flex-shrink:0;
+    background:var(--bg-card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:12px 16px;
+    min-width:140px;
+    text-align:center;
+    position:relative;
+    transition:all 0.2s;
+    cursor:pointer;
+  }
+  .pipe-node:hover { border-color:var(--border-bright); }
+  .pipe-node.active { border-color:var(--accent-green); }
+  .pipe-node.active::before {
+    content:'';
+    position:absolute; inset:-1px;
+    border-radius:10px;
+    background:linear-gradient(135deg,rgba(0,229,160,0.08),transparent);
+    pointer-events:none;
+  }
+  .pipe-node-icon { font-size:18px; margin-bottom:4px; }
+  .pipe-node-name { font-size:10px; font-weight:600; color:var(--text-primary); letter-spacing:0.5px; }
+  .pipe-node-type { font-size:9px; color:var(--text-muted); margin-top:2px; letter-spacing:0.5px; }
+  .pipe-node-status {
+    position:absolute; top:-5px; right:-5px;
+    width:12px; height:12px; border-radius:50%;
+    border:2px solid var(--bg-card);
+  }
+  .status-ok { background:var(--accent-green); box-shadow:0 0 6px var(--accent-green); }
+  .status-idle { background:var(--text-muted); }
+  .status-warn { background:var(--accent-yellow); }
+  .pipe-arrow {
+    flex-shrink:0;
+    width:28px; height:1px;
+    background:linear-gradient(90deg, var(--border-bright), var(--border));
+    position:relative;
+  }
+  .pipe-arrow::after {
+    content:'';
+    position:absolute; right:-1px; top:-3px;
+    border:4px solid transparent;
+    border-left:6px solid var(--border-bright);
+  }
+  .pipe-arrow.split { display:none; }
+  .pipe-group {
+    flex-shrink:0;
+    display:flex; flex-direction:column; gap:6px;
+    padding: 0 8px;
+  }
+  .pipe-group-label {
+    font-size:9px; font-weight:700; color:var(--text-muted);
+    letter-spacing:1px; text-align:center; text-transform:uppercase;
+    margin-bottom:2px;
+  }
+
+  /* ─── RISK PANEL ─── */
+  .risk-item {
+    display:flex; gap:12px; align-items:flex-start;
+    padding:10px 0; border-bottom:1px solid rgba(30,48,88,0.5);
+  }
+  .risk-item:last-child { border-bottom:none; }
+  .risk-icon { font-size:16px; flex-shrink:0; margin-top:1px; }
+  .risk-text { font-size:13px; color:var(--text-secondary); line-height:1.5; }
+  .risk-level {
+    margin-left:auto; flex-shrink:0;
+    font-size:9px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
+    padding:2px 7px; border-radius:4px;
+  }
+  .risk-high { background:rgba(255,77,109,0.15); color:var(--accent-red); }
+  .risk-med { background:rgba(245,200,66,0.15); color:var(--accent-yellow); }
+
+  /* ─── STRATEGY BOX ─── */
+  .strategy-box {
+    background: linear-gradient(135deg, rgba(0,229,160,0.05), rgba(59,130,246,0.05));
+    border: 1px solid rgba(0,229,160,0.2);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .strategy-title { font-size:11px; font-weight:700; letter-spacing:2px; color:var(--accent-green); text-transform:uppercase; margin-bottom:12px; }
+  .strategy-text { font-size:13px; color:var(--text-secondary); line-height:1.8; }
+  .strategy-text strong { color:var(--text-primary); }
+
+  /* ─── FNO PANEL ─── */
+  .fno-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .fno-item { background:rgba(255,255,255,0.02); border-radius:8px; padding:12px; }
+  .fno-label { font-size:10px; color:var(--text-muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; }
+  .fno-value { font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:700; color:var(--text-primary); }
+  .fno-sub { font-size:11px; color:var(--text-secondary); margin-top:2px; }
+
+  /* ─── MINI SPARKLINE ─── */
+  .sparkline { width:100%; height:36px; display:block; }
+
+  /* ─── SOURCE BADGES ─── */
+  .source-pills { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .source-pill {
+    font-size:10px; font-weight:600;
+    padding: 3px 10px; border-radius:20px;
+    border:1px solid var(--border);
+    color:var(--text-secondary);
+    display:flex; align-items:center; gap:5px;
+  }
+  .source-pill-dot { width:5px; height:5px; border-radius:50%; }
+
+  /* ─── STATS ROW ─── */
+  .stat-box {
+    text-align:center; padding:14px 10px;
+    background:var(--bg-card); border:1px solid var(--border); border-radius:10px;
+  }
+  .stat-num {
+    font-family:'JetBrains Mono',monospace;
+    font-size:24px; font-weight:700; color:var(--text-primary);
+    line-height:1;
+  }
+  .stat-num.green { color:var(--accent-green); }
+  .stat-num.red { color:var(--accent-red); }
+  .stat-lbl { font-size:10px; color:var(--text-muted); letter-spacing:1px; text-transform:uppercase; margin-top:4px; }
+
+  /* ─── WHATSAPP PREVIEW ─── */
+  .wa-preview {
+    background: #111b21;
+    border-radius: 12px;
+    overflow:hidden;
+  }
+  .wa-bar {
+    background:#202c33;
+    padding:10px 14px;
+    display:flex; align-items:center; gap:10px;
+    border-bottom:1px solid #2a3942;
+  }
+  .wa-avatar {
+    width:34px; height:34px; border-radius:50%;
+    background:linear-gradient(135deg,var(--accent-green),var(--accent-blue));
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px; font-weight:700;
+  }
+  .wa-name { font-size:13px; font-weight:600; color:#e9edef; }
+  .wa-status { font-size:11px; color:#8696a0; }
+  .wa-msgs { padding:14px; display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; }
+  .wa-msg {
+    background:#202c33;
+    border-radius:8px 8px 8px 2px;
+    padding:10px 12px;
+    max-width:90%;
+    align-self:flex-start;
+  }
+  .wa-msg-text { font-size:12px; color:#e9edef; line-height:1.6; white-space:pre-line; }
+  .wa-msg-time { font-size:10px; color:#8696a0; text-align:right; margin-top:4px; }
+
+  /* ─── TABS ─── */
+  .tab-bar { display:flex; gap:2px; margin-bottom:14px; background:var(--bg-secondary); border-radius:8px; padding:3px; }
+  .tab-btn {
+    flex:1; padding:7px 12px;
+    font-size:11px; font-weight:600; letter-spacing:0.5px;
+    border:none; border-radius:6px; cursor:pointer;
+    background:transparent; color:var(--text-muted);
+    transition:all 0.15s;
+  }
+  .tab-btn.active { background:var(--bg-card); color:var(--text-primary); }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+
+  /* ─── FILTER CHIPS ─── */
+  .filter-chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+  .chip {
+    font-size:10px; font-weight:600; letter-spacing:0.5px;
+    padding:4px 12px; border-radius:20px; cursor:pointer;
+    border:1px solid var(--border); color:var(--text-muted);
+    background:transparent; transition:all 0.15s;
+  }
+  .chip.active { border-color:var(--accent-blue); color:var(--accent-blue); background:rgba(59,130,246,0.1); }
+
+  /* ─── FOOTER ─── */
+  .footer {
+    text-align:center; padding:24px;
+    border-top:1px solid var(--border);
+    color:var(--text-muted); font-size:11px;
+    line-height:1.8;
+    position:relative; z-index:1;
+    margin-top:10px;
+  }
+  .footer a { color:var(--accent-blue); text-decoration:none; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width:5px; height:5px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo-dot"></div>
+    <div class="logo-text">MARKET<span>INTEL</span></div>
+    <div class="workflow-badge">n8n Workflow v1.0</div>
+  </div>
+  <div class="topbar-right">
+    <div class="live-badge"><div class="live-dot"></div>LIVE SIMULATION</div>
+    <div class="topbar-time" id="clock">--:-- --</div>
+    <div style="font-size:11px;color:var(--text-muted)">IST | NSE/BSE</div>
+  </div>
+</div>
+
+<!-- TICKER -->
+<div class="ticker-wrapper">
+  <div class="ticker-label">LIVE</div>
+  <div style="overflow:hidden;flex:1;">
+    <div class="ticker-track" id="tickerTrack">
+      <!-- Items duplicated for seamless loop -->
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- SECTION: WORKFLOW PIPELINE -->
+  <div class="section-hdr">
+    <div class="section-hdr-icon">⚙️</div>
+    <div class="section-hdr-title">n8n Workflow Pipeline</div>
+    <div class="section-hdr-line"></div>
+    <div style="font-size:10px;color:var(--text-muted);white-space:nowrap">Daily 6:00 AM IST · Mon–Fri</div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="pipeline" id="pipeline">
+
+      <!-- Node: Schedule -->
+      <div class="pipe-node active" title="Cron: 0 30 0 * * 1-5 | Runs Mon-Fri 6AM IST">
+        <div class="pipe-node-status status-ok"></div>
+        <div class="pipe-node-icon">⏰</div>
+        <div class="pipe-node-name">Schedule Trigger</div>
+        <div class="pipe-node-type">6:00 AM IST · Mon-Fri</div>
+      </div>
+      <div class="pipe-arrow"></div>
+
+      <!-- Parallel Fetch Group -->
+      <div class="pipe-group">
+        <div class="pipe-group-label">Parallel RSS Fetch</div>
+        <div class="pipe-node active" title="ET Markets RSS - economictimes.indiatimes.com/markets/rss.cms">
+          <div class="pipe-node-status status-ok"></div>
+          <div class="pipe-node-icon">📰</div>
+          <div class="pipe-node-name">ET Markets</div>
+          <div class="pipe-node-type">RSS · HTTP GET</div>
+        </div>
+        <div class="pipe-node active" title="Moneycontrol RSS">
+          <div class="pipe-node-status status-ok"></div>
+          <div class="pipe-node-icon">📊</div>
+          <div class="pipe-node-name">Moneycontrol</div>
+          <div class="pipe-node-type">RSS · HTTP GET</div>
+        </div>
+        <div class="pipe-node active" title="Reuters India RSS">
+          <div class="pipe-node-status status-ok"></div>
+          <div class="pipe-node-icon">🌐</div>
+          <div class="pipe-node-name">Reuters India</div>
+          <div class="pipe-node-type">RSS · HTTP GET</div>
+        </div>
+        <div class="pipe-node active" title="Google Finance News RSS">
+          <div class="pipe-node-status status-ok"></div>
+          <div class="pipe-node-icon">🔍</div>
+          <div class="pipe-node-name">Google Finance</div>
+          <div class="pipe-node-type">RSS · HTTP GET</div>
+        </div>
+        <div class="pipe-node active" title="Global Market Cues RSS - SGX Nifty, Dow, NASDAQ">
+          <div class="pipe-node-status status-ok"></div>
+          <div class="pipe-node-icon">🌏</div>
+          <div class="pipe-node-name">Global Cues</div>
+          <div class="pipe-node-type">RSS · HTTP GET</div>
+        </div>
+      </div>
+      <div class="pipe-arrow"></div>
+
+      <!-- Merge -->
+      <div class="pipe-node active" title="Merge all 5 RSS feeds | Mode: combine multiplex">
+        <div class="pipe-node-status status-ok"></div>
+        <div class="pipe-node-icon">🔀</div>
+        <div class="pipe-node-name">Merge Sources</div>
+        <div class="pipe-node-type">Combine · Multiplex</div>
+      </div>
+      <div class="pipe-arrow"></div>
+
+      <!-- Parse -->
+      <div class="pipe-node active" title="Code Node: Parse RSS XML, deduplicate, categorize up to 40 articles">
+        <div class="pipe-node-status status-ok"></div>
+        <div class="pipe-node-icon">🧹</div>
+        <div class="pipe-node-name">Parse & Categorize</div>
+        <div class="pipe-node-type">Code · JavaScript</div>
+      </div>
+      <div class="pipe-arrow"></div>
+
+      <!-- Groq -->
+      <div class="pipe-node active" title="Groq API: llama-3.3-70b-versatile | temp:0.3 | max_tokens:2000">
+        <div class="pipe-node-status status-ok"></div>
+        <div class="pipe-node-icon">🤖</div>
+        <div class="pipe-node-name">Groq AI</div>
+        <div class="pipe-node-type">llama-3.3-70b</div>
+      </div>
+      <div class="pipe-arrow"></div>
+
+      <!-- Format -->
+      <div class="pipe-node active" title="Code Node: Format WhatsApp message with header + analysis + footer">
+        <div class="pipe-node-status status-ok"></div>
+        <div class="pipe-node-icon">✍️</div>
+        <div class="pipe-node-name">Format Message</div>
+        <div class="pipe-node-type">Code · JavaScript</div>
+      </div>
+      <div class="pipe-arrow"></div>
+
+      <!-- WhatsApp -->
+      <div class="pipe-node active" title="Meta Cloud API v19.0 | graph.facebook.com/v19.0/{phoneId}/messages">
+        <div class="pipe-node-status status-ok"></div>
+        <div class="pipe-node-icon">💬</div>
+        <div class="pipe-node-name">WhatsApp API</div>
+        <div class="pipe-node-type">Meta Cloud · v19.0</div>
+      </div>
+      <div class="pipe-arrow"></div>
+
+      <!-- Log -->
+      <div class="pipe-node active">
+        <div class="pipe-node-status status-ok"></div>
+        <div class="pipe-node-icon">📋</div>
+        <div class="pipe-node-name">Log Result</div>
+        <div class="pipe-node-type">Code · Monitor</div>
+      </div>
+
+    </div>
+    <!-- Error branch label -->
+    <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-muted);">
+      <span>⚠️ Error Branch:</span>
+      <div class="pipe-node" style="display:inline-flex;gap:8px;padding:6px 12px;min-width:auto;">
+        <span>🔴</span><span style="font-size:11px;color:var(--text-secondary)">Error Trigger</span>
+      </div>
+      <div class="pipe-arrow"></div>
+      <div class="pipe-node" style="display:inline-flex;gap:8px;padding:6px 12px;min-width:auto;">
+        <span>💬</span><span style="font-size:11px;color:var(--text-secondary)">WhatsApp Error Alert</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION: SENTIMENT + STATS -->
+  <div class="section-hdr">
+    <div class="section-hdr-icon">🎯</div>
+    <div class="section-hdr-title">Today's Market Sentiment</div>
+    <div class="section-hdr-line"></div>
+    <div style="font-size:10px;color:var(--text-muted);white-space:nowrap" id="reportDateLabel">Loading...</div>
+  </div>
+
+  <div class="sentiment-hero">
+    <div class="sentiment-big">
+      <div class="sentiment-label">Overall Sentiment</div>
+      <div class="sentiment-value" id="sentimentValue">BULLISH</div>
+      <div class="sentiment-conf" id="confValue">Confidence: 74%</div>
+    </div>
+    <div class="sentiment-drivers">
+      <div class="driver-title">📌 Key Market Drivers</div>
+      <div class="driver-item"><div class="driver-bullet"></div>FII inflows strong — ₹4,280 Cr net buying in equities yesterday</div>
+      <div class="driver-item"><div class="driver-bullet"></div>US Fed signals rate pause; Dow Jones +0.8%, NASDAQ +1.1% overnight</div>
+      <div class="driver-item"><div class="driver-bullet"></div>RBI MPC minutes dovish; inflation within 4.5% comfort zone</div>
+    </div>
+    <div class="sentiment-meta">
+      <div class="meta-item">
+        <div class="meta-label">News Analyzed</div>
+        <div class="meta-value" id="newsCount">40</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">AI Model</div>
+        <div class="meta-value">llama-3.3-70b</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Report Generated</div>
+        <div class="meta-value" id="genTime">6:48 AM IST</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Sources</div>
+        <div class="meta-value">5 RSS Feeds</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATS ROW -->
+  <div class="grid-4" style="margin-bottom:20px;">
+    <div class="stat-box">
+      <div class="stat-num green">+312</div>
+      <div class="stat-lbl">Sensex Expected Move</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num green">+89</div>
+      <div class="stat-lbl">Nifty Expected Move</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num" style="color:var(--accent-yellow)">13.4</div>
+      <div class="stat-lbl">India VIX</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num green">₹4,280Cr</div>
+      <div class="stat-lbl">FII Net Buy</div>
+    </div>
+  </div>
+
+  <!-- SECTION: SEGMENT ANALYSIS -->
+  <div class="section-hdr">
+    <div class="section-hdr-icon">📊</div>
+    <div class="section-hdr-title">Segment-wise Analysis</div>
+    <div class="section-hdr-line"></div>
+  </div>
+
+  <div class="grid-3" style="margin-bottom:14px;">
+
+    <!-- SENSEX -->
+    <div class="segment-card bullish">
+      <div class="seg-header">
+        <div>
+          <div class="seg-name">SENSEX</div>
+          <div class="seg-sub">BSE 30 · Blue Chip Index</div>
+        </div>
+        <div class="seg-badge bullish">BULLISH</div>
+      </div>
+      <div class="seg-range">Expected Range: <span>72,400 – 73,800</span></div>
+      <div class="seg-reason">Strong macro tailwinds from FII buying and global positive cues. Banking & IT heavyweights expected to lead gains today.</div>
+      <div class="seg-mini-chart">
+        <svg viewBox="0 0 200 40" preserveAspectRatio="none" class="sparkline">
+          <polyline points="0,35 20,30 40,28 60,25 80,22 100,24 120,18 140,15 160,13 180,10 200,8"
+            fill="none" stroke="#00e5a0" stroke-width="2"/>
+          <polyline points="0,35 20,30 40,28 60,25 80,22 100,24 120,18 140,15 160,13 180,10 200,8 200,40 0,40"
+            fill="url(#g1)" stroke="none"/>
+          <defs>
+            <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#00e5a0" stop-opacity="0.25"/>
+              <stop offset="100%" stop-color="#00e5a0" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+    </div>
+
+    <!-- NIFTY 50 -->
+    <div class="segment-card bullish">
+      <div class="seg-header">
+        <div>
+          <div class="seg-name">NIFTY 50</div>
+          <div class="seg-sub">NSE · Broad Market Index</div>
+        </div>
+        <div class="seg-badge bullish">BULLISH</div>
+      </div>
+      <div class="seg-range">Expected Range: <span>21,850 – 22,300</span></div>
+      <div class="seg-reason">Broad market rally expected. SGX Nifty futures trading +0.6% premium. Institutional participation likely to sustain momentum.</div>
+      <div class="seg-mini-chart">
+        <svg viewBox="0 0 200 40" preserveAspectRatio="none" class="sparkline">
+          <polyline points="0,32 20,29 40,31 60,26 80,23 100,20 120,17 140,14 160,12 180,10 200,7"
+            fill="none" stroke="#00e5a0" stroke-width="2"/>
+          <polyline points="0,32 20,29 40,31 60,26 80,23 100,20 120,17 140,14 160,12 180,10 200,7 200,40 0,40"
+            fill="url(#g2)" stroke="none"/>
+          <defs>
+            <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#00e5a0" stop-opacity="0.25"/>
+              <stop offset="100%" stop-color="#00e5a0" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+    </div>
+
+    <!-- BANK NIFTY -->
+    <div class="segment-card cautious">
+      <div class="seg-header">
+        <div>
+          <div class="seg-name">BANK NIFTY</div>
+          <div class="seg-sub">NSE · Banking Sector Index</div>
+        </div>
+        <div class="seg-badge cautious">CAUTIOUS</div>
+      </div>
+      <div class="seg-range">Expected Range: <span>47,200 – 48,100</span></div>
+      <div class="seg-reason">RBI credit growth data mixed. HDFC & ICICI may see buying interest but watch for resistance at 48,000 level.</div>
+      <div class="seg-mini-chart">
+        <svg viewBox="0 0 200 40" preserveAspectRatio="none" class="sparkline">
+          <polyline points="0,20 20,18 40,22 60,25 80,20 100,18 120,22 140,20 160,18 180,21 200,19"
+            fill="none" stroke="#f97316" stroke-width="2"/>
+          <polyline points="0,20 20,18 40,22 60,25 80,20 100,18 120,22 140,20 160,18 180,21 200,19 200,40 0,40"
+            fill="url(#g3)" stroke="none"/>
+          <defs>
+            <linearGradient id="g3" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#f97316" stop-opacity="0.2"/>
+              <stop offset="100%" stop-color="#f97316" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-3">
+
+    <!-- F&O -->
+    <div class="segment-card bullish">
+      <div class="seg-header">
+        <div>
+          <div class="seg-name">NIFTY F&O</div>
+          <div class="seg-sub">Futures & Options · Derivatives</div>
+        </div>
+        <div class="seg-badge bullish">BUY CALLS</div>
+      </div>
+      <div class="fno-grid" style="margin-bottom:10px;">
+        <div class="fno-item">
+          <div class="fno-label">India VIX</div>
+          <div class="fno-value">13.4</div>
+          <div class="fno-sub">Low Volatility ✓</div>
+        </div>
+        <div class="fno-item">
+          <div class="fno-label">PCR Ratio</div>
+          <div class="fno-value">1.28</div>
+          <div class="fno-sub">Bullish Signal ↑</div>
+        </div>
+      </div>
+      <div class="seg-reason">Low VIX with rising PCR favors buying calls. Consider 22,000 CE or 22,100 CE for current expiry. Risk: Avoid naked shorts.</div>
+    </div>
+
+    <!-- MID CAP -->
+    <div class="segment-card bullish">
+      <div class="seg-header">
+        <div>
+          <div class="seg-name">MID & SMALL CAP</div>
+          <div class="seg-sub">BSE MidCap · SmallCap Index</div>
+        </div>
+        <div class="seg-badge bullish">BULLISH</div>
+      </div>
+      <div class="seg-range">Focus Sectors: <span>Infra · Defence · PSU</span></div>
+      <div class="seg-reason">Domestic capex theme driving mid caps. Defence and infrastructure stocks benefiting from government order flows. Volume surge expected.</div>
+      <div class="seg-mini-chart">
+        <svg viewBox="0 0 200 40" preserveAspectRatio="none" class="sparkline">
+          <polyline points="0,30 20,27 40,24 60,26 80,21 100,18 120,15 140,12 160,14 180,11 200,8"
+            fill="none" stroke="#00e5a0" stroke-width="2"/>
+          <polyline points="0,30 20,27 40,24 60,26 80,21 100,18 120,15 140,12 160,14 180,11 200,8 200,40 0,40"
+            fill="url(#g4)" stroke="none"/>
+          <defs>
+            <linearGradient id="g4" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#00e5a0" stop-opacity="0.25"/>
+              <stop offset="100%" stop-color="#00e5a0" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+    </div>
+
+    <!-- COMMODITIES -->
+    <div class="segment-card neutral">
+      <div class="seg-header">
+        <div>
+          <div class="seg-name">COMMODITIES</div>
+          <div class="seg-sub">Gold · Silver · Crude · MCX</div>
+        </div>
+        <div class="seg-badge neutral">NEUTRAL</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div class="fno-item">
+          <div class="fno-label">Gold MCX</div>
+          <div class="fno-value" style="font-size:14px;color:var(--accent-yellow)">₹71,420</div>
+          <div class="fno-sub">+0.3% Sideways</div>
+        </div>
+        <div class="fno-item">
+          <div class="fno-label">Crude (WTI)</div>
+          <div class="fno-value" style="font-size:14px;color:var(--accent-blue)">$78.4</div>
+          <div class="fno-sub">-0.5% Stable</div>
+        </div>
+      </div>
+      <div class="seg-reason">Crude stable, no major supply disruption. Gold range-bound ahead of US CPI data. INR at 83.4/$ — neutral impact on imports.</div>
+    </div>
+  </div>
+
+  <!-- SECTION: SECTOR TABLE + STRATEGY -->
+  <div class="grid-2-1">
+
+    <!-- SECTOR TABLE -->
+    <div>
+      <div class="section-hdr">
+        <div class="section-hdr-icon">🏭</div>
+        <div class="section-hdr-title">Sector Watch</div>
+        <div class="section-hdr-line"></div>
+      </div>
+      <div class="card" style="padding:0;">
+        <table class="sector-table">
+          <thead>
+            <tr>
+              <th>Sector</th>
+              <th>Call</th>
+              <th>Prev. Perf</th>
+              <th>Key Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><div class="sector-name">🏦 Banking & NBFC</div></td>
+              <td><span class="sector-call call-watch">WATCH</span></td>
+              <td class="sector-perf perf-pos">+0.8%</td>
+              <td class="sector-reason">RBI policy stable, credit growth 14.2% YoY</td>
+            </tr>
+            <tr>
+              <td><div class="sector-name">💻 Information Technology</div></td>
+              <td><span class="sector-call call-buy">BUY</span></td>
+              <td class="sector-perf perf-pos">+1.4%</td>
+              <td class="sector-reason">US deal wins; weak rupee boosts IT exports</td>
+            </tr>
+            <tr>
+              <td><div class="sector-name">🛡️ Defence & Aerospace</div></td>
+              <td><span class="sector-call call-buy">BUY</span></td>
+              <td class="sector-perf perf-pos">+2.1%</td>
+              <td class="sector-reason">HAL, BEL — large order book, capex theme</td>
+            </tr>
+            <tr>
+              <td><div class="sector-name">💊 Pharma & Healthcare</div></td>
+              <td><span class="sector-call call-buy">BUY</span></td>
+              <td class="sector-perf perf_pos">+0.6%</td>
+              <td class="sector-reason">US FDA approvals; domestic formulations strong</td>
+            </tr>
+            <tr>
+              <td><div class="sector-name">🚗 Auto & EV</div></td>
+              <td><span class="sector-call call-watch">WATCH</span></td>
+              <td class="sector-perf perf-pos">+0.3%</td>
+              <td class="sector-reason">GST cut rumours; monthly sales data due</td>
+            </tr>
+            <tr>
+              <td><div class="sector-name">⚡ Power & Renewable</div></td>
+              <td><span class="sector-call call-buy">BUY</span></td>
+              <td class="sector-perf perf-pos">+1.8%</td>
+              <td class="sector-reason">NTPC, Adani Green — strong pipeline orders</td>
+            </tr>
+            <tr>
+              <td><div class="sector-name">🧱 Real Estate</div></td>
+              <td><span class="sector-call call-avoid">AVOID</span></td>
+              <td class="sector-perf perf-neg">-0.4%</td>
+              <td class="sector-reason">High interest rates weighing on housing demand</td>
+            </tr>
+            <tr>
+              <td><div class="sector-name">⛽ Oil & Gas</div></td>
+              <td><span class="sector-call call-watch">WATCH</span></td>
+              <td class="sector-perf perf-neg">-0.2%</td>
+              <td class="sector-reason">OPEC output decision; crude price sensitivity</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- STRATEGY + RISKS -->
+    <div>
+      <div class="section-hdr">
+        <div class="section-hdr-icon">💡</div>
+        <div class="section-hdr-title">Trading Strategy</div>
+        <div class="section-hdr-line"></div>
+      </div>
+      <div class="strategy-box" style="margin-bottom:14px;">
+        <div class="strategy-title">💡 Today's Strategy Suggestion</div>
+        <div class="strategy-text">
+          <strong>Positional Traders:</strong> Hold existing long positions in IT and Defence. Add on dips above Nifty 21,900.<br><br>
+          <strong>Intraday Traders:</strong> Buy Nifty CE 22,000 or 22,100 on market open. Target 22,250. SL below 21,850.<br><br>
+          <strong>Long-term Investors:</strong> SIP in index funds recommended. Avoid panic selling on minor dips.<br><br>
+          <strong>F&O Traders:</strong> Bull call spread strategy — Buy 22,000 CE, Sell 22,300 CE for this expiry.
+        </div>
+      </div>
+
+      <div class="section-hdr" style="margin-top:4px;">
+        <div class="section-hdr-icon">⚠️</div>
+        <div class="section-hdr-title">Key Risks Today</div>
+        <div class="section-hdr-line"></div>
+      </div>
+      <div class="card" style="padding:14px 18px;">
+        <div class="risk-item">
+          <div class="risk-icon">🌐</div>
+          <div class="risk-text">US CPI data release tonight — unexpected spike could trigger sell-off in global markets</div>
+          <div class="risk-level risk-high">HIGH</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-icon">💱</div>
+          <div class="risk-text">Rupee weakness beyond 84/$ could trigger FII outflows</div>
+          <div class="risk-level risk-med">MED</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-icon">🛢️</div>
+          <div class="risk-text">Crude oil above $82 may pressure inflation expectations</div>
+          <div class="risk-level risk-med">MED</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-icon">📊</div>
+          <div class="risk-text">Q4 results season — any earnings miss by Nifty heavyweights</div>
+          <div class="risk-level risk-med">MED</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION: NEWS FEED -->
+  <div class="section-hdr" style="margin-top:6px;">
+    <div class="section-hdr-icon">📰</div>
+    <div class="section-hdr-title">News Feed</div>
+    <div class="section-hdr-line"></div>
+    <div style="font-size:10px;color:var(--text-muted);white-space:nowrap">40 articles · 5 sources</div>
+  </div>
+
+  <div class="filter-chips" id="filterChips">
+    <button class="chip active" onclick="filterNews('ALL', this)">ALL (40)</button>
+    <button class="chip" onclick="filterNews('MACRO', this)">Macro (8)</button>
+    <button class="chip" onclick="filterNews('BANKING', this)">Banking (6)</button>
+    <button class="chip" onclick="filterNews('IT', this)">IT Sector (5)</button>
+    <button class="chip" onclick="filterNews('GLOBAL', this)">Global (7)</button>
+    <button class="chip" onclick="filterNews('FNO', this)">F&O (4)</button>
+    <button class="chip" onclick="filterNews('COMMODITY', this)">Commodity (5)</button>
+    <button class="chip" onclick="filterNews('BENCHMARK', this)">Index (5)</button>
+  </div>
+
+  <div class="news-feed" id="newsFeed">
+    <!-- Populated by JS -->
+  </div>
+
+  <!-- SOURCE LEGEND -->
+  <div class="card" style="margin-top:14px;margin-bottom:20px;">
+    <div class="card-title">📡 Active News Sources</div>
+    <div class="source-pills">
+      <div class="source-pill"><div class="source-pill-dot" style="background:#f97316;"></div>Economic Times Markets</div>
+      <div class="source-pill"><div class="source-pill-dot" style="background:#3b82f6;"></div>Moneycontrol</div>
+      <div class="source-pill"><div class="source-pill-dot" style="background:#a855f7;"></div>Reuters India</div>
+      <div class="source-pill"><div class="source-pill-dot" style="background:#00e5a0;"></div>Google Finance News</div>
+      <div class="source-pill"><div class="source-pill-dot" style="background:#f5c842;"></div>Global Market Cues</div>
+    </div>
+  </div>
+
+  <!-- SECTION: WHATSAPP PREVIEW -->
+  <div class="grid-2">
+    <div>
+      <div class="section-hdr">
+        <div class="section-hdr-icon">💬</div>
+        <div class="section-hdr-title">WhatsApp Delivery Preview</div>
+        <div class="section-hdr-line"></div>
+      </div>
+      <div class="wa-preview">
+        <div class="wa-bar">
+          <div class="wa-avatar">MI</div>
+          <div>
+            <div class="wa-name">Market Intelligence Bot</div>
+            <div class="wa-status">Today at 7:00 AM · Meta Cloud API</div>
+          </div>
+        </div>
+        <div class="wa-msgs">
+          <div class="wa-msg">
+            <div class="wa-msg-text">📈 *DAILY MARKET INTELLIGENCE*
+━━━━━━━━━━━━━━━━━━━━
+📅 *Friday, 01 Aug 2025*
+⏰ Report Time: 07:00 AM IST
+━━━━━━━━━━━━━━━━━━━━
+
+🎯 OVERALL MARKET SENTIMENT: *BULLISH*
+CONFIDENCE LEVEL: HIGH (74%)
+
+📌 KEY MARKET DRIVERS TODAY:
+• FII inflows strong — ₹4,280 Cr net buying
+• US Fed rate pause signal — global rally
+• RBI MPC minutes dovish; inflation stable
+
+📊 SEGMENT-WISE ANALYSIS:
+
+1️⃣ SENSEX: 🟢 BULLISH | 72,400–73,800
+2️⃣ NIFTY 50: 🟢 BULLISH | 21,850–22,300
+3️⃣ BANK NIFTY: 🟡 CAUTIOUS | 47,200–48,100
+4️⃣ NIFTY F&O: BUY CALLS | VIX: LOW (13.4)
+5️⃣ MID/SMALL CAP: 🟢 BULLISH | Infra/Defence
+
+🔥 TOP SECTORS:
+1. IT — BUY — US deal wins, weak rupee
+2. Defence — BUY — Order book strong
+3. Real Estate — AVOID — High rates
+
+⚠️ KEY RISKS: US CPI tonight; Rupee watch
+
+💡 Nifty Bull Call Spread: Buy 22000 CE, Sell 22300 CE
+
+⚠️ AI analysis only. Not SEBI advisory.</div>
+            <div class="wa-msg-time">7:00 AM ✓✓</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WORKFLOW STATS -->
+    <div>
+      <div class="section-hdr">
+        <div class="section-hdr-icon">📈</div>
+        <div class="section-hdr-title">Workflow Configuration</div>
+        <div class="section-hdr-line"></div>
+      </div>
+      <div class="card">
+        <table style="width:100%;border-collapse:collapse;">
+          <tbody id="configTable">
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 0;font-size:11px;color:var(--text-muted);width:45%">Trigger Schedule</td>
+              <td style="padding:9px 0;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-primary)">0 30 0 * * 1-5</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 0;font-size:11px;color:var(--text-muted)">Timezone</td>
+              <td style="padding:9px 0;font-size:12px;color:var(--text-primary)">Asia/Kolkata (IST)</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 0;font-size:11px;color:var(--text-muted)">AI Model</td>
+              <td style="padding:9px 0;font-size:12px;color:var(--accent-green)">llama-3.3-70b-versatile</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 0;font-size:11px;color:var(--text-muted)">Temperature</td>
+              <td style="padding:9px 0;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-primary)">0.3 (Precise)</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 0;font-size:11px;color:var(--text-muted)">Max Tokens</td>
+              <td style="padding:9px 0;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-primary)">2,000</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 0;font-size:11px;color:var(--text-muted)">News Limit</td>
+              <td style="padding:9px 0;font-size:12px;color:var(--text-primary)">40 articles / run</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 0;font-size:11px;color:var(--text-muted)">WhatsApp API</td>
+              <td style="padding:9px 0;font-size:12px;color:var(--text-primary)">Meta Cloud v19.0</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 0;font-size:11px;color:var(--text-muted)">Delivery Days</td>
+              <td style="padding:9px 0;font-size:12px;color:var(--text-primary)">Mon – Fri only</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 0;font-size:11px;color:var(--text-muted)">Error Handling</td>
+              <td style="padding:9px 0;font-size:12px;color:var(--accent-yellow)">WhatsApp alert fallback</td>
+            </tr>
+            <tr>
+              <td style="padding:9px 0;font-size:11px;color:var(--text-muted)">Execution Order</td>
+              <td style="padding:9px 0;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-primary)">v1 (Connection-based)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <div class="card-title">⚠️ Disclaimer</div>
+        <div style="font-size:11px;color:var(--text-muted);line-height:1.8;">
+          Yeh dashboard ek <strong style="color:var(--text-secondary)">AI-generated simulation</strong> hai jo n8n workflow ke visual representation ke liye banaya gaya hai. Yeh <strong style="color:var(--accent-red)">SEBI-registered investment advisory nahi hai</strong>. Trading mein financial risk hota hai. Koi bhi investment decision lene se pehle apne SEBI-registered financial advisor se consult karein.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<div class="footer">
+  <strong>Market Intelligence Dashboard</strong> · Powered by n8n Workflow + Groq llama-3.3-70b + Meta WhatsApp API<br>
+  Sources: Economic Times · Moneycontrol · Reuters India · Google Finance · Global Cues<br>
+  <span style="color:var(--accent-red)">⚠️ Not SEBI Registered · AI Analysis Only · Trade at Your Own Risk</span>
+</div>
+
+<script>
+// ─── CLOCK ───
+function updateClock() {
+  const now = new Date();
+  const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const h = ist.getHours(), m = ist.getMinutes(), s = ist.getSeconds();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hh = h % 12 || 12;
+  document.getElementById('clock').textContent =
+    `${String(hh).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')} ${ampm}`;
+}
+setInterval(updateClock, 1000); updateClock();
+
+// ─── REPORT DATE ───
+(function(){
+  const now = new Date();
+  const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('reportDateLabel').textContent =
+    `${days[ist.getDay()]}, ${ist.getDate()} ${months[ist.getMonth()]} ${ist.getFullYear()} · Pre-Market`;
+  document.getElementById('genTime').textContent =
+    `${String(ist.getHours()).padStart(2,'0')}:${String(ist.getMinutes()).padStart(2,'0')} IST`;
+})();
+
+// ─── TICKER DATA ───
+const tickerData = [
+  { n:'SENSEX', v:'73,142.80', c:'+312.40', up:true },
+  { n:'NIFTY 50', v:'22,198.50', c:'+89.25', up:true },
+  { n:'BANK NIFTY', v:'47,680.30', c:'+124.60', up:true },
+  { n:'NIFTY IT', v:'38,420.15', c:'+568.90', up:true },
+  { n:'INDIA VIX', v:'13.42', c:'-0.84', up:false },
+  { n:'USD/INR', v:'83.42', c:'+0.08', up:false },
+  { n:'GOLD MCX', v:'₹71,420', c:'+210', up:true },
+  { n:'CRUDE WTI', v:'$78.42', c:'-0.38', up:false },
+  { n:'SGX NIFTY', v:'22,245', c:'+135.00', up:true },
+  { n:'FII NET', v:'₹4,280Cr', c:'BUY', up:true },
+  { n:'DOW JONES', v:'39,118.86', c:'+320.40', up:true },
+  { n:'NASDAQ', v:'18,315.46', c:'+201.60', up:true },
+];
+
+function buildTicker() {
+  const track = document.getElementById('tickerTrack');
+  const items = [...tickerData, ...tickerData].map(t =>
+    `<div class="ticker-item">
+      <span class="ticker-name">${t.n}</span>
+      <span class="ticker-val">${t.v}</span>
+      <span class="ticker-chg ${t.up?'up':'dn'}">${t.up?'▲':'▼'} ${t.c}</span>
+    </div>`
+  ).join('');
+  track.innerHTML = items;
+}
+buildTicker();
+
+// ─── NEWS DATA ───
+const newsData = [
+  { cat:'MACRO', src:'ET Markets', title:'RBI MPC minutes dovish: Inflation within 4.5% comfort zone, repo rate on hold at 6.5%', impact:'HIGH', time:'5:30 AM' },
+  { cat:'GLOBAL', src:'Reuters', title:'US Federal Reserve signals rate pause; Fed funds rate unchanged at 5.25-5.5%', impact:'HIGH', time:'4:15 AM' },
+  { cat:'BENCHMARK', src:'Google Finance', title:'SGX Nifty Futures trading at premium +135 points; Positive opening expected on NSE', impact:'HIGH', time:'5:00 AM' },
+  { cat:'MACRO', src:'ET Markets', title:'FII net buyers at ₹4,280 Crore in cash segment; DII also positive at ₹1,120 Crore', impact:'HIGH', time:'5:45 AM' },
+  { cat:'IT', src:'Moneycontrol', title:'TCS secures $1.2 billion deal from European banking client; Q4 guidance upgraded', impact:'HIGH', time:'4:45 AM' },
+  { cat:'FNO', src:'ET Markets', title:'Nifty Put-Call Ratio rises to 1.28; VIX falls below 14 — Bullish signal for markets', impact:'MED', time:'5:15 AM' },
+  { cat:'BANKING', src:'Reuters', title:'HDFC Bank credit card spends up 22% YoY; loan growth at 16.5% — Q4 preview positive', impact:'MED', time:'4:00 AM' },
+  { cat:'GLOBAL', src:'Google Finance', title:'Dow Jones closes +0.82%, NASDAQ +1.14%; S&P 500 at fresh all-time high', impact:'HIGH', time:'3:30 AM' },
+  { cat:'IT', src:'Moneycontrol', title:'Infosys wins $850 million 5-year contract from US healthcare major — deal wins momentum', impact:'MED', time:'5:30 AM' },
+  { cat:'MACRO', src:'ET Markets', title:'India GDP growth forecast upgraded to 7.1% for FY26 by IMF; strongest major economy', impact:'MED', time:'6:00 AM' },
+  { cat:'BANKING', src:'Reuters India', title:'ICICI Bank NIM stable at 4.4%; management guides 18% credit growth for FY26', impact:'MED', time:'4:30 AM' },
+  { cat:'COMMODITY', src:'Reuters', title:'Gold holds near $2,320/oz; safe haven demand subdued as risk appetite returns globally', impact:'LOW', time:'5:00 AM' },
+  { cat:'FNO', src:'ET Markets', title:'Nifty 22,000 CE sees massive OI addition — 1.2 crore contracts; market maker bullish', impact:'MED', time:'5:45 AM' },
+  { cat:'GLOBAL', src:'Google Finance', title:'China PMI data beats expectations at 51.2; Asian markets rally — Nikkei +0.9%, Kospi +0.7%', impact:'MED', time:'3:00 AM' },
+  { cat:'MACRO', src:'Moneycontrol', title:'India forex reserves at all-time high $683 billion; rupee well-supported at 83.4 levels', impact:'LOW', time:'5:15 AM' },
+  { cat:'BANKING', src:'ET Markets', title:'Axis Bank board approves ₹12,000 Cr QIP; strong capital adequacy for growth financing', impact:'MED', time:'4:45 AM' },
+  { cat:'COMMODITY', src:'Reuters', title:'Crude oil WTI at $78.4/barrel; OPEC+ holds production quotas — supply stable', impact:'LOW', time:'4:00 AM' },
+  { cat:'BENCHMARK', src:'Moneycontrol', title:'Nifty 50 technical: RSI at 62 — bullish zone; MACD crossover signal on daily chart', impact:'MED', time:'6:15 AM' },
+  { cat:'IT', src:'Google Finance', title:'Wipro Q4 revenue guidance in-line with estimates; deal pipeline strong at $3.8 billion', impact:'LOW', time:'5:30 AM' },
+  { cat:'MACRO', src:'ET Markets', title:'GST collections hit record ₹2.10 lakh crore in March; strong economic activity indicator', impact:'MED', time:'5:00 AM' },
+  { cat:'GLOBAL', src:'Reuters', title:'Japan yen weakness continues vs dollar; Bank of Japan intervention risk on radar', impact:'LOW', time:'4:30 AM' },
+  { cat:'FNO', src:'Moneycontrol', title:'Bank Nifty 48,000 strike sees highest CE OI — resistance identified; support at 47,000', impact:'MED', time:'5:45 AM' },
+  { cat:'COMMODITY', src:'ET Markets', title:'Silver MCX at ₹87,200 — EV demand theme; solar panel demand drives industrial metals', impact:'LOW', time:'5:30 AM' },
+  { cat:'BANKING', src:'Reuters India', title:'SBI Q4 net profit expected ₹18,500 Cr — up 24% YoY; NPA improving trend continues', impact:'MED', time:'4:00 AM' },
+  { cat:'BENCHMARK', src:'Google Finance', title:'Sensex 200-day moving average support at 71,500 — well above; trend intact', impact:'LOW', time:'5:15 AM' },
+];
+
+const catMap = { MACRO:'MACRO', BANKING:'BANKING', IT:'IT', GLOBAL:'GLOBAL', FNO:'FNO', COMMODITY:'COMMODITY', BENCHMARK:'BENCHMARK' };
+
+function renderNews(filter = 'ALL') {
+  const feed = document.getElementById('newsFeed');
+  const filtered = filter === 'ALL' ? newsData : newsData.filter(n => n.cat === filter);
+  feed.innerHTML = filtered.map(n => `
+    <div class="news-item">
+      <div class="news-cat-tag cat-${n.cat}">${n.cat}</div>
+      <div class="news-content">
+        <div class="news-title">${n.title}</div>
+        <div class="news-meta">
+          <span class="news-source">${n.src}</span>
+          <span>${n.time} IST</span>
+        </div>
+      </div>
+      <div class="news-impact impact-${n.impact.toLowerCase()}">${n.impact}</div>
+    </div>`
+  ).join('');
+}
+renderNews();
+
+function filterNews(cat, el) {
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderNews(cat);
+}
+
+// ─── MARKET OPEN COUNTDOWN ───
+(function(){
+  function tick(){
+    const now = new Date();
+    const ist = new Date(now.toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
+    let target = new Date(ist);
+    target.setHours(9,15,0,0);
+    if(ist >= target) target.setDate(target.getDate()+1);
+    const diff = target - ist;
+    const h = Math.floor(diff/3600000);
+    const m = Math.floor((diff%3600000)/60000);
+    const s = Math.floor((diff%60000)/1000);
+    const el = document.getElementById('openCountdown');
+    if(el) el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+  setInterval(tick,1000); tick();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+/* src/design.css — kept for compatibility with v3.5.1 projects. In v3.7 every design value (face, edges, canvas, labels,
+   radius, density, tone, shell) is generated into src/config/tokens.css from os.yaml `design:` — nothing is set here.
+   Custom per-client CSS belongs in src/custom/**, never in this file. */

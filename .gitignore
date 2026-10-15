@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.next/
+.env
+.env.*
+!.env.example
+evidence/**/server.log
+evidence/**/standalone/
+__pycache__/
+.DS_Store

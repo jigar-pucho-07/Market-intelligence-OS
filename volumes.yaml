@@ -1,0 +1,11 @@
+# Volumes for scripts/estimate_os.py — every figure is an ESTIMATE (problem card ⚑ G1)
+# 22 scheduled weekday runs + ~8 manual re-runs; ~50 active subscribers; ~20 single retries a month.
+flows:
+  MARKET_REPORT:
+    run: { runs_per_month: 30, credits: 16, model: standard }
+  BROADCAST:
+    send: { runs_per_month: 26, credits: 105, model: none }
+  DELIVERY:
+    retry: { runs_per_month: 20, credits: 4, model: none }
+  DAILY_SCHEDULE:
+    trigger: { runs_per_month: 22, credits: 4, model: none }

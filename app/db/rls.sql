@@ -1,0 +1,1 @@
+-- db/rls.sql — GENERATED. This OS declares no per-role scope, so there is nothing to restrict at the row level.

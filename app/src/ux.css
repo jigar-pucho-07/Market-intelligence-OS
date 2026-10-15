@@ -1,0 +1,35 @@
+/* src/ux.css — v4.9 kernel-UX styles (inline field errors, branded 404/error, tooltips, language switch).
+   Owned by the kernel-UX work; design tokens only (var(--…)), never a raw hex. Imported last in app/layout.tsx. */
+
+/* ── inline field errors (C2) ─────────────────────────────────────────────────────────────
+   Fields.jsx wraps each control in an antd Form.Item (validateStatus + help). The wrapper must add no space of its own: the form's
+   rhythm is the `space-y-4` / `gap-y-4` around the field, so margins and the reserved explain height are zeroed here. */
+.os-fi.ant-form-item { margin: 0; }
+.os-fi .ant-form-item-row { display: block; }
+.os-fi .ant-form-item-control, .os-fi .ant-form-item-control-input, .os-fi .ant-form-item-control-input-content { min-height: 0; max-width: 100%; }
+.os-fi .ant-form-item-explain { min-height: 0; margin-top: 6px; font-size: 12px; line-height: 1.4; }
+.os-fi .ant-form-item-explain-error { color: var(--bad-text); }
+.os-fi .ant-form-item-explain-warning { color: var(--warn-text); }
+[data-os-field][data-invalid="true"] > label { color: var(--bad-text); }
+
+/* ── clipped text (C8): one line with an ellipsis, the full text on hover (title); a stacked mobile card wraps instead ── */
+.ux-clip { display: block; max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-os-card] .ux-clip, [data-os-cards] .ux-clip { white-space: normal; max-width: none; overflow: visible; }
+
+/* ── language switch (C9) ── */
+.ux-lang { min-height: 36px; }
+.ux-lang .ant-select { min-width: 84px; }
+
+/* ── 404 and error pages (C4): the client's mark, plain words, one way back ── */
+.ux-status { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; background: var(--bg); color: var(--ink); }
+.ux-status__card { width: 100%; max-width: 480px; display: flex; flex-direction: column; align-items: flex-start; gap: 20px; padding: 32px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-16, 16px); box-shadow: var(--card-shadow); }
+.ux-status__code { font-family: var(--font-mono-app, ui-monospace, monospace); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.ux-status__title { margin: 0; font-size: 22px; line-height: 1.25; font-weight: 600; color: var(--ink); }
+.ux-status__text { margin: 0; font-size: 15px; line-height: 1.5; color: var(--ink-2); }
+.ux-status__actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.ux-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 20px; border-radius: var(--r-12, 12px); font-size: 15px; font-weight: 500; text-decoration: none; cursor: pointer; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); }
+.ux-btn:hover { background: var(--surface-2); }
+.ux-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ux-btn--primary { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.ux-btn--primary:hover { background: var(--ink-hover, var(--ink-2)); }
+.ux-status__ref { font-family: var(--font-mono-app, ui-monospace, monospace); font-size: 12px; color: var(--ink-3); }

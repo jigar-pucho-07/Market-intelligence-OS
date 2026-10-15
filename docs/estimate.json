@@ -1,0 +1,68 @@
+{
+  "total_credits": 3506.0,
+  "range": [
+    2454.2,
+    4557.8
+  ],
+  "rate": 0.3,
+  "rupees": 1051.8,
+  "rows": [
+    {
+      "workflow": "DAILY_SCHEDULE",
+      "action": "trigger",
+      "trigger": "schedule",
+      "runs": 44.0,
+      "credits_run": 4.0,
+      "declared_run": 4.0,
+      "model": "none",
+      "sends": null,
+      "source": "declared",
+      "credits_month": 176.0
+    },
+    {
+      "workflow": "MARKET_REPORT",
+      "action": "run",
+      "trigger": "run from the OS",
+      "runs": 30.0,
+      "credits_run": 16.0,
+      "declared_run": 16.0,
+      "model": "none",
+      "sends": null,
+      "source": "declared",
+      "credits_month": 480.0
+    },
+    {
+      "workflow": "BROADCAST",
+      "action": "send",
+      "trigger": "send from the OS",
+      "runs": 26.0,
+      "credits_run": 105.0,
+      "declared_run": 105.0,
+      "model": "none",
+      "sends": null,
+      "source": "declared",
+      "credits_month": 2730.0
+    },
+    {
+      "workflow": "BROADCAST",
+      "action": "retry",
+      "trigger": "retry from the OS",
+      "runs": 20.0,
+      "credits_run": 6.0,
+      "declared_run": 6.0,
+      "model": "none",
+      "sends": null,
+      "source": "declared",
+      "credits_month": 120.0
+    }
+  ],
+  "by_flow": {
+    "DAILY_SCHEDULE": 176.0,
+    "MARKET_REPORT": 480.0,
+    "BROADCAST": 2850.0
+  },
+  "total_month": 3506.0,
+  "declared_month": 3506.0,
+  "counted": false,
+  "gap_ratio": 1.0
+}

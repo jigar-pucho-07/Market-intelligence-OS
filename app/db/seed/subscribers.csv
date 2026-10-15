@@ -1,0 +1,28 @@
+Subscriber_ID,Name,WhatsApp,Email,City,Status,Opt_In_At,Opt_In_Source,Joined_At,Last_Delivered_At,Notes
+SUB-2026-0001,Amit Shah,+919876543210,amit.shah@example.in,Ahmedabad,Active,2026-08-01,WhatsApp reply,2026-08-01T10:00:00+05:30,2026-10-15T06:03:10+05:30,Intraday trader
+SUB-2026-0002,Neha Iyer,+919820011223,neha.iyer@example.in,Mumbai,Active,2026-08-04,Web form,2026-08-04T09:30:00+05:30,2026-10-15T06:03:10+05:30,F&O
+SUB-2026-0003,Rohit Verma,+919811122334,rohit.verma@example.in,Delhi,Paused,2026-08-20,Signed form,2026-08-20T18:10:00+05:30,2026-10-01T06:02:40+05:30,Paused while travelling
+SUB-2026-0300,Hardik Patel,+919825010000,hardik@kiran.example,Rajkot,Active,2026-09-17T09:00:00+05:30,WhatsApp reply,2026-09-15T09:00:00+05:30,2026-09-17T09:00:00+05:30,Intraday trader
+SUB-2026-0299,Nirav Mehta,+919825065433,nirav@mehta.example,Ahmedabad,Paused,2026-09-18T08:00:00+05:30,Web form,2026-09-13T08:00:00+05:30,2026-09-18T08:00:00+05:30,F&O
+SUB-2026-0298,Priya Shah,+919825120866,priya@shah.example,Vadodara,Unsubscribed,2026-09-21T07:00:00+05:30,Signed form,2026-09-11T07:00:00+05:30,2026-09-21T07:00:00+05:30,Paused while travelling
+SUB-2026-0297,Ketan Desai,+919825176299,ketan@desai.example,Surat,Active,2026-09-12T06:00:00+05:30,WhatsApp reply,2026-09-09T06:00:00+05:30,2026-09-12T06:00:00+05:30,Intraday trader
+SUB-2026-0296,Rupal Joshi,+919825231732,rupal@joshi.example,Pune,Paused,2026-09-09T05:00:00+05:30,Web form,2026-09-07T05:00:00+05:30,2026-09-09T05:00:00+05:30,F&O
+SUB-2026-0295,Jignesh Patel,+919825287165,jignesh@morbi.example,Coimbatore,Unsubscribed,2026-09-10T04:00:00+05:30,Signed form,2026-09-05T04:00:00+05:30,2026-09-10T04:00:00+05:30,Paused while travelling
+SUB-2026-0294,Amit Rathod,+919825342598,amit@patel.example,Ludhiana,Active,2026-09-13T03:00:00+05:30,WhatsApp reply,2026-09-03T03:00:00+05:30,2026-09-13T03:00:00+05:30,Intraday trader
+SUB-2026-0293,Sunil Bansal,+919825398031,sunil@rathod.example,Bengaluru,Paused,2026-09-04T09:00:00+05:30,Web form,2026-09-01T09:00:00+05:30,2026-09-04T09:00:00+05:30,F&O
+SUB-2026-0292,Deepa Nair,+919825453464,deepa@bansal.example,Morbi,Unsubscribed,2026-09-01T08:00:00+05:30,Signed form,2026-08-30T08:00:00+05:30,2026-09-01T08:00:00+05:30,Paused while travelling
+SUB-2026-0291,Vikram Chauhan,+919825508897,vikram@nair.example,Nashik,Active,2026-09-02T07:00:00+05:30,WhatsApp reply,2026-08-28T07:00:00+05:30,2026-09-02T07:00:00+05:30,Intraday trader
+SUB-2026-0290,Manish Trivedi,+919825564330,manish@chauhan.example,Rajkot,Paused,2026-09-05T06:00:00+05:30,Web form,2026-08-26T06:00:00+05:30,2026-09-05T06:00:00+05:30,F&O
+SUB-2026-0289,Rohit Sethi,+919825619763,rohit@trivedi.example,Ahmedabad,Unsubscribed,2026-08-27T05:00:00+05:30,Signed form,2026-08-24T05:00:00+05:30,2026-08-27T05:00:00+05:30,Paused while travelling
+SUB-2026-0288,Anjali Kulkarni,+919825675196,anjali@sethi.example,Vadodara,Active,2026-08-24T04:00:00+05:30,WhatsApp reply,2026-08-22T04:00:00+05:30,2026-08-24T04:00:00+05:30,Intraday trader
+SUB-2026-0287,Ramesh Desai,+919825730629,ramesh@kulkarni.example,Surat,Paused,2026-08-25T03:00:00+05:30,Web form,2026-08-20T03:00:00+05:30,2026-08-25T03:00:00+05:30,F&O
+SUB-2026-0286,Hardik Patel,+919825786062,hardik@kiran.example,Pune,Unsubscribed,2026-08-28T09:00:00+05:30,Signed form,2026-08-18T09:00:00+05:30,2026-08-28T09:00:00+05:30,Paused while travelling
+SUB-2026-0285,Nirav Mehta,+919825841495,nirav@mehta.example,Coimbatore,Active,2026-08-19T08:00:00+05:30,WhatsApp reply,2026-08-16T08:00:00+05:30,2026-08-19T08:00:00+05:30,Intraday trader
+SUB-2026-0284,Priya Shah,+919825896928,priya@shah.example,Ludhiana,Paused,2026-08-16T07:00:00+05:30,Web form,2026-08-14T07:00:00+05:30,2026-08-16T07:00:00+05:30,F&O
+SUB-2026-0283,Ketan Desai,+919825952361,ketan@desai.example,Bengaluru,Unsubscribed,2026-08-17T06:00:00+05:30,Signed form,2026-08-12T06:00:00+05:30,2026-08-17T06:00:00+05:30,Paused while travelling
+SUB-2026-0282,Rupal Joshi,+919826007794,rupal@joshi.example,Morbi,Active,2026-08-20T05:00:00+05:30,WhatsApp reply,2026-08-10T05:00:00+05:30,2026-08-20T05:00:00+05:30,Intraday trader
+SUB-2026-0281,Jignesh Patel,+919826063227,jignesh@morbi.example,Nashik,Paused,2026-08-11T04:00:00+05:30,Web form,2026-08-08T04:00:00+05:30,2026-08-11T04:00:00+05:30,F&O
+SUB-2026-0280,Amit Rathod,+919826118660,amit@patel.example,Rajkot,Unsubscribed,2026-08-08T03:00:00+05:30,Signed form,2026-08-06T03:00:00+05:30,2026-08-08T03:00:00+05:30,Paused while travelling
+SUB-2026-0279,Sunil Bansal,+919826174093,sunil@rathod.example,Ahmedabad,Active,2026-08-09T09:00:00+05:30,WhatsApp reply,2026-08-04T09:00:00+05:30,2026-08-09T09:00:00+05:30,Intraday trader
+SUB-2026-0278,Deepa Nair,+919826229526,deepa@bansal.example,Vadodara,Paused,2026-08-12T08:00:00+05:30,Web form,2026-08-02T08:00:00+05:30,2026-08-12T08:00:00+05:30,F&O
+SUB-2026-0277,Vikram Chauhan,+919826284959,vikram@nair.example,Surat,Unsubscribed,2026-08-03T07:00:00+05:30,Signed form,2026-07-31T07:00:00+05:30,2026-08-03T07:00:00+05:30,Paused while travelling

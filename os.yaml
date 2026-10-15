@@ -1,0 +1,715 @@
+# os.yaml — Market Intelligence OS
+# Rebuilt from the n8n workflow "Daily Market Intelligence - WhatsApp Report" and its dashboard (docs/source/).
+#   verbs: a weekday 06:00 IST run fetches 5 RSS feeds → CODE parse/dedupe/categorise/impact (rule zero) → ONE AI call writes the
+#          market commentary as typed fields → CODE formats the WhatsApp text → the report + its articles are rows → broadcast to every
+#          active, opted-in subscriber (approved template) → each delivery logged; a failed run alerts the admins. The analyst reviews,
+#          re-runs, resends.
+#   SEBI (owner decision, 15 Oct 2026): COMMENTARY ONLY — no buy/sell calls, strikes, targets or stop-losses (docs/00-decisions.md).
+#   flows: all four are custom pipelines (method/ai-pipeline.md; tools/build_market_flows.py) — DAILY_SCHEDULE · MARKET_REPORT ·
+#          BROADCAST (send · retry). Architect review 15 Oct 2026 applied (WORKLOG #3).
+os:
+  name: Market Intelligence
+  slug: market-intel-os
+  client: Market Intelligence — Daily pre-market report for NSE/BSE traders
+  mode: client
+  one_liner: A Daily Market Intelligence report reaches every subscriber on WhatsApp before the market opens at 9:15 AM IST, and the analyst sees and fixes anything that failed.
+  tagline: Five news sources, one AI market outlook, every trading morning at 6:00 AM IST.
+  languages: [en]
+  volume_per_month: 30
+  success_metric: Report delivered to every active subscriber by 06:15 IST on every trading day; a failed run seen by an analyst before 07:00
+  plan: team
+  brand: { color: "#0B8F6A", name: Market Intelligence }
+  auth_otp: false
+  audit: true
+  seed_dates: today
+  limits: { actions_per_day: 200, public_actions_per_hour: 1 }
+
+design:
+  tone: pucho
+  shell: sidebar
+  direction: "Analysts read one dense report each morning; numbers in mono, status carries the colour, dark mode for the early start"
+  sidebar: { footer: profile, action: { label: Run report now, page: today, modal: run_now } }
+
+requirements:
+  - { id: R1,  text: "Schedule Trigger runs the report Mon–Fri at 6:00 AM IST" }
+  - { id: R2,  text: "Fetch ET Markets, Moneycontrol, Reuters India, Google Finance News and Global Market Cues RSS; a failed source does not stop the run" }
+  - { id: R3,  text: "Parse every RSS item into title, summary (HTML stripped, up to 300 characters), date and source" }
+  - { id: R4,  text: "Deduplicate news by the first 60 characters of the normalised title" }
+  - { id: R5,  text: "Categorize news as Macro Economic, Benchmark Index, Banking Sector, IT Sector, Pharma Sector, Auto Sector, Commodity, Global Cues, F&O or General Market" }
+  - { id: R6,  text: "Keep the 40 most relevant articles and count them by category" }
+  - { id: R7,  text: "AI analysis as a senior Indian stock market analyst: sentiment, confidence, drivers, segment-wise analysis, top sectors, key risks, trading strategy" }
+  - { id: R8,  text: "Format the WhatsApp message with the day, date and report time in IST, the analysis and the footer Market Opens: 9:15 AM IST, within the WhatsApp limit" }
+  - { id: R9,  text: "Send the report on WhatsApp" }
+  - { id: R10, text: "Log the result: status, WhatsApp message id, sent at, report date" }
+  - { id: R11, text: "Send an error alert on WhatsApp when the report cannot be generated" }
+  - { id: R12, text: "Show the workflow pipeline with each step's status and the error branch" }
+  - { id: R13, text: "Show today's market sentiment: sentiment, confidence, key market drivers, news analyzed, AI model, report generated time, sources" }
+  - { id: R14, text: "Show the stats row: Sensex expected move, Nifty expected move, India VIX, FII net buy" }
+  - { id: R15, text: "Show segment-wise analysis cards: Sensex, Nifty 50, Bank Nifty, Nifty F&O (VIX, PCR), Mid & Small Cap, Commodities (gold, crude)" }
+  - { id: R16, text: "Show the sector watch: sector, call (BUY / WATCH / AVOID), previous performance, key reason" }
+  - { id: R17, text: "Show the trading strategy (positional, intraday, long-term, F&O traders) and key risks today with their level" }
+  - { id: R18, text: "Show the news feed with category filter chips, impact, source and time" }
+  - { id: R19, text: "Show the active news sources" }
+  - { id: R20, text: "Show the WhatsApp delivery preview" }
+  - { id: R21, text: "Show the workflow configuration: schedule, timezone, AI model, temperature, max tokens, news limit, WhatsApp API, delivery days, error handling" }
+  - { id: R22, text: "Show a live ticker, the IST clock and the market-open countdown" }
+  - { id: R23, text: "Every report and screen carries the disclaimer: AI analysis only, not SEBI-registered investment advisory" }
+  - { id: R24, text: "The analyst reviews and edits today's report, re-runs it, and resends it" }
+  - { id: R25, text: "Subscribers sign in to read today's report and past reports" }
+  - { id: R26, text: "The analyst adds, pauses and removes WhatsApp subscribers" }
+  - { id: R27, text: "Failed runs and failed deliveries land in an exception queue for a person" }
+  - { id: R28, text: "Production launch: sign-in, roles, audit log, security baseline, deployable bundle" }
+
+portals:
+  - { id: desk,   label: Market Desk, base: /,   roles: [admin, analyst] }
+  - { id: reader, label: My Reports,  base: /me, roles: [subscriber], shell: sidebar }
+
+roles:
+  - { key: admin,      label: Admin,          desc: "Runs the desk, people and roles, and sees the audit log", home: /,      demo: { email: admin@marketintel.pucho.ai,   password: Admin@2026mi,  name: Kashyap Mehta } }
+  - { key: analyst,    label: Market Analyst, desc: "Checks the 6 AM report, edits it, re-runs it and sends it to subscribers", home: /today, demo: { email: analyst@marketintel.pucho.ai, password: Analyst@2026mi, name: Riya Desai } }
+  - { key: subscriber, label: Subscriber,     desc: "Reads today's report and past reports",               home: /me,     demo: { email: reader@marketintel.pucho.ai,  password: Reader@2026mi, name: Amit Shah } }
+
+journeys:
+  - { role: analyst,    does: "Check the 6 AM report and send it",              lands: today,       steps: ["Today's report opens on the sentiment and segments", "Review & edit on the report row (only if a view needs changing)", "Send to subscribers on the same row"] }
+  - { role: analyst,    does: "Recover a failed run",                           lands: pipeline,    steps: ["Pipeline opens on the run log, Failed segment", "Read the error and source counts on the row", "Re-run report now on the row"] }
+  - { role: admin,      does: "Clear this morning's exceptions",                lands: overview,    steps: ["Overview opens on Needs action", "Send / Retry delivery / Re-run on the row"] }
+  - { role: admin,      does: "Add a WhatsApp subscriber",                      lands: subscribers, steps: ["Subscribers → Add subscriber", "Name, WhatsApp number, opt-in date and how they opted in → Add"] }
+  - { role: subscriber, does: "Read today's report before the open",            lands: me_today,    steps: ["Today's report opens on sentiment, drivers and segments", "Scroll to sectors, risks, the market view and news"] }
+
+entities:
+  # ── The desk's working copy: every run, including drafts and failures. Never on a subscriber page. ─────────────────────
+  - name: reports
+    id: { column: Report_ID, prefix: "MIR-" }
+    title: Report_Date
+    subtitle: [Sentiment]
+    created: Created_At
+    status: { column: Status, values: [Ready, Sent, Failed] }
+    transitions:
+      Ready:  [Sent, Failed]
+      Failed: [Ready]
+      Sent:   [Sent]
+    requires_on:
+      Ready:  [Sentiment, Confidence_Level, Driver_1, WhatsApp_Message]
+      Sent:   [Sentiment, Confidence_Level, Driver_1, WhatsApp_Message]
+      Failed: [Error_Message]
+    columns: [Report_ID, Report_Date, Created_At, Trigger, Status, Sentiment, Confidence_Level, Confidence_Pct,
+              Driver_1, Driver_2, Driver_3,
+              Sensex_Outlook, Sensex_Range, Sensex_Reason, Nifty_Outlook, Nifty_Range, Nifty_Reason,
+              BankNifty_Outlook, BankNifty_Range, BankNifty_Reason, FnO_View, VIX_Expectation, FnO_Reason,
+              MidSmall_Outlook, MidSmall_Focus, MidSmall_Reason, Commodity_Outlook, Commodity_Reason,
+              Sectors, Risks, View_Positional, View_Intraday, View_LongTerm, View_FnO,
+              Articles_Analyzed, Category_Breakdown, Source_Status, Model, WhatsApp_Message, Message_Length,
+              Sent_At, Sent_Count, Failed_Count, Error_Message]
+    fields:
+      Report_Date:       { type: date, unique: true }
+      Trigger:           { one_of: [Schedule, Manual] }
+      Sentiment:         { one_of: [BULLISH, CAUTIOUSLY BULLISH, NEUTRAL, CAUTIOUSLY BEARISH, BEARISH] }
+      Confidence_Level:  { one_of: [HIGH, MEDIUM, LOW] }
+      Confidence_Pct:    { type: number, min: 0, max: 100, integer: true }
+      Sensex_Outlook:    { one_of: [BULLISH, BEARISH, NEUTRAL, CAUTIOUS] }
+      Nifty_Outlook:     { one_of: [BULLISH, BEARISH, NEUTRAL, CAUTIOUS] }
+      BankNifty_Outlook: { one_of: [BULLISH, BEARISH, NEUTRAL, CAUTIOUS] }
+      MidSmall_Outlook:  { one_of: [BULLISH, BEARISH, NEUTRAL, CAUTIOUS] }
+      Commodity_Outlook: { one_of: [BULLISH, BEARISH, NEUTRAL, CAUTIOUS] }
+      FnO_View:          { one_of: [BULLISH BIAS, BEARISH BIAS, RANGE-BOUND, VOLATILE] }
+      VIX_Expectation:   { one_of: [LOW, MEDIUM, HIGH] }
+      Articles_Analyzed: { type: number, min: 0, max: 40, integer: true }
+      Message_Length:    { type: number, min: 0, max: 4096, integer: true }
+      Sent_Count:        { type: number, min: 0, integer: true }
+      Failed_Count:      { type: number, min: 0, integer: true }
+    seed: 18
+    examples:
+      - { Report_ID: MIR-2026-0101, Report_Date: "2026-10-15", Created_At: "2026-10-15T06:01:40+05:30", Trigger: Schedule, Status: Sent,
+          Sentiment: BULLISH, Confidence_Level: HIGH, Confidence_Pct: 74,
+          Driver_1: "FII inflows strong — ₹4,280 Cr net buying in equities yesterday",
+          Driver_2: "US Fed signals rate pause; Dow Jones +0.8%, NASDAQ +1.1% overnight",
+          Driver_3: "RBI MPC minutes dovish; inflation within 4.5% comfort zone",
+          Sensex_Outlook: BULLISH, Sensex_Range: "72,400 – 73,800", Sensex_Reason: "Strong macro tailwinds from FII buying and global positive cues. Banking & IT heavyweights expected to lead gains today.",
+          Nifty_Outlook: BULLISH, Nifty_Range: "21,850 – 22,300", Nifty_Reason: "Broad market rally expected. SGX Nifty futures trading +0.6% premium. Institutional participation likely to sustain momentum.",
+          BankNifty_Outlook: CAUTIOUS, BankNifty_Range: "47,200 – 48,100", BankNifty_Reason: "RBI credit growth data mixed. HDFC & ICICI may see buying interest; 48,000 is the level the market is watching.",
+          FnO_View: BULLISH BIAS, VIX_Expectation: LOW, FnO_Reason: "Low VIX and a rising put-call ratio of 1.28 point to a bullish bias in derivatives positioning; heavy call open interest sits at 22,000.",
+          MidSmall_Outlook: BULLISH, MidSmall_Focus: "Infra · Defence · PSU", MidSmall_Reason: "Domestic capex theme driving mid caps. Defence and infrastructure stocks benefiting from government order flows.",
+          Commodity_Outlook: NEUTRAL, Commodity_Reason: "Crude stable, no major supply disruption. Gold range-bound ahead of US CPI data. INR at 83.4/$ — neutral impact on imports.",
+          Sectors: "Information Technology|POSITIVE|US deal wins; weak rupee supports IT exports\nDefence & Aerospace|POSITIVE|Large order book, capex theme\nBanking & NBFC|WATCH|RBI policy stable, credit growth 14.2% YoY\nReal Estate|NEGATIVE|High interest rates weighing on housing demand",
+          Risks: "HIGH|US CPI data release tonight — an unexpected spike could trigger a sell-off in global markets\nMED|Rupee weakness beyond 84/$ could trigger FII outflows\nMED|Crude oil above $82 may pressure inflation expectations",
+          View_Positional: "The trend in IT and Defence remains intact while Nifty holds above 21,900.",
+          View_Intraday: "Opening strength is expected; 21,850 and 22,250 are the levels intraday traders are watching.",
+          View_LongTerm: "No change in the medium-term picture; minor dips have been absorbed by domestic flows.",
+          View_FnO: "Positioning is tilted bullish for this expiry with call writing concentrated at 22,300.",
+          Articles_Analyzed: 40, Category_Breakdown: "MACRO_ECONOMIC 8 · GLOBAL_CUES 7 · BANKING_SECTOR 6 · IT_SECTOR 5 · COMMODITY 5 · BENCHMARK_INDEX 5 · FNO 4",
+          Source_Status: "Economic Times Markets 18 · Moneycontrol 14 · Reuters India 0 (failed) · Google Finance News 20 · Global Market Cues 16",
+          Model: standard, WhatsApp_Message: "📈 *DAILY MARKET INTELLIGENCE* — Thursday, 15 Oct 2026 · 🎯 BULLISH (HIGH, 74%) · Market Opens: 9:15 AM IST", Message_Length: 2140,
+          Sent_At: "2026-10-15T06:03:10+05:30", Sent_Count: 48, Failed_Count: 1, Error_Message: "" }
+      - { Report_ID: MIR-2026-0100, Report_Date: "2026-10-14", Created_At: "2026-10-14T06:01:22+05:30", Trigger: Schedule, Status: Sent,
+          Sentiment: CAUTIOUSLY BULLISH, Confidence_Level: MEDIUM, Confidence_Pct: 61,
+          Driver_1: "SGX Nifty futures at a 135-point premium; positive opening expected",
+          Driver_2: "TCS secures $1.2 billion deal; IT guidance upgraded",
+          Driver_3: "Japan yen weakness keeps Bank of Japan intervention risk on radar",
+          Sensex_Outlook: BULLISH, Sensex_Range: "72,100 – 73,300", Sensex_Reason: "IT heavyweights support the index; follow-through needs FII participation.",
+          Nifty_Outlook: NEUTRAL, Nifty_Range: "21,750 – 22,150", Nifty_Reason: "RSI at 62 keeps the trend intact; 22,000 is the level to watch.",
+          BankNifty_Outlook: NEUTRAL, BankNifty_Range: "47,000 – 47,900", BankNifty_Reason: "Highest call open interest at 48,000 caps the upside; support seen at 47,000.",
+          FnO_View: RANGE-BOUND, VIX_Expectation: MEDIUM, FnO_Reason: "Open interest is spread between 21,800 and 22,200, pointing to a range-bound expiry.",
+          MidSmall_Outlook: CAUTIOUS, MidSmall_Focus: "Capital goods · Pharma", MidSmall_Reason: "Selective interest; froth in small caps after the recent run.",
+          Commodity_Outlook: NEUTRAL, Commodity_Reason: "Gold near $2,320/oz; crude WTI stable at $78.4 as OPEC+ holds quotas.",
+          Sectors: "Information Technology|POSITIVE|Deal wins momentum across large caps\nPharma & Healthcare|POSITIVE|US FDA approvals; domestic formulations strong\nAuto & EV|WATCH|Monthly sales data due",
+          Risks: "HIGH|Bank of Japan intervention could move global currencies\nMED|Q4 results season — any earnings miss by Nifty heavyweights",
+          View_Positional: "IT leadership continues; mid caps have run ahead of earnings.", View_Intraday: "21,800 and 22,150 bracket the day's expected range.",
+          View_LongTerm: "No change in the medium-term picture.", View_FnO: "Range-bound positioning with open interest spread on both sides.",
+          Articles_Analyzed: 38, Category_Breakdown: "GLOBAL_CUES 9 · IT_SECTOR 7 · MACRO_ECONOMIC 7 · FNO 6 · BANKING_SECTOR 5 · BENCHMARK_INDEX 4",
+          Source_Status: "Economic Times Markets 17 · Moneycontrol 12 · Reuters India 0 (failed) · Google Finance News 19 · Global Market Cues 15",
+          Model: standard, WhatsApp_Message: "📈 *DAILY MARKET INTELLIGENCE* — Wednesday, 14 Oct 2026 · 🎯 CAUTIOUSLY BULLISH (MEDIUM, 61%)", Message_Length: 1980,
+          Sent_At: "2026-10-14T06:02:58+05:30", Sent_Count: 47, Failed_Count: 0, Error_Message: "" }
+      - { Report_ID: MIR-2026-0099, Report_Date: "2026-10-13", Created_At: "2026-10-13T06:00:31+05:30", Trigger: Schedule, Status: Failed,
+          Sentiment: "", Confidence_Level: "", Confidence_Pct: 0, Driver_1: "", Driver_2: "", Driver_3: "",
+          Sensex_Outlook: "", Sensex_Range: "", Sensex_Reason: "", Nifty_Outlook: "", Nifty_Range: "", Nifty_Reason: "",
+          BankNifty_Outlook: "", BankNifty_Range: "", BankNifty_Reason: "", FnO_View: "", VIX_Expectation: "", FnO_Reason: "",
+          MidSmall_Outlook: "", MidSmall_Focus: "", MidSmall_Reason: "", Commodity_Outlook: "", Commodity_Reason: "",
+          Sectors: "", Risks: "", View_Positional: "", View_Intraday: "", View_LongTerm: "", View_FnO: "",
+          Articles_Analyzed: 0, Category_Breakdown: "", Source_Status: "Economic Times Markets 0 (timeout) · Moneycontrol 0 (timeout) · Reuters India 0 (failed) · Google Finance News 0 (timeout) · Global Market Cues 0 (timeout)",
+          Model: standard, WhatsApp_Message: "", Message_Length: 0, Sent_At: "", Sent_Count: 0, Failed_Count: 0,
+          Error_Message: "No news returned by any source — the AI analysis was not run" }
+
+  # ── What subscribers may read: a reader-safe copy written only when a report is sent (architect #1). ────────────────────
+  - name: published_reports
+    id: { column: Report_ID, prefix: "MIR-" }
+    title: Report_Date
+    subtitle: [Sentiment]
+    created: Published_At
+    columns: [Report_ID, Report_Date, Published_At, Sentiment, Confidence_Level, Confidence_Pct, Driver_1, Driver_2, Driver_3,
+              Sensex_Outlook, Sensex_Range, Sensex_Reason, Nifty_Outlook, Nifty_Range, Nifty_Reason,
+              BankNifty_Outlook, BankNifty_Range, BankNifty_Reason, FnO_View, VIX_Expectation, FnO_Reason,
+              MidSmall_Outlook, MidSmall_Focus, MidSmall_Reason, Commodity_Outlook, Commodity_Reason,
+              Sectors, Risks, View_Positional, View_Intraday, View_LongTerm, View_FnO, Articles_Analyzed, WhatsApp_Message]
+    fields:
+      Report_Date:       { type: date, unique: true }
+      Sentiment:         { one_of: [BULLISH, CAUTIOUSLY BULLISH, NEUTRAL, CAUTIOUSLY BEARISH, BEARISH] }
+      Confidence_Level:  { one_of: [HIGH, MEDIUM, LOW] }
+      Confidence_Pct:    { type: number, min: 0, max: 100, integer: true }
+      FnO_View:          { one_of: [BULLISH BIAS, BEARISH BIAS, RANGE-BOUND, VOLATILE] }
+      Articles_Analyzed: { type: number, min: 0, max: 40, integer: true }
+    seed: 12
+    examples:
+      - { Report_ID: MIR-2026-0101, Report_Date: "2026-10-15", Published_At: "2026-10-15T06:03:10+05:30", Sentiment: BULLISH, Confidence_Level: HIGH, Confidence_Pct: 74,
+          Driver_1: "FII inflows strong — ₹4,280 Cr net buying in equities yesterday", Driver_2: "US Fed signals rate pause; Dow Jones +0.8%, NASDAQ +1.1% overnight", Driver_3: "RBI MPC minutes dovish; inflation within 4.5% comfort zone",
+          Sensex_Outlook: BULLISH, Sensex_Range: "72,400 – 73,800", Sensex_Reason: "Strong macro tailwinds from FII buying and global positive cues. Banking & IT heavyweights expected to lead gains today.",
+          Nifty_Outlook: BULLISH, Nifty_Range: "21,850 – 22,300", Nifty_Reason: "Broad market rally expected. SGX Nifty futures trading +0.6% premium. Institutional participation likely to sustain momentum.",
+          BankNifty_Outlook: CAUTIOUS, BankNifty_Range: "47,200 – 48,100", BankNifty_Reason: "RBI credit growth data mixed. HDFC & ICICI may see buying interest; 48,000 is the level the market is watching.",
+          FnO_View: BULLISH BIAS, VIX_Expectation: LOW, FnO_Reason: "Low VIX and a rising put-call ratio of 1.28 point to a bullish bias in derivatives positioning; heavy call open interest sits at 22,000.",
+          MidSmall_Outlook: BULLISH, MidSmall_Focus: "Infra · Defence · PSU", MidSmall_Reason: "Domestic capex theme driving mid caps. Defence and infrastructure stocks benefiting from government order flows.",
+          Commodity_Outlook: NEUTRAL, Commodity_Reason: "Crude stable, no major supply disruption. Gold range-bound ahead of US CPI data. INR at 83.4/$ — neutral impact on imports.",
+          Sectors: "Information Technology|POSITIVE|US deal wins; weak rupee supports IT exports\nDefence & Aerospace|POSITIVE|Large order book, capex theme\nBanking & NBFC|WATCH|RBI policy stable, credit growth 14.2% YoY\nReal Estate|NEGATIVE|High interest rates weighing on housing demand",
+          Risks: "HIGH|US CPI data release tonight — an unexpected spike could trigger a sell-off in global markets\nMED|Rupee weakness beyond 84/$ could trigger FII outflows\nMED|Crude oil above $82 may pressure inflation expectations",
+          View_Positional: "The trend in IT and Defence remains intact while Nifty holds above 21,900.", View_Intraday: "Opening strength is expected; 21,850 and 22,250 are the levels intraday traders are watching.",
+          View_LongTerm: "No change in the medium-term picture; minor dips have been absorbed by domestic flows.", View_FnO: "Positioning is tilted bullish for this expiry with call writing concentrated at 22,300.",
+          Articles_Analyzed: 40, WhatsApp_Message: "📈 *DAILY MARKET INTELLIGENCE* — Thursday, 15 Oct 2026 · 🎯 BULLISH (HIGH, 74%) · Market Opens: 9:15 AM IST" }
+      - { Report_ID: MIR-2026-0100, Report_Date: "2026-10-14", Published_At: "2026-10-14T06:02:58+05:30", Sentiment: CAUTIOUSLY BULLISH, Confidence_Level: MEDIUM, Confidence_Pct: 61,
+          Driver_1: "SGX Nifty futures at a 135-point premium; positive opening expected", Driver_2: "TCS secures $1.2 billion deal; IT guidance upgraded", Driver_3: "Japan yen weakness keeps Bank of Japan intervention risk on radar",
+          Sensex_Outlook: BULLISH, Sensex_Range: "72,100 – 73,300", Sensex_Reason: "IT heavyweights support the index; follow-through needs FII participation.",
+          Nifty_Outlook: NEUTRAL, Nifty_Range: "21,750 – 22,150", Nifty_Reason: "RSI at 62 keeps the trend intact; 22,000 is the level to watch.",
+          BankNifty_Outlook: NEUTRAL, BankNifty_Range: "47,000 – 47,900", BankNifty_Reason: "Highest call open interest at 48,000 caps the upside; support seen at 47,000.",
+          FnO_View: RANGE-BOUND, VIX_Expectation: MEDIUM, FnO_Reason: "Open interest is spread between 21,800 and 22,200, pointing to a range-bound expiry.",
+          MidSmall_Outlook: CAUTIOUS, MidSmall_Focus: "Capital goods · Pharma", MidSmall_Reason: "Selective interest; froth in small caps after the recent run.",
+          Commodity_Outlook: NEUTRAL, Commodity_Reason: "Gold near $2,320/oz; crude WTI stable at $78.4 as OPEC+ holds quotas.",
+          Sectors: "Information Technology|POSITIVE|Deal wins momentum across large caps\nPharma & Healthcare|POSITIVE|US FDA approvals; domestic formulations strong\nAuto & EV|WATCH|Monthly sales data due",
+          Risks: "HIGH|Bank of Japan intervention could move global currencies\nMED|Q4 results season — any earnings miss by Nifty heavyweights",
+          View_Positional: "IT leadership continues; mid caps have run ahead of earnings.", View_Intraday: "21,800 and 22,150 bracket the day's expected range.",
+          View_LongTerm: "No change in the medium-term picture.", View_FnO: "Range-bound positioning with open interest spread on both sides.",
+          Articles_Analyzed: 38, WhatsApp_Message: "📈 *DAILY MARKET INTELLIGENCE* — Wednesday, 14 Oct 2026 · 🎯 CAUTIOUSLY BULLISH (MEDIUM, 61%)" }
+
+  - name: news_articles
+    id: { column: Article_ID, prefix: "NWS-" }
+    title: Title
+    subtitle: [Source]
+    created: Fetched_At
+    columns: [Article_ID, Fetched_At, Report_ID, Source, Category, Impact, Title, Summary, Published_At, Link]
+    fields:
+      Category: { one_of: [MACRO_ECONOMIC, BENCHMARK_INDEX, BANKING_SECTOR, IT_SECTOR, PHARMA_SECTOR, AUTO_SECTOR, COMMODITY, GLOBAL_CUES, FNO, GENERAL_MARKET] }
+      Impact:   { one_of: [HIGH, MED, LOW] }
+      Source:   { one_of: [Economic Times Markets, Moneycontrol, Reuters India, Google Finance News, Global Market Cues] }
+    seed: 40
+    examples:
+      - { Article_ID: NWS-2026-4001, Fetched_At: "2026-10-15T06:00:40+05:30", Report_ID: MIR-2026-0101, Source: Economic Times Markets, Category: MACRO_ECONOMIC, Impact: HIGH, Title: "RBI MPC minutes dovish: Inflation within 4.5% comfort zone, repo rate on hold at 6.5%", Summary: "Members flagged easing food prices and a stable core reading.", Published_At: "2026-10-15T05:30:00+05:30", Link: "https://economictimes.indiatimes.com/markets" }
+      - { Article_ID: NWS-2026-4002, Fetched_At: "2026-10-15T06:00:40+05:30", Report_ID: MIR-2026-0101, Source: Global Market Cues, Category: GLOBAL_CUES, Impact: HIGH, Title: "US Federal Reserve signals rate pause; Fed funds rate unchanged at 5.25-5.5%", Summary: "Futures price a hold through the next two meetings.", Published_At: "2026-10-15T04:15:00+05:30", Link: "https://news.google.com/" }
+      - { Article_ID: NWS-2026-4003, Fetched_At: "2026-10-15T06:00:40+05:30", Report_ID: MIR-2026-0101, Source: Google Finance News, Category: BENCHMARK_INDEX, Impact: HIGH, Title: "SGX Nifty Futures trading at premium +135 points; Positive opening expected on NSE", Summary: "GIFT Nifty indicates a gap-up start.", Published_At: "2026-10-15T05:00:00+05:30", Link: "https://news.google.com/" }
+      - { Article_ID: NWS-2026-4004, Fetched_At: "2026-10-15T06:00:40+05:30", Report_ID: MIR-2026-0101, Source: Moneycontrol, Category: IT_SECTOR, Impact: HIGH, Title: "TCS secures $1.2 billion deal from European banking client; Q4 guidance upgraded", Summary: "Five-year transformation mandate.", Published_At: "2026-10-15T04:45:00+05:30", Link: "https://www.moneycontrol.com/" }
+      - { Article_ID: NWS-2026-4005, Fetched_At: "2026-10-15T06:00:40+05:30", Report_ID: MIR-2026-0101, Source: Economic Times Markets, Category: FNO, Impact: MED, Title: "Nifty Put-Call Ratio rises to 1.28; VIX falls below 14 — Bullish signal for markets", Summary: "Fresh put writing at 21,900.", Published_At: "2026-10-15T05:15:00+05:30", Link: "https://economictimes.indiatimes.com/markets" }
+      - { Article_ID: NWS-2026-4006, Fetched_At: "2026-10-15T06:00:40+05:30", Report_ID: MIR-2026-0101, Source: Moneycontrol, Category: BANKING_SECTOR, Impact: MED, Title: "HDFC Bank credit card spends up 22% YoY; loan growth at 16.5% — Q4 preview positive", Summary: "Deposit growth keeps pace.", Published_At: "2026-10-15T04:00:00+05:30", Link: "https://www.moneycontrol.com/" }
+      - { Article_ID: NWS-2026-4007, Fetched_At: "2026-10-15T06:00:40+05:30", Report_ID: MIR-2026-0101, Source: Economic Times Markets, Category: COMMODITY, Impact: LOW, Title: "Crude oil WTI at $78.4/barrel; OPEC+ holds production quotas — supply stable", Summary: "Brent steady near $82.", Published_At: "2026-10-15T04:00:00+05:30", Link: "https://economictimes.indiatimes.com/markets" }
+
+  - name: subscribers
+    id: { column: Subscriber_ID, prefix: "SUB-" }
+    title: Name
+    subtitle: [City]
+    created: Joined_At
+    contact: { whatsapp: WhatsApp, phone: WhatsApp, email: Email }
+    status: { column: Status, values: [Active, Paused, Unsubscribed] }
+    transitions:
+      Active:       [Paused, Unsubscribed]
+      Paused:       [Active, Unsubscribed]
+      Unsubscribed: [Unsubscribed]
+    requires_on:
+      Active: [Opt_In_At, Opt_In_Source]
+    columns: [Subscriber_ID, Name, WhatsApp, Email, City, Status, Opt_In_At, Opt_In_Source, Joined_At, Last_Delivered_At, Notes]
+    fields:
+      WhatsApp:      { type: phone, unique: true }
+      Email:         { type: email }
+      Opt_In_At:     { type: date }
+      Opt_In_Source: { one_of: [WhatsApp reply, Web form, Signed form, Phone call] }
+    seed: 24
+    examples:
+      - { Subscriber_ID: SUB-2026-0001, Name: Amit Shah, WhatsApp: "+919876543210", Email: amit.shah@example.in, City: Ahmedabad, Status: Active, Opt_In_At: "2026-08-01", Opt_In_Source: WhatsApp reply, Joined_At: "2026-08-01T10:00:00+05:30", Last_Delivered_At: "2026-10-15T06:03:10+05:30", Notes: "Intraday trader" }
+      - { Subscriber_ID: SUB-2026-0002, Name: Neha Iyer, WhatsApp: "+919820011223", Email: neha.iyer@example.in, City: Mumbai, Status: Active, Opt_In_At: "2026-08-04", Opt_In_Source: Web form, Joined_At: "2026-08-04T09:30:00+05:30", Last_Delivered_At: "2026-10-15T06:03:10+05:30", Notes: "F&O" }
+      - { Subscriber_ID: SUB-2026-0003, Name: Rohit Verma, WhatsApp: "+919811122334", Email: rohit.verma@example.in, City: Delhi, Status: Paused, Opt_In_At: "2026-08-20", Opt_In_Source: Signed form, Joined_At: "2026-08-20T18:10:00+05:30", Last_Delivered_At: "2026-10-01T06:02:40+05:30", Notes: "Paused while travelling" }
+
+  # ── One row per WhatsApp sent (or attempted). No phone copy here — the subscriber record holds it (architect #5, DPDP). ──
+  - name: deliveries
+    id: { column: Delivery_ID, prefix: "DLV-" }
+    title: Subscriber_Name
+    subtitle: [Report_Date]
+    created: Sent_At
+    status: { column: Status, values: [Queued, Sent, Failed] }
+    transitions:
+      Queued: [Sent, Failed]
+      Failed: [Sent, Failed]
+      Sent:   [Sent]
+    unique_together: [[Report_Date, Subscriber_ID, Kind]]
+    columns: [Delivery_ID, Sent_At, Kind, Report_ID, Report_Date, Subscriber_ID, Subscriber_Name, Sentiment, Status, Message_ID, Error_Message]
+    fields:
+      Kind:        { one_of: [Report, Alert] }
+      Report_Date: { type: date }
+    seed: 30
+    examples:
+      - { Delivery_ID: DLV-2026-2401, Sent_At: "2026-10-15T06:03:02+05:30", Kind: Report, Report_ID: MIR-2026-0101, Report_Date: "2026-10-15", Subscriber_ID: SUB-2026-0001, Subscriber_Name: Amit Shah, Sentiment: BULLISH, Status: Sent, Message_ID: "wamid.HBgMOTE5ODc2NTQzMjEwFQIAERgS", Error_Message: "" }
+      - { Delivery_ID: DLV-2026-2402, Sent_At: "2026-10-15T06:03:04+05:30", Kind: Report, Report_ID: MIR-2026-0101, Report_Date: "2026-10-15", Subscriber_ID: SUB-2026-0002, Subscriber_Name: Neha Iyer, Sentiment: BULLISH, Status: Failed, Message_ID: "", Error_Message: "131026 · Message undeliverable — number not on WhatsApp" }
+
+metrics:
+  ready_unsent:      { entity: reports,       label: Reports not sent,           where: "Status=Ready",                                             tone: warn, icon: Send }
+  failed_runs:       { entity: reports,       label: Failed runs (7 days),       where: "Status=Failed and Created_At in last 7 days",              tone: bad,  icon: AlertTriangle }
+  failed_deliveries: { entity: deliveries,    label: Failed deliveries (7 days), where: "Status=Failed and Kind=Report and Sent_At in last 7 days", tone: bad,  icon: MessageSquareWarning }
+  reports_sent:      { entity: reports,       label: Reports sent this month,    where: "Status=Sent and Report_Date in month",                     tone: ok,   icon: CheckCircle2 }
+  active_subs:       { entity: subscribers,   label: Active subscribers,         where: "Status=Active",                                            tone: info, icon: Users }
+  news_today:        { entity: news_articles, label: News analysed today,        where: "Fetched_At in last 1 days",                                tone: info, icon: Newspaper }
+
+documents:
+  - id: report_pdf
+    covers: [R23, R24]
+    entity: reports
+    title: "Daily Market Intelligence — {{Report_Date}}"
+    file_name: "Market-Intelligence-{{Report_Date}}"
+    letterhead: { name: Market Intelligence, lines: ["Daily pre-market commentary · NSE / BSE", "Market Opens: 9:15 AM IST"] }
+    heading: DAILY MARKET INTELLIGENCE
+    subheading: "{{Report_Date}} · {{Sentiment}} · Confidence {{Confidence_Level}} ({{Confidence_Pct}}%)"
+    fields:
+      - { key: Driver_1, label: Key driver 1 }
+      - { key: Driver_2, label: Key driver 2 }
+      - { key: Driver_3, label: Key driver 3 }
+      - { key: Sensex_Outlook, label: Sensex }
+      - { key: Sensex_Range, label: Sensex range in focus }
+      - { key: Nifty_Outlook, label: Nifty 50 }
+      - { key: Nifty_Range, label: Nifty range in focus }
+      - { key: BankNifty_Outlook, label: Bank Nifty }
+      - { key: BankNifty_Range, label: Bank Nifty range in focus }
+      - { key: FnO_View, label: F&O positioning }
+      - { key: VIX_Expectation, label: VIX expectation }
+      - { key: MidSmall_Outlook, label: Mid & Small Cap }
+      - { key: MidSmall_Focus, label: Sectors in focus }
+      - { key: Commodity_Outlook, label: Commodities }
+    body: "Market view — Positional: {{View_Positional}} · Intraday: {{View_Intraday}} · Long-term: {{View_LongTerm}} · F&O: {{View_FnO}}"
+    footer: "Market commentary generated with AI from public news. Not investment advice and not a research report by a SEBI-registered research analyst. Trading involves risk — consult a SEBI-registered advisor before acting. Yeh AI-generated analysis hai; SEBI-registered investment advisory nahi hai."
+    signature: "Market Intelligence desk"
+  - id: reader_pdf
+    covers: [R23, R25]
+    entity: published_reports
+    title: "Daily Market Intelligence — {{Report_Date}}"
+    file_name: "Market-Intelligence-{{Report_Date}}"
+    letterhead: { name: Market Intelligence, lines: ["Daily pre-market commentary · NSE / BSE", "Market Opens: 9:15 AM IST"] }
+    heading: DAILY MARKET INTELLIGENCE
+    subheading: "{{Report_Date}} · {{Sentiment}} · Confidence {{Confidence_Level}} ({{Confidence_Pct}}%)"
+    fields:
+      - { key: Driver_1, label: Key driver 1 }
+      - { key: Driver_2, label: Key driver 2 }
+      - { key: Driver_3, label: Key driver 3 }
+      - { key: Sensex_Outlook, label: Sensex }
+      - { key: Sensex_Range, label: Sensex range in focus }
+      - { key: Nifty_Outlook, label: Nifty 50 }
+      - { key: Nifty_Range, label: Nifty range in focus }
+      - { key: BankNifty_Outlook, label: Bank Nifty }
+      - { key: BankNifty_Range, label: Bank Nifty range in focus }
+      - { key: FnO_View, label: F&O positioning }
+      - { key: VIX_Expectation, label: VIX expectation }
+      - { key: MidSmall_Outlook, label: Mid & Small Cap }
+      - { key: MidSmall_Focus, label: Sectors in focus }
+      - { key: Commodity_Outlook, label: Commodities }
+    body: "Market view — Positional: {{View_Positional}} · Intraday: {{View_Intraday}} · Long-term: {{View_LongTerm}} · F&O: {{View_FnO}}"
+    footer: "Market commentary generated with AI from public news. Not investment advice and not a research report by a SEBI-registered research analyst. Trading involves risk — consult a SEBI-registered advisor before acting. Yeh AI-generated analysis hai; SEBI-registered investment advisory nahi hai."
+    signature: "Market Intelligence desk"
+
+header:
+  covers: [R27]
+  search_placeholder: "Report date, subscriber or headline…"
+  search:
+    - { label: Reports,     entity: reports,       columns: [Report_ID, Report_Date, Sentiment], title: Report_Date, subtitle: [Sentiment, Status], link: /reports, page: reports }
+    - { label: Subscribers, entity: subscribers,   columns: [Name, WhatsApp, City], title: Name, subtitle: [City, Status], link: /subscribers, page: subscribers }
+    - { label: News,        entity: news_articles, columns: [Title, Source], title: Title, subtitle: [Source, Category], link: /news, page: news }
+  notifications:
+    - { metric: failed_runs,       title: Report_Date,     subtitle: [Error_Message],              date: Created_At, link: /pipeline,   page: pipeline }
+    - { metric: failed_deliveries, title: Subscriber_Name, subtitle: [Report_Date, Error_Message], date: Sent_At,    link: /deliveries, page: deliveries }
+    - { metric: ready_unsent,      title: Report_Date,     subtitle: [Sentiment],                  date: Created_At, link: /today,      page: today }
+
+flows:
+  # ── The 06:00 IST trigger — a custom flow (schedule → MARKET_REPORT async → Return); 06:20 watchdog in the same flow file ─
+  - name: DAILY_SCHEDULE
+    covers: [R1, R11]
+    trigger: { tool: schedule, name: every_day }
+    constants: { hour_of_the_day: 6, timezone: Asia/Kolkata, run_on_weekends: false, holidays: [] }
+    writes: [reports]
+    actions:
+      - name: trigger
+        model: none
+        via: custom
+        payload: { Trigger: string }
+        result: { queued: boolean }
+        rules:
+          - "every_day at 06:00 Asia/Kolkata, weekends off; a date in constants.holidays (NSE trading holidays, ⚑ G3 — the owner fills the list from the NSE circular) skips the run → POST MARKET_REPORT {Trigger: Schedule} without /sync (the run is longer than the 25 s sync window) → Return. Fixes S1 (the source ran at 00:30 IST)"
+          - "Watchdog (second schedule, 06:20 IST weekdays): GET today's report; no row → POST BROADCAST {Kind: Alert, Error_Message: 'No report row by 06:20'} so a crashed run still alerts the admins"
+        typical_seconds: 4
+        credits: 4
+        runs_per_month: 44
+
+  # ── The daily report — a custom pipeline (5 fetches → CODE → router → one AI call → CODE → writes → BROADCAST) ─────────
+  - name: MARKET_REPORT
+    covers: [R1, R2, R3, R4, R5, R6, R7, R8, R10]
+    trigger: { tool: webhook, name: catch_webhook, auth: none }
+    constants: { news_limit: 40, summary_chars: 300, dedupe_chars: 60, auto_send: true }
+    writes: [reports, news_articles]
+    actions:
+      - name: run
+        model: none
+        async: true
+        via: custom
+        payload: { Trigger: string, Report_ID: string }
+        result: { Report_ID: string, Status: string, Articles_Analyzed: number }
+        rules:
+          - "Five RSS fetches run as separate steps; a failed or empty source yields 0 items and is reported in Source_Status, never stops the run (CODE)"
+          - "Parse <item> title / description (CDATA or plain, HTML stripped, ≤300 chars) / pubDate / link; dedupe on the first 60 lower-cased alphanumeric title characters; categorise with word-bounded keyword rules in the source's order; keep 40 (CODE — fixes S2, S3)"
+          - "Impact: HIGH when the title names RBI, repo, Fed, FII, GDP, CPI, inflation, SGX/GIFT Nifty or a ≥ $1 billion deal; MED for Banking, IT, F&O, Benchmark; else LOW (CODE)"
+          - "ONE AI call (Studio llm-ai, model class standard, temperature 0.3, 2,000 tokens) under the DATA RULE: senior Indian market analyst, COMMENTARY ONLY — sentiment, confidence, drivers, segment outlooks with the range in focus, F&O positioning view, sectors POSITIVE / WATCH / NEGATIVE, risks HIGH / MED, a market view per trader type; never a buy/sell call, strike, target or stop-loss (owner decision on SEBI). Prompt: app/src/custom/lib/market.js buildPrompt()"
+          - "Zero articles, or model JSON missing Sentiment / Confidence_Level / Driver_1 → Status Failed with Error_Message, never a half-empty Ready row (CODE + router on the parse field)"
+          - "The model's JSON is parsed and only declared keys are kept; enum values outside the lists become empty; confidence clamped 0–100 (CODE)"
+          - "WhatsApp_Message = header (day, date, report time IST) + analysis + footer 'Market Opens: 9:15 AM IST' + disclaimer, trimmed to 4,000 characters (CODE, app/src/custom/lib/market.js — the same formatter the app's preview uses)"
+          - "One report per Report_Date (unique). A payload Report_ID re-runs that row (Failed → Ready, PATCH); a Sent report is never re-run (refused). The report is written first, then news_articles with deterministic ids (Report_ID + dedupe key) so a re-run never doubles them"
+          - "Last step: POST BROADCAST — always for Failed (the admin alert), for Ready only when constants.auto_send is true; then POST /api/jobs/<id> done"
+        typical_seconds: 45
+        credits: 16
+        runs_per_month: 30
+        effect:
+          insert: reports
+          fill: { Trigger: Manual, Status: Ready, Sentiment: NEUTRAL, Confidence_Level: LOW, Confidence_Pct: 0, Model: simulated, Articles_Analyzed: 0,
+                  Driver_1: "SIMULATED — the MARKET_REPORT flow is not wired; nothing was fetched or analysed", Driver_2: "Set WEBHOOK_MARKET_REPORT to run the real report", Driver_3: "",
+                  WhatsApp_Message: "SIMULATED run — not a market report", Source_Status: "Simulated — no source was fetched" }
+          result: { Status: Ready }
+
+  # ── Broadcast to every active subscriber, the admin alert, and one delivery again — a custom flow ──────────────────────
+  - name: BROADCAST
+    covers: [R9, R10, R11, R27]
+    trigger: { tool: webhook, name: catch_webhook, auth: none }
+    constants: { report_template: mi_daily_report, alert_template: mi_run_failed, alert_to: SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS, portal_url: SET_IN_STUDIO_APP_URL }
+    writes: [reports, published_reports, deliveries, subscribers]
+    actions:
+      - name: send
+        model: none
+        via: custom
+        async: true
+        payload: { Report_ID: string }
+        result: { sent: number, failed: number, skipped: number }
+        rules:
+          - "Ready report → for each Active subscriber with Opt_In_At and Opt_In_Source: INSERT a Queued delivery (unique Report_Date + Subscriber_ID + Kind; a 409 means already sent → skip) → pucho-whatsapp approved template mi_daily_report (date, sentiment, confidence, first driver; the portal link is the template's URL button) → PATCH the delivery Sent with the message id, or Failed with the error (CODE + LOOP_ON_ITEMS)"
+          - "Then UPSERT published_reports (the reader-safe columns) and PATCH the report Sent, Sent_At, Sent_Count, Failed_Count; subscriber Last_Delivered_At"
+          - "Failed report → template mi_run_failed (error, date, IST time) to constants.alert_to; a Kind=Alert delivery row; nothing goes to subscribers"
+        typical_seconds: 30
+        credits: 105
+        runs_per_month: 26
+        effect: { patch: reports, fill: { Status: Sent, Sent_At: now } }
+      - name: retry
+        model: none
+        via: custom
+        payload: { Delivery_ID: string }
+        result: { sent: boolean }
+        rules:
+          - "Reads the delivery and its subscriber; refuses unless the subscriber is Active and opted in and the delivery is a Failed Report; sends the same template to the number on the subscriber record (never a number from the payload); PATCHes the same delivery row Sent or Failed"
+        typical_seconds: 6
+        credits: 6
+        runs_per_month: 20
+        effect: { patch: deliveries, fill: { Status: Sent, Sent_At: now, Error_Message: "" }, result: { sent: true } }
+
+pages:
+  - id: overview
+    kind: overview
+    route: /
+    label: Overview
+    icon: LayoutDashboard
+    desc: This morning's exceptions first, then the month's delivery numbers
+    subtitle: What needs a person this morning, then how the reports are landing
+    greeting: Here is the market desk this morning.
+    roles: [admin, analyst]
+    covers: [R27, R13]
+    quick_links: false
+    queues:
+      - { metric: ready_unsent,      action: send_now, action_label: Send,   link: /today }
+      - { metric: failed_runs,       action: rerun,    action_label: Re-run, link: /pipeline }
+      - { metric: failed_deliveries, action: retry,    action_label: Retry,  link: /deliveries }
+    kpis: [ { metric: reports_sent }, { metric: active_subs }, { metric: failed_deliveries }, { metric: news_today } ]
+    charts:
+      - { id: ov-sentiment, type: trend, title: Market sentiment by week, entity: reports, date: Report_Date, series: [Sentiment], days: 56, bucket: week }
+      - { id: ov-news, type: breakdown, title: News analysed by category (30 days), entity: news_articles, group: Category, where: "Fetched_At in last 30 days", style: bar }
+    recent: { title: Latest reports, entity: reports, date: Created_At, limit: 6, link: /reports, columns: [ { key: Report_Date, type: date, grow: true }, { key: Sentiment, type: badge }, { key: Confidence_Pct, header: Confidence, type: number }, { key: Status, type: badge } ] }
+    modals:
+      - { id: send_now, kind: status, title: Send to subscribers, flow: BROADCAST, action: send, entity: reports, submit: Send to subscribers, pending: "Sending to subscribers…", success: "Sending — each delivery is logged", covers: [R9], summary: [Report_Date, Sentiment, Confidence_Pct], intro: "Goes to every Active, opted-in subscriber's WhatsApp as the approved Daily Market Intelligence template." }
+      - { id: rerun,    kind: status, title: Re-run report now, flow: MARKET_REPORT, action: run, entity: reports, submit: Re-run report, pending: "Fetching the five sources…", success: "The report is being prepared again — it turns Ready when done", covers: [R24], summary: [Report_Date, Error_Message], intro: "Fetches the five news sources again and rewrites this report. A report already sent is never re-run." }
+      - { id: retry,    kind: status, title: Retry delivery, flow: BROADCAST, action: retry, entity: deliveries, submit: Send again, pending: "Sending…", success: "Delivery sent again", covers: [R27], summary: [Subscriber_Name, Report_Date, Error_Message], intro: "Goes to the WhatsApp number on the subscriber's record, only if they are still Active." }
+
+  - id: today
+    route: /today
+    label: Today's report
+    icon: Sunrise
+    desc: The 6 AM report as subscribers will read it, with review, send and re-run
+    subtitle: Check this morning's view, change it if needed, and send it before the open
+    entity: reports
+    roles: [admin, analyst]
+    covers: [R13, R15, R16, R17, R18, R19, R20, R23, R24]
+    blocks:
+      - { type: custom, name: MarketBrief, covers: [R13, R15, R16, R17, R19, R20, R23] }
+      - { type: table, label: Today's report, where: "Report_Date in last 1 days",
+          columns: [ { key: Report_Date, type: date, sub: Report_ID }, { key: Sentiment, type: badge }, { key: Confidence_Pct, header: Confidence, type: number }, { key: Articles_Analyzed, header: News, type: number }, { key: Trigger, type: tag }, { key: Status, type: badge }, { key: Sent_Count, header: Sent, type: number } ],
+          actions: { row: [review, send_all, pdf] },
+          empty: { title: No report yet today, reason: "The 6:00 AM IST run has not written today's report yet (Mon–Fri only).", action: run_now } }
+      - { type: table, entity: news_articles, label: Today's news, where: "Fetched_At in last 1 days", covers: [R18],
+          segments: { column: Category, all: All news },
+          columns: [ { key: Title, type: text, sub: Summary, grow: true }, { key: Impact, type: badge }, { key: Source, type: tag }, { key: Published_At, header: Published, type: text, priority: low } ],
+          search: [Title, Summary], filters: [Source, Impact] }
+    modals:
+      - { id: run_now,  kind: create, title: Run report now, flow: MARKET_REPORT, action: run, primary: true, submit: Run report now, pending: "Fetching the five sources…", success: "The report is being prepared — it appears here as Ready", covers: [R24], fields: [ { key: Trigger, label: Run type, type: select, options: [Manual], default: Manual, required: true } ] }
+      - { id: review,   kind: edit, title: Review & edit report, direct: patch, covers: [R24], summary: [Report_Date, Status], intro: "Edit before sending. A sent report is already with subscribers — edit it only to correct, then send again to update their copy.",
+          fields: [ { key: Sentiment, label: Overall sentiment, type: select, options: [BULLISH, CAUTIOUSLY BULLISH, NEUTRAL, CAUTIOUSLY BEARISH, BEARISH], required: true },
+                    { key: Confidence_Pct, label: "Confidence %", type: number, required: true },
+                    { key: Driver_1, label: Key driver 1, type: text, required: true }, { key: Driver_2, label: Key driver 2, type: text }, { key: Driver_3, label: Key driver 3, type: text },
+                    { key: View_Intraday, label: Intraday view, type: textarea, rows: 2 }, { key: View_FnO, label: F&O positioning view, type: textarea, rows: 2 } ] }
+      - { id: send_all, kind: status, title: Send to subscribers, flow: BROADCAST, action: send, submit: Send to subscribers, pending: "Sending to subscribers…", success: "Sending — each delivery is logged", covers: [R9, R24], summary: [Report_Date, Sentiment, Confidence_Pct], intro: "Goes to every Active, opted-in subscriber's WhatsApp as the approved Daily Market Intelligence template. Subscribers who already received this report are skipped." }
+      - { id: pdf,      kind: document, title: Print report, document: report_pdf }
+    actions: { header: [run_now], row: [review, send_all, pdf] }
+
+  - id: reports
+    route: /reports
+    label: Reports
+    icon: FileText
+    desc: Every daily report, its views and who received it
+    subtitle: Every daily report — open one to see its views, its news and its deliveries
+    entity: reports
+    roles: [admin, analyst]
+    covers: [R10, R24]
+    blocks:
+      - type: table
+        segments: { column: Status, all: All reports }
+        period: { column: Report_Date, presets: [7d, 30d, all], default: 30d }
+        views: [table, cards]
+        card: { title: Report_Date, subtitle: [Sentiment], badge: Status, fields: [ { key: Confidence_Pct, label: Confidence }, { key: Sent_Count, label: Sent }, { key: Articles_Analyzed, label: News } ], callout: { column: Driver_1, label: Top driver, tone: info }, actions: [send_all, pdf] }
+        columns: [ { key: Report_Date, type: date, sub: Report_ID }, { key: Sentiment, type: badge }, { key: Confidence_Level, header: Confidence, type: tag, sub: Confidence_Pct }, { key: Nifty_Outlook, header: Nifty 50, type: badge }, { key: Status, type: badge }, { key: Sent_Count, header: Sent, type: number }, { key: Failed_Count, header: Failed, type: number }, { key: Trigger, type: tag, priority: low } ]
+        search: [Report_ID, Sentiment, Driver_1]
+        filters: [Sentiment, Trigger]
+        actions: { row: [review, send_all, pdf] }
+        drawer:
+          title_column: Report_Date
+          tabs:
+            - { label: Analysis, sections: [ { type: tiles, title: Call, columns: [Sentiment, Confidence_Level, Confidence_Pct, Articles_Analyzed] }, { type: fields, title: Key market drivers, columns: [Driver_1, Driver_2, Driver_3] }, { type: fields, title: Segments, columns: [Sensex_Outlook, Sensex_Range, Nifty_Outlook, Nifty_Range, BankNifty_Outlook, BankNifty_Range, FnO_View, VIX_Expectation, MidSmall_Outlook, MidSmall_Focus, Commodity_Outlook], hide_empty: true }, { type: callout, column: Error_Message, title: Why it failed, tone: warn } ] }
+            - { label: News, sections: [ { type: related, entity: news_articles, by: Report_ID, title: News analysed, columns: [Title, Category, Impact, Source] } ] }
+            - { label: Deliveries, sections: [ { type: related, entity: deliveries, by: Report_ID, title: Deliveries, columns: [Subscriber_Name, Status, Sent_At, Error_Message] } ] }
+        empty: { title: No reports yet, reason: "The first report is written by the 6:00 AM IST weekday run, or by Run report now on Today's report." }
+    modals:
+      - { id: review,   kind: edit, title: Review & edit report, direct: patch, covers: [R24], summary: [Report_Date, Status], intro: "Edit before sending. A sent report is already with subscribers — edit it only to correct, then send again to update their copy.",
+          fields: [ { key: Sentiment, label: Overall sentiment, type: select, options: [BULLISH, CAUTIOUSLY BULLISH, NEUTRAL, CAUTIOUSLY BEARISH, BEARISH], required: true },
+                    { key: Confidence_Pct, label: "Confidence %", type: number, required: true },
+                    { key: Driver_1, label: Key driver 1, type: text, required: true }, { key: Driver_2, label: Key driver 2, type: text }, { key: Driver_3, label: Key driver 3, type: text },
+                    { key: View_Intraday, label: Intraday view, type: textarea, rows: 2 }, { key: View_FnO, label: F&O positioning view, type: textarea, rows: 2 } ] }
+      - { id: send_all, kind: status, title: Send to subscribers, flow: BROADCAST, action: send, submit: Send to subscribers, pending: "Sending to subscribers…", success: "Sending — each delivery is logged", covers: [R9], summary: [Report_Date, Sentiment, Confidence_Pct], intro: "Goes to every Active, opted-in subscriber's WhatsApp as the approved template. Subscribers who already received this report are skipped." }
+      - { id: pdf,      kind: document, title: Print report, document: report_pdf }
+    actions: { header: [], row: [review, send_all, pdf] }
+
+  - id: news
+    route: /news
+    label: News feed
+    icon: Newspaper
+    desc: Every article the runs analysed, by category, impact and source
+    subtitle: The news behind each report — filter by category, impact or source
+    entity: news_articles
+    roles: [admin, analyst]
+    covers: [R3, R4, R5, R6, R18, R19]
+    read_only: "Articles are written by the daily run from the five RSS feeds; nobody edits a news item"
+    blocks:
+      - { type: kpis, kpis: [ { metric: news_today }, { label: High impact today, formula: "count where Impact=HIGH and Fetched_At in last 1 days", icon: Zap, tone: warn, filter: "Impact=HIGH" } ] }
+      - type: table
+        segments: { column: Category, all: All news }
+        period: { column: Fetched_At, presets: [today, 7d, 30d, all], default: 7d }
+        columns: [ { key: Title, type: text, sub: Summary, grow: true }, { key: Category, type: tag }, { key: Impact, type: badge }, { key: Source, type: tag }, { key: Fetched_At, header: Fetched, type: date, time: true }, { key: Report_ID, header: Report, type: id, priority: low } ]
+        search: [Title, Summary]
+        filters: [Source, Impact]
+        drawer: { title_column: Title, sections: [ { type: tiles, title: Article, columns: [Source, Category, Impact, Published_At] }, { type: callout, column: Summary, title: Summary, tone: neutral }, { type: fields, title: Link, columns: [Link, Report_ID] } ] }
+        empty: { title: No news in this period, reason: "News is fetched by each report run; widen the period or run the report." }
+
+  - id: pipeline
+    route: /pipeline
+    label: Pipeline
+    icon: Workflow
+    desc: The workflow steps, its configuration and every run with its source counts and errors
+    subtitle: How the 6 AM run is wired, and every run — re-run the ones that failed
+    entity: reports
+    roles: [admin, analyst]
+    covers: [R12, R21, R27, R11, R2]
+    blocks:
+      - { type: custom, name: PipelineMap, covers: [R12, R21] }
+      - type: table
+        label: Run log
+        segments: { column: Status, all: All runs }
+        period: { column: Created_At, presets: [7d, 30d, all], default: 7d }
+        columns: [ { key: Created_At, header: Started, type: date, time: true, sub: Report_ID }, { key: Trigger, type: tag }, { key: Status, type: badge }, { key: Articles_Analyzed, header: News, type: number }, { key: Source_Status, header: Sources, type: truncate }, { key: Error_Message, header: Error, type: truncate } ]
+        search: [Report_ID, Error_Message, Source_Status]
+        filters: [Trigger]
+        actions: { row: [rerun] }
+        drawer: { title_column: Report_Date, sections: [ { type: tiles, title: Run, columns: [Trigger, Status, Articles_Analyzed, Model] }, { type: callout, column: Source_Status, title: Sources, tone: neutral }, { type: callout, column: Category_Breakdown, title: Categories, tone: neutral }, { type: callout, column: Error_Message, title: Error, tone: warn } ] }
+    modals:
+      - { id: rerun, kind: status, title: Re-run report now, flow: MARKET_REPORT, action: run, submit: Re-run report, pending: "Fetching the five sources…", success: "The report is being prepared again — it turns Ready when done", covers: [R24], summary: [Report_Date, Error_Message], intro: "Fetches the five news sources again and rewrites this report. A report already sent is never re-run." }
+    actions: { header: [], row: [rerun] }
+
+  - id: subscribers
+    route: /subscribers
+    label: Subscribers
+    icon: Users
+    desc: Who receives the report on WhatsApp
+    subtitle: Add, pause or remove WhatsApp subscribers — only people who opted in
+    entity: subscribers
+    roles: [admin, analyst]
+    covers: [R26]
+    blocks:
+      - { type: kpis, kpis: [ { metric: active_subs }, { label: Paused, formula: "count where Status=Paused", icon: PauseCircle, filter: "Status=Paused" }, { label: Unsubscribed, formula: "count where Status=Unsubscribed", icon: UserX, filter: "Status=Unsubscribed" } ] }
+      - type: table
+        segments: { column: Status, all: All subscribers }
+        columns: [ { key: Name, type: text, sub: City, grow: true }, { key: WhatsApp, type: phone }, { key: Status, type: badge }, { key: Opt_In_At, header: Opted in, type: date, sub: Opt_In_Source }, { key: Last_Delivered_At, header: Last delivered, type: date, time: true }, { key: Email, priority: low }, { key: Subscriber_ID, type: id, priority: low } ]
+        search: [Name, WhatsApp, City, Email]
+        filters: [City, Opt_In_Source]
+        bulk: [set_status]
+        actions: { row: [edit_subscriber, set_status] }
+        drawer: { title_column: Name, sections: [ { type: fields, title: Contact, columns: [WhatsApp, Email, City, Status, Opt_In_At, Opt_In_Source, Notes] }, { type: related, entity: deliveries, by: Subscriber_ID, title: Deliveries, columns: [Report_Date, Kind, Status, Sent_At, Error_Message] } ] }
+        empty: { title: No subscribers yet, reason: "Add the first person who opted in to the daily WhatsApp report.", action: add_subscriber }
+    modals:
+      - { id: add_subscriber, kind: create, title: Add subscriber, direct: insert, primary: true, submit: Add subscriber, success: "Subscriber added — they get the next report", covers: [R26],
+          fields: [ { key: Name, label: Name, type: text, required: true }, { key: WhatsApp, label: WhatsApp number, type: text, required: true, help: "With country code, e.g. +91 98765 43210" },
+                    { key: Opt_In_At, label: Opted in on, type: date, required: true, help: "The day the person agreed to receive the report — WhatsApp requires it" },
+                    { key: Opt_In_Source, label: How they opted in, type: select, options: [WhatsApp reply, Web form, Signed form, Phone call], required: true },
+                    { key: City, label: City, type: text }, { key: Email, label: Email, type: text }, { key: Status, label: Status, type: select, options: [Active, Paused], default: Active, required: true } ] }
+      - { id: edit_subscriber, kind: edit, title: Edit subscriber, direct: patch, covers: [R26], summary: [Name],
+          fields: [ { key: WhatsApp, label: WhatsApp number, type: text, required: true }, { key: City, label: City, type: text }, { key: Email, label: Email, type: text }, { key: Notes, label: Notes, type: textarea, rows: 2 } ] }
+      - { id: set_status, kind: status, title: Pause, resume or remove, direct: patch, covers: [R26], summary: [Name, WhatsApp], intro: "Unsubscribed is final — the person must opt in again as a new subscriber.",
+          fields: [ { key: Status, label: Status, type: select, options_status: true, required: true } ] }
+    actions: { header: [add_subscriber], row: [edit_subscriber, set_status] }
+
+  - id: deliveries
+    route: /deliveries
+    label: Deliveries
+    icon: MessageSquare
+    desc: Every WhatsApp sent, with its status — retry the failed ones
+    subtitle: Every WhatsApp the desk sent — retry a failed delivery
+    entity: deliveries
+    roles: [admin, analyst]
+    covers: [R10, R27]
+    blocks:
+      - { type: kpis, kpis: [ { metric: failed_deliveries }, { label: Sent today, formula: "count where Status=Sent and Sent_At in last 1 days", icon: CheckCircle2, tone: ok, filter: "Status=Sent" } ] }
+      - type: table
+        segments: { column: Status, all: All deliveries }
+        period: { column: Sent_At, presets: [today, 7d, 30d, all], default: 7d }
+        columns: [ { key: Subscriber_Name, header: Subscriber, type: text, sub: Subscriber_ID }, { key: Report_Date, header: Report, type: date }, { key: Kind, type: tag }, { key: Status, type: badge }, { key: Sent_At, header: Sent, type: date, time: true }, { key: Error_Message, header: Error, type: truncate }, { key: Message_ID, header: WhatsApp id, type: id, priority: low } ]
+        search: [Subscriber_Name, Error_Message, Report_ID]
+        filters: [Kind]
+        actions: { row: [retry] }
+        empty: { title: No deliveries in this period, reason: "Deliveries are logged when a report is sent to subscribers." }
+    modals:
+      - { id: retry, kind: status, title: Retry delivery, flow: BROADCAST, action: retry, submit: Send again, pending: "Sending…", success: "Delivery sent again", covers: [R27], summary: [Subscriber_Name, Report_Date, Error_Message], intro: "Goes to the WhatsApp number on the subscriber's record, only if they are still Active and opted in." }
+    actions: { header: [], row: [retry] }
+
+  - id: activity
+    kind: system
+    route: /activity
+    label: Activity
+    icon: History
+    desc: Every change by a person or a flow
+    group: Setup
+    roles: [admin]
+    covers: [R28]
+    read_only: "The audit log is written by the app for every change; nobody edits history"
+
+  # ── Subscriber portal — reads published_reports only (architect #1) ────────────────────────────────────────────────
+  - id: me_today
+    portal: reader
+    route: /me
+    label: Today's report
+    icon: Sunrise
+    desc: This morning's report, as sent on WhatsApp, in full
+    subtitle: This morning's market outlook — read it before the 9:15 AM open
+    entity: published_reports
+    roles: [subscriber]
+    covers: [R25, R13, R15, R16, R17, R18, R23]
+    read_only: "Subscribers read the report; the analyst writes and sends it"
+    blocks:
+      - { type: custom, name: MarketBrief, covers: [R13, R15, R16, R17, R23] }
+      - { type: table, entity: news_articles, label: Today's news, where: "Fetched_At in last 1 days", covers: [R18],
+          segments: { column: Category, all: All news },
+          columns: [ { key: Title, type: text, sub: Summary, grow: true }, { key: Impact, type: badge }, { key: Source, type: tag } ],
+          search: [Title] }
+
+  - id: me_reports
+    portal: reader
+    route: /me/reports
+    label: Past reports
+    icon: FileText
+    desc: Every report that was sent
+    subtitle: Every report that was sent — open one to read it again or print it
+    entity: published_reports
+    roles: [subscriber]
+    covers: [R25, R23]
+    blocks:
+      - { type: callout, tone: info, title: Market commentary, not advice, text: "AI-generated commentary from public news. Not investment advice and not a SEBI-registered research report. Trading involves risk — consult a SEBI-registered advisor before acting." }
+      - type: table
+        period: { column: Report_Date, presets: [7d, 30d, all], default: 30d }
+        views: [cards, table]
+        card: { title: Report_Date, subtitle: [Sentiment], badge: Sentiment, id: false, fields: [ { key: Confidence_Pct, label: Confidence }, { key: Nifty_Outlook, label: Nifty 50 }, { key: FnO_View, label: F&O } ], callout: { column: Driver_1, label: Top driver, tone: info }, actions: [pdf] }
+        columns: [ { key: Report_Date, type: date }, { key: Sentiment, type: badge }, { key: Confidence_Pct, header: Confidence, type: number }, { key: Nifty_Outlook, header: Nifty 50, type: badge }, { key: FnO_View, header: F&O, type: tag } ]
+        search: [Sentiment, Driver_1]
+        filters: [Sentiment]
+        actions: { row: [pdf] }
+        drawer: { title_column: Report_Date, sections: [ { type: tiles, title: Call, columns: [Sentiment, Confidence_Level, Confidence_Pct] }, { type: fields, title: Key market drivers, columns: [Driver_1, Driver_2, Driver_3] }, { type: fields, title: Segments, columns: [Sensex_Outlook, Sensex_Range, Nifty_Outlook, Nifty_Range, BankNifty_Outlook, BankNifty_Range, FnO_View, VIX_Expectation, MidSmall_Outlook, MidSmall_Focus, Commodity_Outlook] }, { type: fields, title: Market view, columns: [View_Positional, View_Intraday, View_LongTerm, View_FnO] } ] }
+        empty: { title: No reports yet, reason: "Reports appear here once the desk sends them, every trading morning." }
+    modals:
+      - { id: pdf, kind: document, title: Print report, document: reader_pdf }
+    actions: { header: [], row: [pdf] }
+
+  - id: settings
+    kind: settings
+    route: /settings
+    label: Settings
+    icon: Settings
+    desc: Profile, password and theme
+    roles: [admin, analyst, subscriber]
+    covers: [R28]
+
+rules_in_code:
+  - { text: "RSS parse, dedupe (first 60 normalised title characters), word-bounded categorisation in the source's order, impact rule and the 40-article cut are deterministic CODE in MARKET_REPORT (S2, S3 fixed)", covers: [R3, R4, R5, R6] }
+  - { text: "WhatsApp text is built by one formatter (app/src/custom/lib/market.js) used by the flow and by the app's preview: header with day, date and report time in IST, the analysis, 'Market Opens: 9:15 AM IST', the disclaimer; trimmed to 4,000 characters", covers: [R8, R20, R23] }
+  - { text: "A failed run (no articles, model JSON unusable) is a report row with Status Failed and Error_Message; MARKET_REPORT always hands it to BROADCAST, which sends the mi_run_failed alert to constants.alert_to; the 06:20 watchdog alerts when no row exists at all — replaces the source's Error Trigger, which could never fire (S6)", covers: [R11, R27] }
+  - { text: "Subscriber messages are business-initiated, so they use the approved template mi_daily_report (Meta refuses free text outside the 24-hour window, S5); only Active subscribers with an opt-in date and source receive it; one delivery per report per subscriber (unique), so a resend never duplicates", covers: [R9, R26] }
+  - { text: "SEBI (owner decision 15 Oct 2026): commentary only — the prompt forbids buy/sell calls, strikes, targets and stop-losses; the source's BUY CALLS / BUY PUTS, BUY / AVOID and 'trading strategy' become an F&O positioning view, sectors POSITIVE / WATCH / NEGATIVE and a market view per trader type; the disclaimer is on every report, document, the reader portal and the template", covers: [R7, R16, R17, R23] }
+  - { text: "Subscribers read only published_reports (a reader-safe copy BROADCAST writes when a report is sent) and today's news; drafts, failures, deliveries, subscribers and the audit log are not on any subscriber page, so the server never loads them for that role", covers: [R25, R28] }
+  - { text: "Every write by a person or a flow lands in the audit log; sign-in, roles, server-side scope and the §19 baseline ship with v1; go-live requires /api/health to report every flow wired (an unwired flow is simulated and labelled SIMULATED in the header and the row)", covers: [R28] }
+
+not_in_v1:
+  - { text: "Live ticker values (Sensex, Nifty, Bank Nifty, Nifty IT, VIX, USD/INR, Gold, Crude, SGX Nifty, FII, Dow, NASDAQ), IST clock and market-open countdown — the source has no market-data feed; needs a licensed NSE/BSE data API (G5). v1 shows the AI's ranges in focus", covers: [R22] }
+  - { text: "Stats row figures — Sensex/Nifty expected move in points, India VIX level, FII net buy amount — need the same market-data feed (G5); v1 shows the ranges and the VIX expectation (LOW/MEDIUM/HIGH) from the analysis", covers: [R14] }
+  - { text: "Sector 'previous performance' %, PCR ratio and gold / crude prices on the segment cards — not in the news data; need the market-data feed (G5)", covers: [R15, R16] }
+  - { text: "A 'Stop' quick-reply on the template that unsubscribes automatically — needs an inbound WhatsApp webhook; v1: the analyst sets Unsubscribed when a subscriber replies STOP", covers: [R26] }

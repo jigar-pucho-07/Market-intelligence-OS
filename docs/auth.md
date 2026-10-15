@@ -1,0 +1,5 @@
+# Sign-in · Market Intelligence
+
+People sign in with email + password (argon2id) or, when `os.auth_otp` is on, a six-digit one-time code the app generates and a workflow (`WEBHOOK_AUTH_OTP`) delivers by email. The session is an opaque token in an HttpOnly cookie, stored hashed in `sessions`; deactivating a person ends their sessions at once. Roles (admin, analyst, subscriber) come from the `users` table, which only an administrator edits on the Users & roles page (create · deactivate · reactivate · reset password · change role; nobody changes their own role; the last administrator is protected).
+
+Demo personas (`roles[].demo`) are seeded by `npm run db:seed` on a development or demo database only. A demo deployment that runs with `DEMO_LOGINS=true` lists them on the login page (served by `/api/personas` from `db/seed/users.json`) for the client click-through (step 5); a client's deployment never sets it, and `security_scan.py` proves no persona password is in `.next/static`. The first administrator on a client database comes from `node scripts/db.mjs user <email> <name> admin`, which prints a temporary password they must change.

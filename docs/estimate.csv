@@ -1,0 +1,5 @@
+workflow,action,trigger,runs_per_month,credits_per_run,credits_per_month,model,sends,source
+DAILY_SCHEDULE,trigger,schedule,44,4,176,none,,declared
+MARKET_REPORT,run,run from the OS,30,16,480,none,,declared
+BROADCAST,send,send from the OS,26,105,2730,none,,declared
+BROADCAST,retry,retry from the OS,20,6,120,none,,declared

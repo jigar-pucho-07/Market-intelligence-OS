@@ -1,0 +1,1202 @@
+/* Pucho OS visual system — "Graphite". Minimal by decision, not by omission.
+   Four rules: one interactive colour (`primary` — the brand, or ink when the brand is a red), hairlines
+   instead of shadows, whitespace instead of decoration, and colour only where it carries meaning:
+   red = overdue / lost / destructive, amber = due today / at risk, green = won / on track, blue = sent /
+   info, the stage ramp = how far a lead has come. Type: the login page keeps the Pucho faces (IBM Plex);
+   inside the app the client gets Geist by default (design.font: geist | plex) — both self-hosted, tabular
+   figures — with the shadcn/ui look: white page, 1px neutral borders, a light shadow (design.edges / canvas).
+   Token values are generated per client into config/tokens.css (graphite or pastel tone); :root here only derives aliases.
+   tailwind.config.js maps its names to the same variables. No component names a hex.
+   Everything below @layer utilities is geometry the UI gate asserts on: do not restyle it. */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Every colour, radius and size value is in config/tokens.css (generated from os.yaml brand + design: graphite or
+     pastel tone, radius and density scales, the nav shell). This block only derives the brand / primary aliases
+     from the generated tailwind scales. */
+  /* the primary scale as variables (v4.9): light = the generated Tailwind scale, dark = derived in the dark block below.
+     index.css reads --p-N, never theme(), so one rule serves both themes. --p-500 is --primary (tokens.css sets it in dark). */
+  --primary: theme('colors.primary.500');
+  --p-50: theme('colors.primary.50'); --p-100: theme('colors.primary.100'); --p-200: theme('colors.primary.200'); --p-300: theme('colors.primary.300'); --p-400: theme('colors.primary.400');
+  --p-500: var(--primary); --p-600: theme('colors.primary.600'); --p-700: theme('colors.primary.700'); --p-800: theme('colors.primary.800'); --p-900: theme('colors.primary.900');
+  --primary-strong: var(--p-600);
+  --primary-soft: var(--p-50);
+  --primary-tint: var(--p-100);
+  --primary-line: var(--p-300);
+  --primary-text: var(--p-600);   /* the primary used as TEXT (links, active labels) */
+  /* brand — identity only: the logo, the active-nav marker, the monogram */
+  --brand: theme('colors.brand.500');
+  --brand-strong: theme('colors.brand.600');
+  --brand-soft: theme('colors.brand.50');
+  --brand-tint: theme('colors.brand.100');
+  --brand-line: theme('colors.brand.300');
+  --brand-ink: theme('colors.brand.700');
+  --brand-text: theme('colors.brand.600');
+  --chart-1: var(--chart-one);
+  --shadow-pop: 0 12px 32px -12px rgba(21, 24, 28, 0.22), 0 2px 6px rgba(21, 24, 28, 0.06);
+  --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  /* faces: the Pucho login keeps IBM Plex; DashboardLayout puts `os-app` on <html> and the block below switches to the
+     client's face from tokens.css. Portals (modals, dropdowns) sit under <html>, so they follow. */
+  --font-sans: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-display: var(--font-sans);
+  --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+}
+
+/* Geist, Geist Mono and Newsreader — self-hosted (SIL OFL 1.1: assets/fonts/OFL.txt); one variable file per style covers every weight. */
+@font-face { font-family: 'Geist'; src: url('./assets/fonts/geist/Geist-Variable.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Geist'; src: url('./assets/fonts/geist/Geist-Italic-Variable.woff2') format('woff2'); font-weight: 100 900; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Geist Mono'; src: url('./assets/fonts/geist/GeistMono-Variable.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Newsreader'; src: url('./assets/fonts/newsreader/Newsreader-Variable.woff2') format('woff2'); font-weight: 200 800; font-style: normal; font-display: swap; }
+
+html.os-app {
+  --font-sans: var(--font-app);
+  --font-display: var(--font-display-app);   /* v4.8: Newsreader when design.display is serif, else the app face */
+  --font-mono: var(--font-mono-app);
+}
+html.os-app .font-mono, html.os-app code, html.os-app kbd { font-variant-numeric: tabular-nums; letter-spacing: 0; }
+html.os-app .uppercase { font-family: var(--font-label); letter-spacing: var(--label-tracking); }
+/* v4.8 (DS Label/Mono): an uppercase mono label is a small eyebrow — 12 px (the kit's floor; the DS draws it at 10–11), never a heading size */
+html.os-app[data-tone='pucho'] .uppercase:not(h1):not(h2):not(h3) { font-size: 12px; font-weight: 500; }
+
+@layer base {
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: 0;
+  }
+
+  /* One weight (600) and tight tracking, the way a system UI sets headings. */
+  h1 { @apply text-[24px] font-semibold; letter-spacing: -0.01em; }
+  h2 { @apply text-[18px] font-semibold; letter-spacing: -0.008em; }
+  h3 { @apply text-[16px] font-semibold; letter-spacing: -0.006em; }
+  h4 { @apply text-[15px] font-semibold; }
+  code, kbd, .font-mono { font-family: var(--font-mono); }
+  html.os-app h1, html.os-app h2, html.os-app h3 { font-family: var(--font-app); }
+  /* v4.8 — the DS type scale under the pucho tone: Heading/L 22 · M 17 · S 15, all SemiBold; .font-display is the serif greeting */
+  html.os-app[data-tone='pucho'] h1 { font-size: 22px; line-height: 1.3; letter-spacing: 0; }
+  html.os-app[data-tone='pucho'] h2 { font-size: 17px; line-height: 1.35; letter-spacing: 0; }
+  html.os-app[data-tone='pucho'] h3 { font-size: 15px; line-height: 1.4; letter-spacing: 0; }
+  html.os-app .font-display { font-family: var(--font-display); font-weight: 500; letter-spacing: -0.01em; }
+
+  /* Numerals line up in columns. */
+  [data-kpi-value], td, .tabular, .ant-input-number, .ant-statistic { font-variant-numeric: tabular-nums; }
+  /* Nothing below 12px is text (L1); 11px survives only as a caption class the gate counts. */
+  .text-\[10px\], .text-\[11px\] { font-size: 12px !important; }
+}
+
+@layer components {
+  .app-canvas { background-color: var(--bg); }
+
+  /* The surface. One radius, one hairline, one whisper of shadow. */
+  .card {
+    @apply transition-colors duration-200;
+    background-color: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: none;
+  }
+  /* Hover states acknowledge, they do not perform: no lift, no growing shadow. */
+  .card-hover:hover { border-color: var(--line); }
+  .card-clickable { @apply cursor-pointer; transition: background-color 0.2s var(--ease), border-color 0.2s var(--ease); }
+  .card-clickable:hover { background-color: var(--surface-2); border-color: var(--line); }
+  .card-selected { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+
+  /* Section title inside a card: small, quiet, never shouting. */
+  .section-title { @apply text-[12px] font-medium uppercase tracking-[0.04em]; color: var(--ink-3); }
+
+  /* Pill buttons, flat fills, one primary action per view. */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium disabled:cursor-not-allowed;
+    background-color: var(--primary); color: var(--on-primary);
+    transition: background-color 0.2s var(--ease), opacity 0.2s var(--ease);
+  }
+  .btn-primary:hover { background-color: var(--primary-strong); }
+  .btn-primary:disabled { background-color: var(--primary-line); }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium;
+    background-color: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    transition: background-color 0.2s var(--ease);
+  }
+  .btn-secondary:hover { background-color: var(--surface-2); }
+  .btn-secondary:active { background-color: var(--surface-2); }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium;
+    color: var(--ink-2);
+    transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
+  }
+  .btn-ghost:hover { background-color: var(--hover-wash); color: var(--ink); }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium;
+    background-color: var(--surface);
+    color: var(--bad-text);
+    border: 1px solid color-mix(in srgb, var(--bad) 30%, transparent);
+    transition: background-color 0.2s var(--ease);
+  }
+  .btn-danger:hover { background-color: var(--bad-soft); }
+
+  .input {
+    @apply w-full px-3.5 py-2.5 text-sm;
+    background-color: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    color: var(--ink);
+    transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+  }
+  .input::placeholder { color: var(--ink-3); }
+  .input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--primary-tint);
+  }
+
+  /* Flat tinted badges — no border, no hover animation. Status is information, not decoration. */
+  .badge { @apply inline-flex items-center px-2 py-0.5 rounded-xs text-[12px] font-medium; letter-spacing: 0; white-space: nowrap; }
+  .badge-success { background-color: var(--ok-soft);   color: var(--ok-text); }
+  .badge-warning { background-color: var(--warn-soft); color: var(--warn-text); }
+  .badge-danger  { background-color: var(--bad-soft);  color: var(--bad-text); }
+  .badge-info    { background-color: var(--info-soft); color: var(--info-text); }
+  .badge-neutral { background-color: var(--hover-wash); color: var(--ink-2); }
+  .badge-brand   { background-color: var(--primary-soft); color: var(--primary); }
+  /* v4.8 (DS Status chip): a pill on the subtle surface, a 7 px dot in the status colour, secondary text; only danger speaks in red */
+  html.os-app[data-tone='pucho'] .badge { border-radius: 999px; padding: 4px 10px 4px 8px; background-color: var(--surface-2); color: var(--ink-3); font-weight: 500; }
+  html.os-app[data-tone='pucho'] .badge::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 999px; margin-right: 7px; background-color: var(--badge-dot, var(--ink-4)); flex: none; }
+  html.os-app[data-tone='pucho'] .badge-success { --badge-dot: var(--ok); }
+  html.os-app[data-tone='pucho'] .badge-warning { --badge-dot: var(--warn); }
+  html.os-app[data-tone='pucho'] .badge-danger  { --badge-dot: var(--bad); color: var(--bad-text); }
+  html.os-app[data-tone='pucho'] .badge-info    { --badge-dot: var(--accent); }
+  html.os-app[data-tone='pucho'] .badge-brand   { --badge-dot: var(--ink); color: var(--ink); }
+
+  /* Filter chips (segments with counts, period presets, department chips). A selected chip is ink on a
+     soft tint, never a filled brand button — the chips are a filter, not a call to action. */
+  .chip {
+    @apply inline-flex items-center gap-1.5 h-8 px-3 rounded-xs text-[13px] font-medium whitespace-nowrap;
+    color: var(--ink-2);
+    background-color: transparent;
+    border: 1px solid transparent;
+    transition: background-color 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease);
+  }
+  .chip:hover { background-color: var(--hover-wash); color: var(--ink); }
+  .chip[aria-pressed='true'] { background-color: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+  /* v4.8 (DS Pill): a hairline ring at rest, ink fill when selected, full radius */
+  html.os-app[data-tone='pucho'] .chip { border-radius: 999px; border-color: var(--line); color: var(--ink-3); }
+  html.os-app[data-tone='pucho'] .chip:hover { background-color: var(--surface-2); color: var(--ink); }
+  html.os-app[data-tone='pucho'] .chip[aria-pressed='true'] { background-color: var(--ink); color: var(--surface); border-color: var(--ink); }
+  .chip-count { @apply inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[12px] tabular; background-color: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink-2); }
+  .chip[aria-pressed='true'] .chip-count { background-color: color-mix(in srgb, var(--on-primary) 20%, transparent); color: var(--on-primary); }
+
+  /* Callout — a note with a tone. The tint says what kind of note; the copy says why it is there. */
+  .callout { @apply rounded-xl px-3.5 py-3 text-[13px] leading-[1.45]; border: 1px solid transparent; }
+  .callout-label { @apply text-[12px] font-medium uppercase tracking-[0.04em] mb-1 flex items-center gap-1.5; }
+  .callout-warn    { background-color: var(--warn-soft); border-color: var(--warn-edge); color: var(--ink); }
+  .callout-warn    .callout-label { color: var(--warn-text); }
+  .callout-ok      { background-color: var(--ok-soft); border-color: var(--ok-edge); color: var(--ink); }
+  .callout-ok      .callout-label { color: var(--ok-text); }
+  .callout-bad     { background-color: var(--bad-soft); border-color: var(--bad-edge); color: var(--ink); }
+  .callout-bad     .callout-label { color: var(--bad-text); }
+  .callout-info    { background-color: var(--info-soft); border-color: var(--info-edge); color: var(--ink); }
+  .callout-info    .callout-label { color: var(--info-text); }
+  .callout-neutral { background-color: var(--surface-2); border-color: var(--line-soft); color: var(--ink); }
+  .callout-neutral .callout-label { color: var(--ink-3); }
+
+  /* Tile — one label/value pair on a subdued surface (specs, stat tiles in a report). */
+  .tile { @apply rounded-xl px-3.5 py-3 min-w-0; background-color: var(--surface-2); border: 1px solid var(--line-soft); }
+  .tile-label { @apply text-[12px] font-medium mb-0.5 truncate; color: var(--ink-3); }
+  .tile-value { @apply text-[14px] font-semibold break-words; color: var(--ink); }
+
+  /* Progress — a 6px track. Colour is the brand unless the value has a tone. */
+  .progress { @apply h-1.5 w-full rounded-full overflow-hidden; background-color: color-mix(in srgb, var(--ink) 8%, transparent); }
+  .progress > span { @apply block h-full rounded-full; background-color: var(--primary); transition: width 0.4s var(--ease); }
+  .progress-ok > span { background-color: var(--ok); }
+  .progress-warn > span { background-color: var(--warn); }
+  .progress-bad > span { background-color: var(--bad); }
+
+  .divider { border-top: 1px solid var(--line-soft); }
+
+  /* Table density — unchanged sizes; the gate measures these. */
+  tbody td .text-sm { font-size: 13px !important; line-height: 1.35 !important; }
+  tbody td .text-base { font-size: 13px !important; line-height: 1.35 !important; }
+  tbody td { font-size: 13px; }
+  thead th { font-size: 12px; font-weight: 500; letter-spacing: 0.02em; color: var(--ink-3); text-transform: none; }
+
+  .table-select {
+    @apply text-xs rounded-lg;
+    height: 30px !important;
+    padding: 2px 8px !important;
+  }
+}
+
+@layer components {
+  /* Navigation shell — every colour comes from the generated --nav-* tokens (light / tinted / dark). */
+  .nav-shell { background-color: var(--nav-bg); color: var(--nav-ink-2); border-color: var(--nav-line); }
+  .nav-row { color: var(--nav-ink-2); height: var(--nav-row-h); border-radius: var(--radius-sm); }
+  .nav-row:hover { color: var(--nav-ink); }
+  .nav-row[data-active='true'], .nav-row-active { color: var(--nav-active-ink); }
+  .nav-pill { background-color: var(--nav-active-bg); border-radius: var(--radius-sm); }
+  .nav-hover { background-color: var(--nav-hover); }
+  .nav-group { color: var(--nav-group); }
+  /* v4.8 (DS Nav item): 14 px, Regular at rest and Medium when selected; no brand marker — the subtle fill is the selection; group labels in Label/Mono */
+  html.os-app[data-tone='pucho'] .nav-row { font-size: 14px; font-weight: 400; }
+  html.os-app[data-tone='pucho'] .nav-row[data-active='true'], html.os-app[data-tone='pucho'] .nav-row-active { font-weight: 500; }
+  html.os-app[data-tone='pucho'] [data-os-nav-marker] { display: none; }
+  html.os-app[data-tone='pucho'] .nav-group { font-family: var(--font-label); letter-spacing: var(--label-tracking); text-transform: uppercase; font-weight: 400; }
+  .nav-badge { @apply inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full text-[12px] font-semibold tabular; background-color: var(--nav-badge-bg); color: var(--nav-badge-ink); }
+  .nav-line { border-color: var(--nav-line); }
+  /* The page shell: gutters and block gaps follow density */
+  .page-gutter { padding-left: var(--page-gutter); padding-right: var(--page-gutter); }
+  .block-gap > * + * { margin-top: var(--block-gap); }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Scrollbars hidden across the entire OS — scrolling still works everywhere */
+*,
+*::before,
+*::after {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar,
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+.custom-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Smooth transitions on all interactive elements */
+a, button, input, select, textarea {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, transform, box-shadow;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+/* Press feedback on all buttons */
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* 8px-radius buttons across the entire OS (Graphite: no pills).
+   .no-pill opts out (tile-style buttons); tab + search-addon buttons keep their shape. */
+button:not(.no-pill):not(.ant-tabs-tab-btn):not(.ant-input-search-button),
+.ant-btn:not(.ant-input-search-button) {
+  border-radius: var(--radius-sm) !important;
+}
+
+/* Selection */
+::selection {
+  background-color: var(--p-100);
+  color: var(--p-900);
+}
+
+/* Focus rings */
+*:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* Ant Design overrides — brand comes from the generated palette, never a literal */
+.ant-btn-primary {
+  background: var(--p-500) !important;
+  border-color: var(--p-500) !important;
+  box-shadow: none !important;
+}
+.ant-btn-primary:hover {
+  background: var(--p-600) !important;
+  border-color: var(--p-600) !important;
+  box-shadow: none !important;
+}
+.ant-btn-primary:active {
+  transform: scale(0.97);
+}
+.ant-btn-default:hover {
+  color: var(--p-500) !important;
+  border-color: var(--p-500) !important;
+}
+/* v4.8 (DS Button · Secondary / Ghost): hover is the subtle surface; the border keeps its 30 % line */
+html.os-app[data-tone='pucho'] .ant-btn-default:hover {
+  color: var(--ink) !important;
+  border-color: var(--line-strong) !important;
+  background: var(--surface-2) !important;
+}
+html.os-app[data-tone='pucho'] .ant-btn-text:hover { background: var(--surface-2) !important; color: var(--ink) !important; }
+.ant-input:focus,
+.ant-input-focused,
+.ant-picker-focused {
+  border-color: var(--p-500) !important;
+  box-shadow: 0 0 0 2px var(--p-100) !important;
+}
+/* v4.8 (DS Text field · Focus): a 1.5 px accent border, no glow; Error keeps the red at the same weight */
+html.os-app[data-tone='pucho'] .ant-input:focus,
+html.os-app[data-tone='pucho'] .ant-input-focused,
+html.os-app[data-tone='pucho'] .ant-input-affix-wrapper-focused,
+html.os-app[data-tone='pucho'] .ant-picker-focused,
+html.os-app[data-tone='pucho'] .ant-input-number-focused,
+html.os-app[data-tone='pucho'] .ant-select-focused .ant-select-selector,
+html.os-app[data-tone='pucho'] .ant-select-focused {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 0.5px var(--accent) !important;
+}
+html.os-app[data-tone='pucho'] .ant-input-status-error:focus,
+html.os-app[data-tone='pucho'] .ant-input-affix-wrapper-status-error.ant-input-affix-wrapper-focused {
+  border-color: var(--bad) !important;
+  box-shadow: 0 0 0 0.5px var(--bad) !important;
+}
+html.os-app[data-tone='pucho'] .ant-input:hover,
+html.os-app[data-tone='pucho'] .ant-input-affix-wrapper:hover,
+html.os-app[data-tone='pucho'] .ant-picker:hover,
+html.os-app[data-tone='pucho'] .ant-select:hover .ant-select-selector,
+html.os-app[data-tone='pucho'] .ant-select:hover { border-color: var(--line-strong) !important; }
+html.os-app[data-tone='pucho'] .ant-input:disabled,
+html.os-app[data-tone='pucho'] .ant-input-affix-wrapper-disabled,
+html.os-app[data-tone='pucho'] .ant-select-disabled .ant-select-selector { background: var(--surface-2) !important; color: var(--ink-4) !important; }
+html.os-app[data-tone='pucho'] *:focus-visible { outline-color: var(--accent); }
+/* v4.8 (DS Button sizes): L = control height, 15 px, pad 20; small = M, 34 px, 14 px, pad 16; S (33 px, r8) is the chip-sized inline button */
+html.os-app[data-tone='pucho'] .ant-btn:not(.ant-btn-sm):not(.ant-input-search-button) { font-size: 15px; padding-left: 20px; padding-right: 20px; }
+html.os-app[data-tone='pucho'] .ant-btn-sm { height: 34px; min-height: 34px; font-size: 14px; padding-left: 16px; padding-right: 16px; }
+html.os-app[data-tone='pucho'] .ant-btn-icon-only, html.os-app[data-tone='pucho'] .ant-btn:has(> svg:only-child) { padding-left: 0; padding-right: 0; }
+/* v4.8 (DS Card / List row): white, hairline, r16 — the resting card has no shadow; `.card-lift` is Elevation/Card for a pinned card */
+html.os-app[data-tone='pucho'] .card-lift { box-shadow: var(--card-lift); border-color: var(--line-soft); }
+html.os-app[data-tone='pucho'] .shadow-overlay, html.os-app[data-tone='pucho'] .ant-dropdown-menu, html.os-app[data-tone='pucho'] .ant-select-dropdown, html.os-app[data-tone='pucho'] .ant-picker-dropdown .ant-picker-panel-container { box-shadow: var(--float-shadow) !important; }
+html.os-app[data-tone='pucho'] .ant-message-notice-content { box-shadow: var(--toast-shadow) !important; border: 1px solid var(--line); border-radius: var(--radius); font-weight: 500; }
+/* This AntD build puts the border on .ant-select itself (no .ant-select-selector
+   node), so every select rule targets both forms. */
+.ant-select-focused .ant-select-selector,
+.ant-select-focused {
+  border-color: var(--p-500) !important;
+  box-shadow: 0 0 0 2px var(--p-100) !important;
+}
+.ant-select:hover .ant-select-selector,
+.ant-select:hover {
+  border-color: var(--line-strong) !important;
+}
+/* Fields are rounded rectangles, not capsules: 10px, matching the antd borderRadius token.
+   A pill reads as a chip you tap, not a box you type in. Buttons keep their pill. */
+.ant-select .ant-select-selector,
+.ant-select {
+  border-radius: var(--radius-sm) !important;
+}
+.ant-select {
+  padding-left: 0.875rem !important;
+  padding-right: 0.75rem !important;
+}
+.ant-select-open .ant-select-selector,
+.ant-select-open {
+  background-color: var(--p-50) !important;
+  border-color: var(--p-400) !important;
+  color: var(--ink) !important;
+}
+.ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background-color: var(--p-50) !important;
+  color: var(--ink) !important;
+}
+.ant-tabs-ink-bar {
+  background: var(--ink) !important;
+}
+.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--ink) !important;
+}
+.ant-tabs-tab:hover {
+  color: var(--ink) !important;
+}
+.ant-spin-dot-item {
+  background-color: var(--ink-3) !important;
+}
+.ant-checkbox-checked .ant-checkbox-inner {
+  background-color: var(--p-500) !important;
+  border-color: var(--p-500) !important;
+}
+.ant-switch-checked {
+  background-color: var(--p-500) !important;
+}
+.ant-pagination-item-active {
+  border-color: var(--p-500) !important;
+}
+.ant-pagination-item-active a {
+  color: var(--p-500) !important;
+}
+.ant-select-dropdown {
+  z-index: 10001 !important;
+}
+.ant-picker-dropdown {
+  z-index: 10001 !important;
+}
+
+/* ============================================================
+   Form fields — every section, modal and popup share one radius
+   (--radius-sm). A field is a box you type in, never a pill.
+   ============================================================ */
+
+/* Single-line inputs, number inputs, date pickers */
+.ant-input:not(textarea),
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-input-number-input,
+.ant-picker,
+input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+select,
+.table-select {
+  border-radius: var(--radius-sm) !important;
+}
+
+/* Breathing room so text isn't hard against the curve */
+.ant-input:not(textarea),
+.ant-input-affix-wrapper,
+.ant-picker {
+  padding-left: 0.875rem !important;
+  padding-right: 0.875rem !important;
+}
+.ant-input-affix-wrapper > .ant-input {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Multi-line fields — same radius as single-line */
+textarea,
+textarea.ant-input {
+  border-radius: var(--radius-sm) !important;
+}
+
+/* Search fields: the magnifier sits INSIDE the rounded field, vertically centred.
+   The button stays in flow and is pulled back over the field with a negative
+   margin, so the wrapper keeps its natural width. */
+.ant-input-search {
+  position: relative !important;
+  display: flex !important;
+  align-items: stretch !important;
+}
+.ant-input-search > .ant-input-affix-wrapper,
+.ant-input-search > .ant-input:not(textarea),
+.ant-input-search > .ant-input-group {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  border-radius: var(--radius-sm) !important;
+  padding-right: 2.5rem !important;
+}
+.ant-input-search .ant-btn {
+  position: relative !important;
+  flex: 0 0 auto !important;
+  margin-left: -2.25rem !important;
+  align-self: center !important;
+  width: 2rem !important;
+  min-width: 2rem !important;
+  height: 2rem !important;
+  min-height: 2rem !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 9999px !important;
+  color: var(--ink-3) !important;
+  z-index: 2;
+}
+.ant-input-search .ant-btn:hover {
+  background: var(--p-50) !important;
+  color: var(--p-500) !important;
+}
+.ant-input-search .ant-input-group-addon {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* Non-search compact groups: joined rounded rectangle, matching the field radius */
+.ant-space-compact:not(.ant-input-search) > *:first-child:not(:last-child) {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm) !important;
+}
+.ant-space-compact:not(.ant-input-search) > .ant-btn:last-child:not(:first-child),
+.ant-space-compact:not(.ant-input-search) > *:last-child:not(:first-child) {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0 !important;
+}
+.ant-space-compact:not(.ant-input-search) > *:not(:first-child):not(:last-child) {
+  border-radius: 0 !important;
+}
+
+/* Popups & overlays */
+.ant-select-dropdown,
+.ant-picker-dropdown .ant-picker-panel-container,
+.ant-dropdown-menu,
+.ant-popover-inner,
+.ant-modal-content,
+[data-sonner-toast] {
+  border-radius: var(--radius) !important;
+  overflow: hidden;
+}
+.ant-select-item,
+.ant-dropdown-menu-item {
+  border-radius: var(--radius-xs) !important;
+}
+.ant-tooltip-inner {
+  border-radius: var(--radius-sm) !important;
+}
+
+/* ============================================================
+   Mobile responsiveness — presentation only, no behaviour change
+   ============================================================ */
+@media (max-width: 767px) {
+  /* Minimum 44px touch targets on every control */
+  .ant-btn,
+  .ant-space-compact > * {
+    min-height: 44px !important;
+  }
+  /* Icon-only AntD buttons must not be squeezed narrower than a fingertip */
+  .ant-btn-icon-only,
+  .ant-btn:has(> .anticon:only-child),
+  .ant-btn:has(> svg:only-child) {
+    min-width: 44px !important;
+    flex-shrink: 0 !important;
+  }
+  .ant-select {
+    min-height: 44px !important;
+    align-items: center !important;
+  }
+  .ant-input:not(textarea),
+  .ant-input-affix-wrapper,
+  .ant-input-number,
+  .ant-picker,
+  .os-file,
+  .os-control-static,
+  select {
+    min-height: 44px !important;
+  }
+  .ant-input-affix-wrapper {
+    display: flex !important;
+    align-items: center !important;
+  }
+  /* Icon-only utility buttons (table row actions) */
+  button[class~='w-8'][class~='h-8'] {
+    width: 2.75rem !important;
+    height: 2.75rem !important;
+  }
+  /* AntD table pagination arrows and page numbers */
+  .ant-pagination-item,
+  .ant-pagination-item-link,
+  .ant-pagination-prev,
+  .ant-pagination-next {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    line-height: 44px !important;
+  }
+  /* Any button whose only child is an icon gets a full 44px hit area */
+  button:has(> svg:only-child) {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  /* Attached search button needs a tappable width, not just height */
+  .ant-space-compact > .ant-btn:last-child:not(:first-child) {
+    min-width: 44px !important;
+  }
+  /* Give the tiny clear "x" a usable hit area without resizing the glyph */
+  .ant-input-clear-icon {
+    min-width: 24px !important;
+    min-height: 24px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* iOS zooms the page when a focused field is under 16px */
+  input,
+  select,
+  textarea,
+  .ant-input,
+  .ant-select-input,
+  .ant-select-content {
+    font-size: 16px !important;
+  }
+
+  /* Long unbroken strings (IDs, emails, URLs) must never widen the page */
+  body {
+    overflow-wrap: break-word;
+  }
+  /* Charts shrink with their container instead of forcing width */
+  .recharts-responsive-container {
+    max-width: 100% !important;
+  }
+}
+
+/* Notch / safe-area support on phones and tablets */
+@supports (padding: env(safe-area-inset-left)) {
+  @media (max-width: 1023px) {
+    header {
+      padding-left: max(1rem, env(safe-area-inset-left)) !important;
+      padding-right: max(1rem, env(safe-area-inset-right)) !important;
+    }
+    main {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
+}
+.ant-dropdown {
+  z-index: 10001 !important;
+}
+
+.login-cred-dropdown .ant-select-dropdown {
+  margin-top: unset !important;
+  margin-bottom: 4px !important;
+}
+
+/* Reduced motion: collapse all animation */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Sidebar nav entrance — slides up only. Deliberately does NOT animate
+   opacity and does NOT use a fill-mode, so a nav item can never be left
+   invisible if animations are throttled, paused, or interrupted. */
+@keyframes navItemIn {
+  from { transform: translateY(7px); }
+  to   { transform: translateY(0); }
+}
+.nav-item-in {
+  animation: navItemIn 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-item-in { animation: none; }
+}
+
+/* Component-drawn scrollbars.
+   AntD dropdowns / virtual lists / sticky tables paint their own scrollbar as a
+   real <div>, which ::-webkit-scrollbar cannot reach — hide those too.
+   Scrolling (wheel, touch, keyboard) is unaffected. */
+.rc-virtual-list-scrollbar,
+.rc-virtual-list-scrollbar-vertical,
+.rc-virtual-list-scrollbar-horizontal,
+.rc-virtual-list-scrollbar-thumb,
+.ant-table-sticky-scroll,
+.ant-table-sticky-scroll-bar {
+  display: none !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* ============================================================
+   Toolbar / tag / segmented fixes — apply OS-wide
+   ============================================================ */
+
+/* 1. Tabs sat in their own padded row above the filter row, and AntD adds its own
+      nav margin on top of that — three stacked gaps reading as double spacing. */
+.ant-tabs-nav {
+  margin-bottom: 0 !important;
+}
+.ant-tabs-top > .ant-tabs-nav::before {
+  border-bottom: none !important;
+}
+
+/* 2. Tailwind's preflight sets `svg { display: block }`, which pushed the icon inside
+      a Tag onto its own line above the label. Keep tag content on ONE line. */
+.ant-tag {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.25rem;
+  line-height: 1.4 !important;
+}
+.ant-tag > svg,
+.ant-tag .anticon {
+  display: inline-block !important;
+  flex-shrink: 0;
+  margin-right: 0 !important;
+}
+
+/* 3. Segmented control: the container and its selected thumb are pills, matching every
+      other control in the OS (they were rounded rectangles). */
+.ant-segmented {
+  border-radius: 9999px !important;
+  padding: 3px !important;
+  background-color: var(--hover-wash) !important;
+}
+.ant-segmented .ant-segmented-item,
+.ant-segmented .ant-segmented-item-selected,
+.ant-segmented .ant-segmented-thumb {
+  border-radius: 9999px !important;
+}
+.ant-segmented .ant-segmented-item-label {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.375rem;
+}
+.ant-segmented .ant-segmented-item-label > svg {
+  display: inline-block !important;
+}
+
+/* Tags default to white-space: nowrap, so one long item name (e.g. a full SKU
+   description) cannot wrap and punches out of its container. Let tag text wrap and
+   never exceed the available width. */
+.ant-tag {
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+/* ...but inside a table cell a wrapping tag lets the column collapse to one character
+   on phones ("Main Locatio / n", "Out of / Stoc / k"). Tables scroll sideways, so tags
+   and badges there always stay on one line. */
+td .ant-tag,
+th .ant-tag,
+.ant-table-cell .ant-tag,
+td .badge,
+.ant-table-cell .badge {
+  white-space: nowrap !important;
+  overflow-wrap: normal !important;
+  max-width: none;
+}
+
+/* At 320px the two inventory tabs needed 304px but only had 287px, so AntD clipped the
+   second one. Tighten the inter-tab gap and label size on small screens so both fit. */
+@media (max-width: 767px) {
+  .ant-tabs-tab + .ant-tabs-tab {
+    margin-left: 14px !important;
+  }
+  .ant-tabs-tab .ant-tabs-tab-btn {
+    font-size: 13px !important;
+  }
+  .ant-tabs-tab .ant-tabs-tab-btn svg {
+    width: 14px !important;
+    height: 14px !important;
+    margin-right: 4px !important;
+  }
+}
+
+/* Primary buttons always carry a white label.
+   The brand gradient is forced with !important, so AntD's disabled text colour
+   (rgba(0,0,0,0.25)) was being painted onto a full-strength blue — unreadable, and it
+   made disabled buttons look enabled. Disabled now dims the whole button instead. */
+.ant-btn-primary,
+.ant-btn-primary > span,
+.ant-btn-primary .ant-btn-icon,
+.ant-btn-primary:hover,
+.ant-btn-primary:hover > span,
+.ant-btn-primary:focus,
+.ant-btn-primary:focus > span {
+  color: var(--on-primary) !important;
+}
+
+/* Disabled uses a muted gradient rather than opacity: AntD transitions opacity on
+   buttons, so a dropped transition could leave an enabled button stuck dim. */
+.ant-btn-primary:disabled,
+.ant-btn-primary.ant-btn-disabled,
+.ant-btn-primary[disabled] {
+  background: var(--p-300) !important;
+  border-color: var(--p-300) !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+}
+.ant-btn-primary:disabled > span,
+.ant-btn-primary.ant-btn-disabled > span,
+.ant-btn-primary[disabled] > span {
+  color: var(--on-primary) !important;
+}
+/* v4.8 (DS Button · Disabled): the subtle surface with tertiary text — a disabled button is a quiet shape, not a pale brand */
+html.os-app[data-tone='pucho'] .ant-btn-primary:disabled,
+html.os-app[data-tone='pucho'] .ant-btn-primary.ant-btn-disabled,
+html.os-app[data-tone='pucho'] .ant-btn-primary[disabled] {
+  background: var(--surface-2) !important;
+  border-color: var(--surface-2) !important;
+}
+html.os-app[data-tone='pucho'] .ant-btn-primary:disabled > span,
+html.os-app[data-tone='pucho'] .ant-btn-primary.ant-btn-disabled > span,
+html.os-app[data-tone='pucho'] .ant-btn-primary[disabled] > span,
+html.os-app[data-tone='pucho'] .ant-btn-primary:disabled .ant-btn-icon {
+  color: var(--ink-4) !important;
+}
+
+/* Dangerous primary (Delete account) keeps a white label on red */
+.ant-btn-dangerous.ant-btn-primary,
+.ant-btn-dangerous.ant-btn-primary > span {
+  color: #ffffff !important;
+}
+
+/* ---------- Search clear "x": real hit area, proper gap from the magnifier ---------- */
+.ant-input-search > .ant-input-affix-wrapper {
+  padding-right: 2.9rem !important;
+}
+.ant-input-search .ant-btn {
+  z-index: 5 !important; /* stay above the field when it's focused */
+}
+.ant-input-affix-wrapper .ant-input-suffix {
+  margin-inline-start: 6px;
+}
+.ant-input-affix-wrapper .ant-input-clear-icon {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  font-size: 13px !important;
+  color: var(--ink-4) !important;
+  transition: color 0.15s, background-color 0.15s;
+}
+.ant-input-affix-wrapper .ant-input-clear-icon:hover {
+  color: var(--ink-2) !important;
+  background: var(--surface-2);
+}
+
+/* ---------- Date picker popup in the brand palette ---------- */
+.ant-picker .ant-picker-suffix { color: var(--ink-3); }
+.ant-picker:hover { border-color: var(--p-400) !important; }
+.ant-picker-cell .ant-picker-cell-inner { border-radius: 9999px !important; }
+.ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner {
+  background: var(--p-500) !important;
+  color: var(--on-primary) !important;
+}
+.ant-picker-cell-in-view.ant-picker-cell-today .ant-picker-cell-inner::before {
+  border-color: var(--p-500) !important;
+  border-radius: 9999px !important;
+}
+.ant-picker-cell:hover:not(.ant-picker-cell-selected) .ant-picker-cell-inner {
+  background: var(--p-50) !important;
+}
+.ant-picker-today-btn,
+.ant-picker-header button:hover { color: var(--p-500) !important; }
+
+/* ---------- Search: one icon at a time ----------
+   Empty field -> magnifier. Once there's text, AntD drops the
+   `ant-input-clear-icon-hidden` class, and the clear "x" takes the magnifier's
+   place instead of sitting beside it. Search still runs as you type. */
+.ant-input-search:has(.ant-input-clear-icon:not(.ant-input-clear-icon-hidden)) > .ant-btn,
+.ant-input-search:has(.ant-input-clear-icon:not(.ant-input-clear-icon-hidden)) > .ant-input-group-addon {
+  display: none !important;
+}
+.ant-input-search > .ant-input-affix-wrapper:has(.ant-input-clear-icon:not(.ant-input-clear-icon-hidden)) {
+  padding-right: 0.75rem !important;
+}
+
+/* AntD animates `all` on input wrappers, so the padding swap above animated the
+   text box width and slid the x across. Only animate the focus colours; the
+   magnifier -> x swap is instant. */
+.ant-input-search > .ant-input-affix-wrapper {
+  transition-property: border-color, box-shadow, background-color !important;
+}
+
+/* ---------- Compact calendar ----------
+   The default AntD date panel is ~350px tall, taller than the room above or
+   below a mid-form date field in most popups, so it could not fit either way.
+   Tighter rows, header and weekday strip bring it to ~250px so it can flip into
+   the space available inside the popup. */
+.ant-picker-dropdown .ant-picker-date-panel { width: 260px !important; }
+.ant-picker-dropdown .ant-picker-header { padding: 0 6px !important; }
+.ant-picker-dropdown .ant-picker-header > button,
+.ant-picker-dropdown .ant-picker-header-view { line-height: 36px !important; }
+.ant-picker-dropdown .ant-picker-date-panel .ant-picker-body { padding: 4px 10px 8px !important; }
+.ant-picker-dropdown .ant-picker-content { width: 100% !important; }
+.ant-picker-dropdown .ant-picker-content th {
+  height: 24px !important;
+  line-height: 24px !important;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.ant-picker-dropdown .ant-picker-cell { padding: 1px 0 !important; }
+.ant-picker-dropdown .ant-picker-cell .ant-picker-cell-inner {
+  min-width: 26px !important;
+  height: 26px !important;
+  line-height: 26px !important;
+  font-size: 12px;
+}
+
+/* Ant Design v6 renamed the modal box to .ant-modal-container (was
+   .ant-modal-content). Round it like every other popup, and clip it so any
+   dropdown rendered inside flips to fit rather than hanging past its edge. */
+.ant-modal-container {
+  border-radius: var(--radius-lg) !important;
+  overflow: hidden !important;
+}
+
+/* ============================================================
+   OS kernel form + toolbar layer (antd v6). One rule set for every
+   field in every modal and every table toolbar, so nothing drifts.
+   ============================================================ */
+.os-control.ant-input:not(textarea),
+.os-control.ant-input-affix-wrapper,
+.os-control.ant-input-number,
+.os-control.ant-picker,
+.os-control.ant-select {
+  height: var(--control-h);
+  min-height: var(--control-h);
+  width: 100%;
+  box-sizing: border-box;
+}
+.os-control.ant-input-number .ant-input-number-input { height: 38px; padding-left: 0.875rem; }
+/* Notes are the one control a person may need more of: vertical resize with a visible grip, capped so it never swallows the form. */
+/* antd's own `textarea.ant-input { min-height: var(--ant-control-height) }` ties this rule on specificity, and under Next.js its style tag
+   comes after this sheet (under Vite it came before) — so the field's minimum is stated with !important, not left to source order. */
+textarea.os-control, .os-control textarea, .os-textarea { height: auto !important; min-height: 88px !important; max-height: 60vh; width: 100%; resize: vertical !important; overflow: auto; }
+.ant-input-textarea-affix-wrapper textarea.os-control { resize: vertical !important; }
+/* Selects: single bordered box, arrow inside the pill with room for it */
+.os-control.ant-select { padding-right: 2.25rem !important; }
+.os-control.ant-select .ant-select-suffix,
+.os-control.ant-select .ant-select-clear { right: 0.875rem; }
+/* Focus ring hugs the field (inset) so it can never spill over neighbours */
+.os-control.ant-select-focused,
+.os-control.ant-select-open,
+.os-control.ant-input-affix-wrapper-focused,
+.os-control.ant-input:focus,
+.os-control.ant-input-number-focused,
+.os-control.ant-picker-focused {
+  box-shadow: inset 0 0 0 1px var(--p-500) !important;
+  outline: none !important;
+}
+.os-control:focus-visible, .os-control *:focus-visible { outline: none !important; }
+/* Toolbar: identical sizing on every page */
+/* Filters share one width (the gate asserts it) but may shrink together inside a half-width column. */
+.os-toolbar .os-filter.ant-select { width: 168px; flex: 1 1 120px; max-width: 168px; min-width: 110px; }
+.os-toolbar .os-control { height: var(--control-h) !important; min-height: var(--control-h) !important; }
+@media (max-width: 639px) {
+  .os-toolbar .os-filter.ant-select { flex: 0 0 calc(50% - 0.375rem); width: calc(50% - 0.375rem); }
+  .os-toolbar > span:last-child { flex-basis: 100%; margin-left: 0; }
+  .os-control.ant-input:not(textarea), .os-control.ant-input-affix-wrapper, .os-control.ant-input-number,
+  .os-control.ant-picker, .os-control.ant-select, .os-toolbar .os-control { height: 44px !important; min-height: 44px !important; }
+}
+/* Form labels: left-aligned above the control; the control starts at the same left edge and fills the column. */
+.os-form label { display: block; text-align: left; font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
+.os-form [data-os-field] > .os-control, .os-form [data-os-field] > div > .os-control { width: 100%; margin: 0; }
+/* Popups are opaque: option text must never mix with the form behind it */
+.ant-select-dropdown, .ant-picker-dropdown .ant-picker-panel-container { background: var(--surface) !important; backdrop-filter: none !important; }
+
+/* ==========================================================================================================================
+   v4.9 — DARK MODE (html[data-theme='dark']) · the three new atoms · avatar initials
+   Token VALUES live in config/tokens.css (per tone). This section only (1) derives the primary scale for dark, (2) re-points the few
+   literal-colour Tailwind utilities the kernel markup uses (bg-white, bg-black/[..], text-primary-600 …) at tokens, and (3) styles the atoms.
+   ========================================================================================================================== */
+html[data-theme='dark'] {
+  --p-50: var(--surface-2);
+  --p-100: color-mix(in srgb, var(--primary) 18%, var(--surface));
+  --p-200: var(--line);
+  --p-300: var(--line-strong);
+  --p-400: var(--ink-3);
+  --p-600: color-mix(in srgb, var(--primary) 88%, var(--bg));
+  --p-700: var(--ink-2);
+  --p-800: var(--ink);
+  --p-900: var(--ink);
+  --primary-text: var(--ink);
+  --brand-soft: var(--surface-2);
+  --brand-line: var(--line-strong);
+  --brand-tint: color-mix(in srgb, var(--brand) 26%, var(--surface));
+  --brand-ink: color-mix(in srgb, var(--brand) 45%, var(--ink));
+  --brand-text: color-mix(in srgb, var(--brand) 45%, var(--ink));
+}
+html[data-theme='dark'] ::selection { background-color: var(--p-100); color: var(--ink); }
+html[data-theme='dark'] body { color-scheme: dark; }
+
+/* tooltips: inverted (a light chip on the dark page), the way the light theme's dark chip sits on white */
+html[data-theme='dark'] .ant-tooltip-inner { background: var(--ink) !important; color: var(--bg) !important; }
+html[data-theme='dark'] .ant-tooltip-arrow::before, html[data-theme='dark'] .ant-tooltip-arrow::after { background: var(--ink) !important; }
+/* the modal / drawer scrims */
+html[data-theme='dark'] .ant-modal-mask, html[data-theme='dark'] .ant-drawer-mask { background: var(--scrim) !important; }
+/* antd's own focus on a disabled/placeholder keeps the tokens */
+html[data-theme='dark'] .ant-input::placeholder, html[data-theme='dark'] .ant-select-selection-placeholder, html[data-theme='dark'] .ant-picker-input > input::placeholder, html[data-theme='dark'] .input::placeholder { color: var(--ink-3) !important; }
+html[data-theme='dark'] .ant-table-wrapper .ant-table, html[data-theme='dark'] .ant-table-wrapper .ant-table-thead > tr > th, html[data-theme='dark'] .ant-table-wrapper .ant-table-tbody > tr > td { border-color: var(--line) !important; }
+html[data-theme='dark'] .ant-table-wrapper .ant-table { background: transparent; color: var(--ink); }
+html[data-theme='dark'] .ant-table-wrapper .ant-table-thead > tr > th { background: var(--surface-2) !important; color: var(--ink-3) !important; }
+html[data-theme='dark'] .ant-table-wrapper .ant-table-tbody > tr:hover > td { background: var(--hover-wash) !important; }
+
+/* a dangerous primary keeps a white label on its red fill; the dark red needs to be deep enough to carry it (>= 4.5:1) */
+html[data-theme='dark'] .ant-btn-dangerous.ant-btn-primary { background: #b4402f !important; border-color: #b4402f !important; }
+
+/* theme toggle (Header.jsx) */
+[data-testid='theme-toggle'] { color: var(--ink-2); }
+[data-testid='theme-toggle']:hover { color: var(--ink); background-color: var(--hover-wash); }
+[data-testid='theme-toggle']:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---------- Source chip (DS "Source chip") — where a record came from. Pill on the subtle surface; icon + text. ---------- */
+.source-chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  background-color: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line-soft);
+  border-radius: 999px; font-weight: 500; line-height: 1; white-space: nowrap; vertical-align: middle;
+}
+.source-chip > svg { flex: none; color: var(--ink-3); }
+.source-chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.source-chip--sm { height: 24px; padding: 0 10px 0 8px; font-size: 12px; }
+.source-chip--md { height: 32px; padding: 0 14px 0 12px; font-size: 14px; gap: 8px; }
+a.source-chip:hover, button.source-chip:hover { background-color: var(--hover-wash); border-color: var(--line); }
+
+/* ---------- Accordion (DS "Accordion") — hairline card, 48px rows, chevron turns when open ---------- */
+.accordion { width: 100%; background-color: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.accordion__item + .accordion__item { border-top: 1px solid var(--line-soft); }
+.accordion__trigger {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 48px; padding: 12px 16px;
+  background: transparent; color: var(--ink); font-size: 15px; font-weight: 500; line-height: 1.35; text-align: left; cursor: pointer;
+}
+.accordion__trigger:hover { background-color: var(--surface-2); }
+.accordion__trigger:active:not(:disabled) { transform: none; }
+.accordion__trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.accordion__chevron { flex: none; color: var(--ink-3); transition: transform 0.2s var(--ease); }
+.accordion__item.is-open > .accordion__trigger .accordion__chevron, .accordion__item.is-open .accordion__chevron { transform: rotate(180deg); }
+.accordion__item.is-open > .accordion__trigger { background-color: transparent; }
+.accordion__panel { padding: 2px 16px 16px; color: var(--ink-2); font-size: 14px; line-height: 1.5; }
+@media (prefers-reduced-motion: reduce) { .accordion__chevron { transition: none; } }
+
+/* ---------- Quantity stepper (DS "Quantity stepper") — 44px field, - / + buttons, focus = violet 1.5px border ---------- */
+.qty-stepper {
+  display: inline-flex; align-items: stretch; height: 44px; background-color: var(--surface); color: var(--ink);
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm); overflow: hidden;
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.qty-stepper:hover { border-color: var(--ink-4); }
+.qty-stepper:focus-within { border-color: var(--accent); box-shadow: 0 0 0 0.5px var(--accent); }
+.qty-stepper > button {
+  flex: none; width: 44px; display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--ink-2); cursor: pointer;
+}
+.qty-stepper > button:not(.no-pill):not(.ant-tabs-tab-btn):not(.ant-input-search-button) { border-radius: 0 !important; }
+.qty-stepper > button:hover:not(:disabled) { background-color: var(--surface-2); color: var(--ink); }
+.qty-stepper > button:active:not(:disabled) { transform: none; background-color: var(--line-soft); }
+.qty-stepper > button:disabled { color: var(--ink-4); cursor: not-allowed; }
+.qty-stepper > button:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+.qty-stepper > input {
+  width: 56px; min-width: 0; padding: 0 4px; text-align: center; background: transparent; color: var(--ink); border: 0 !important; border-radius: 0 !important;
+  font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; outline: none !important; box-shadow: none !important;
+}
+.qty-stepper > input:disabled { color: var(--ink-4); cursor: not-allowed; }
+.qty-stepper[data-disabled='true'] { background-color: var(--surface-2); border-color: var(--line); }
+
+/* skeleton blocks (Skeleton.jsx): a visible shape on a card in both themes */
+.bg-skeleton { background-color: var(--skeleton); }
+
+/* ---------- Avatar initials (ProfileAvatar.jsx) — tint from the categorical accent tokens, picked deterministically from the name ---------- */
+.avatar-initials {
+  --avatar-cat: var(--cat-1);
+  display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: 999px; overflow: hidden; user-select: none;
+  font-weight: 600; letter-spacing: 0.01em; line-height: 1;
+  background-color: color-mix(in srgb, var(--avatar-cat) 20%, var(--surface));
+  color: color-mix(in srgb, var(--avatar-cat) 38%, var(--ink));
+}
+html[data-theme='dark'] .avatar-initials { background-color: color-mix(in srgb, var(--avatar-cat) 28%, var(--surface)); color: color-mix(in srgb, var(--avatar-cat) 45%, var(--ink)); }
+.avatar-initials[data-tint='1'] { --avatar-cat: var(--cat-1); }
+.avatar-initials[data-tint='2'] { --avatar-cat: var(--cat-2); }
+.avatar-initials[data-tint='3'] { --avatar-cat: var(--cat-3); }
+.avatar-initials[data-tint='4'] { --avatar-cat: var(--cat-4); }
+.avatar-initials[data-tint='5'] { --avatar-cat: var(--cat-5); }
+.avatar-initials[data-tint='6'] { --avatar-cat: var(--cat-6); }
+.avatar-photo-wash { background-color: var(--scrim); }
+
+/* ---------- dark: literal-colour Tailwind utilities re-pointed at tokens (generated from the class names the kernel uses) ---------- */
+html[data-theme='dark'] .active\:bg-primary-50\/60:active { background-color: color-mix(in srgb, var(--p-50) 60%, transparent); }
+html[data-theme='dark'] .bg-black\/25 { background-color: var(--scrim); }
+html[data-theme='dark'] .bg-black\/30 { background-color: var(--scrim); }
+html[data-theme='dark'] .bg-black\/\[0\.025\] { background-color: rgb(255 255 255 / 0.04); }
+html[data-theme='dark'] .bg-black\/\[0\.04\] { background-color: rgb(255 255 255 / 0.064); }
+html[data-theme='dark'] .bg-black\/\[0\.05\] { background-color: rgb(255 255 255 / 0.08); }
+html[data-theme='dark'] .bg-black\/\[0\.06\] { background-color: rgb(255 255 255 / 0.096); }
+html[data-theme='dark'] .bg-black\/\[0\.15\] { background-color: rgb(255 255 255 / 0.24); }
+html[data-theme='dark'] .bg-brand-50 { background-color: var(--surface-2); }
+html[data-theme='dark'] .bg-brand-500 { background-color: var(--brand); }
+html[data-theme='dark'] .bg-brand-500\/10 { background-color: color-mix(in srgb, var(--brand) 10%, transparent); }
+html[data-theme='dark'] .bg-brand-500\/15 { background-color: color-mix(in srgb, var(--brand) 15%, transparent); }
+html[data-theme='dark'] .bg-primary-100 { background-color: var(--p-100); }
+html[data-theme='dark'] .bg-primary-50 { background-color: var(--p-50); }
+html[data-theme='dark'] .bg-primary-50\/40 { background-color: color-mix(in srgb, var(--p-50) 40%, transparent); }
+html[data-theme='dark'] .bg-primary-50\/60 { background-color: color-mix(in srgb, var(--p-50) 60%, transparent); }
+html[data-theme='dark'] .bg-primary-50\/70 { background-color: color-mix(in srgb, var(--p-50) 70%, transparent); }
+html[data-theme='dark'] .bg-primary-500 { background-color: var(--p-500); }
+html[data-theme='dark'] .bg-white { background-color: var(--surface); }
+html[data-theme='dark'] .bg-white\/50 { background-color: color-mix(in srgb, var(--surface) 50%, transparent); }
+html[data-theme='dark'] .bg-white\/90 { background-color: color-mix(in srgb, var(--surface) 90%, transparent); }
+html[data-theme='dark'] .border-black\/\[0\.07\] { border-color: rgb(255 255 255 / 0.119); }
+html[data-theme='dark'] .border-black\/\[0\.08\] { border-color: rgb(255 255 255 / 0.136); }
+html[data-theme='dark'] .border-brand-100\/50 { border-color: color-mix(in srgb, var(--brand-tint) 50%, transparent); }
+html[data-theme='dark'] .border-primary-100 { border-color: var(--p-100); }
+html[data-theme='dark'] .border-primary-200 { border-color: var(--p-200); }
+html[data-theme='dark'] .border-primary-300 { border-color: var(--p-300); }
+html[data-theme='dark'] .border-primary-500 { border-color: var(--p-500); }
+html[data-theme='dark'] .border-white { border-color: color-mix(in srgb, var(--ink) 100%, transparent); }
+html[data-theme='dark'] .border-white\/40 { border-color: color-mix(in srgb, var(--ink) 40%, transparent); }
+html[data-theme='dark'] .border-white\/50 { border-color: color-mix(in srgb, var(--ink) 50%, transparent); }
+html[data-theme='dark'] .disabled\:bg-brand-300:disabled { background-color: var(--line-strong); }
+html[data-theme='dark'] .divide-black\/\[0\.05\] > :not([hidden]) ~ :not([hidden]) { border-color: rgb(255 255 255 / 0.085); }
+html[data-theme='dark'] .focus\:border-primary-300:focus { border-color: var(--p-300); }
+html[data-theme='dark'] .focus\:ring-primary-200:focus { --tw-ring-color: var(--p-200); }
+html[data-theme='dark'] .hover\:bg-black\/\[0\.015\]:hover { background-color: rgb(255 255 255 / 0.024); }
+html[data-theme='dark'] .hover\:bg-black\/\[0\.02\]:hover { background-color: rgb(255 255 255 / 0.032); }
+html[data-theme='dark'] .hover\:bg-black\/\[0\.03\]:hover { background-color: rgb(255 255 255 / 0.048); }
+html[data-theme='dark'] .hover\:bg-black\/\[0\.04\]:hover { background-color: rgb(255 255 255 / 0.064); }
+html[data-theme='dark'] .hover\:bg-black\/\[0\.06\]:hover { background-color: rgb(255 255 255 / 0.096); }
+html[data-theme='dark'] .hover\:bg-brand-600:hover { background-color: var(--brand-strong); }
+html[data-theme='dark'] .hover\:bg-primary-100:hover { background-color: var(--p-100); }
+html[data-theme='dark'] .hover\:bg-primary-50:hover { background-color: var(--p-50); }
+html[data-theme='dark'] .hover\:bg-primary-600:hover { background-color: var(--p-600); }
+html[data-theme='dark'] .hover\:border-primary-300:hover { border-color: var(--p-300); }
+html[data-theme='dark'] .hover\:border-primary-400:hover { border-color: var(--p-400); }
+html[data-theme='dark'] .ring-primary-500 { --tw-ring-color: var(--p-500); }
+html[data-theme='dark'] .text-brand-500 { color: var(--brand-text); }
+html[data-theme='dark'] .text-brand-600 { color: var(--brand-text); }
+html[data-theme='dark'] .text-brand-700 { color: var(--brand-text); }
+html[data-theme='dark'] .text-primary-500 { color: var(--primary-text); }
+html[data-theme='dark'] .text-primary-600 { color: var(--primary-text); }
+html[data-theme='dark'] .text-primary-700 { color: var(--primary-text); }
+html[data-theme='dark'] .bg-primary-500.text-white, html[data-theme='dark'] .bg-primary-600.text-white, html[data-theme='dark'] .bg-primary-500 .text-white { color: var(--on-primary); }
+
+/* dark: a white label on a Tailwind palette fill (role pills, tags written as `bg-blue-500 text-white`) — deepen the fill so the label keeps 4.5:1 */
+html[data-theme='dark'] .text-white.bg-blue-500 { background-color: color-mix(in srgb, theme('colors.blue.500') 62%, black); }
+html[data-theme='dark'] .text-white.bg-sky-500 { background-color: color-mix(in srgb, theme('colors.sky.500') 55%, black); }
+html[data-theme='dark'] .text-white.bg-cyan-500 { background-color: color-mix(in srgb, theme('colors.cyan.500') 52%, black); }
+html[data-theme='dark'] .text-white.bg-teal-500 { background-color: color-mix(in srgb, theme('colors.teal.500') 58%, black); }
+html[data-theme='dark'] .text-white.bg-emerald-500 { background-color: color-mix(in srgb, theme('colors.emerald.500') 58%, black); }
+html[data-theme='dark'] .text-white.bg-green-500 { background-color: color-mix(in srgb, theme('colors.green.500') 58%, black); }
+html[data-theme='dark'] .text-white.bg-lime-500 { background-color: color-mix(in srgb, theme('colors.lime.500') 50%, black); }
+html[data-theme='dark'] .text-white.bg-yellow-500 { background-color: color-mix(in srgb, theme('colors.yellow.500') 50%, black); }
+html[data-theme='dark'] .text-white.bg-amber-500 { background-color: color-mix(in srgb, theme('colors.amber.500') 56%, black); }
+html[data-theme='dark'] .text-white.bg-orange-500 { background-color: color-mix(in srgb, theme('colors.orange.500') 60%, black); }
+html[data-theme='dark'] .text-white.bg-red-500 { background-color: color-mix(in srgb, theme('colors.red.500') 68%, black); }
+html[data-theme='dark'] .text-white.bg-rose-500 { background-color: color-mix(in srgb, theme('colors.rose.500') 68%, black); }
+html[data-theme='dark'] .text-white.bg-pink-500 { background-color: color-mix(in srgb, theme('colors.pink.500') 66%, black); }
+html[data-theme='dark'] .text-white.bg-fuchsia-500 { background-color: color-mix(in srgb, theme('colors.fuchsia.500') 66%, black); }
+html[data-theme='dark'] .text-white.bg-purple-500 { background-color: color-mix(in srgb, theme('colors.purple.500') 68%, black); }
+html[data-theme='dark'] .text-white.bg-violet-500 { background-color: color-mix(in srgb, theme('colors.violet.500') 70%, black); }
+html[data-theme='dark'] .text-white.bg-indigo-500 { background-color: color-mix(in srgb, theme('colors.indigo.500') 72%, black); }
+html[data-theme='dark'] .text-white.bg-slate-500, html[data-theme='dark'] .text-white.bg-gray-500 { background-color: var(--ink-3); color: var(--bg); }
+
+/* a dark-on-transparent logo (the Pucho wordmark) on the dark theme: invert the lightness, keep the hue */
+html[data-theme='dark'] .logo-adapt { filter: invert(1) hue-rotate(180deg); }
+
+/* a required-field star and inline error text written as Tailwind red: the readable red of the theme (>= 4.5:1 in both) */
+.text-red-500, .text-red-600, .text-red-700 { color: var(--bad-text); }
+
+/* ---------- the global "Powered by Pucho.ai" badge (BrandMark.jsx PoweredBy) ---------- */
+[data-os-powered-by] .powered-pill { background-color: color-mix(in srgb, var(--surface) 90%, transparent); }
+html[data-theme='dark'] [data-os-powered-by] .powered-pill { background-color: color-mix(in srgb, var(--surface) 85%, transparent); border-color: var(--line); box-shadow: 0 8px 32px rgba(139, 92, 246, 0.18); }
+@media (max-width: 767px) {
+  [data-os-powered-by] { right: 1rem; bottom: max(1rem, env(safe-area-inset-bottom)); }
+  [data-os-powered-by] .powered-pill { padding: 5px 12px; gap: 8px; }
+  [data-os-powered-by] .powered-pill img { height: 14px; }
+  /* clear of a toast (bottom of the screen on a phone) */
+  body:has([data-sonner-toast]) [data-os-powered-by] { display: none; }
+}
+/* hidden while any modal / drawer / mobile menu / antd dialog is open, so it never sits on a footer button */
+body:has([role='dialog'][aria-modal='true'], .ant-modal-mask, .ant-drawer-mask) [data-os-powered-by] { display: none; }
+@media print { [data-os-powered-by] { display: none !important; } }

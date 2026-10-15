@@ -1,0 +1,23 @@
+[
+  {
+    "id": "USR-ADMIN",
+    "email": "admin@marketintel.pucho.ai",
+    "name": "Kashyap Mehta",
+    "role": "admin",
+    "password": "Admin@2026mi"
+  },
+  {
+    "id": "USR-ANALYST",
+    "email": "analyst@marketintel.pucho.ai",
+    "name": "Riya Desai",
+    "role": "analyst",
+    "password": "Analyst@2026mi"
+  },
+  {
+    "id": "USR-SUBSCRIBER",
+    "email": "reader@marketintel.pucho.ai",
+    "name": "Amit Shah",
+    "role": "subscriber",
+    "password": "Reader@2026mi"
+  }
+]
