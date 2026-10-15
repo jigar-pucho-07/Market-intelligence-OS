@@ -2,7 +2,7 @@
   "os": "Market Intelligence",
   "status": "fail",
   "viewport": "desktop",
-  "passed": 556,
+  "passed": 562,
   "failed": 4,
   "failures": [
     "today \u203a filter #1: interaction blocked (Locator.screenshot: Error: strict mode violation: locator(\"[data-os-toolbar]\") r)",
@@ -74,6 +74,7 @@
     "evidence\\ui-check\\page-activity.png",
     "evidence\\ui-check\\filter-activity-1.png",
     "evidence\\ui-check\\filter-activity-2.png",
+    "evidence\\ui-check\\drawer-activity-page.png",
     "evidence\\ui-check\\page-me_today.png",
     "evidence\\ui-check\\drawer-me_today-page.png",
     "evidence\\ui-check\\page-me_reports.png",

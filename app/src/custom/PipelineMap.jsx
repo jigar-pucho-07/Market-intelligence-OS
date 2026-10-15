@@ -116,9 +116,9 @@ export default function PipelineMap({ rows }) {
 
       <section aria-labelledby="pm-cfg" className="min-w-0">
         <h2 id="pm-cfg" className="section-title mb-2.5">Workflow configuration</h2>
-        <dl className="card grid sm:grid-cols-2 divide-y divide-[color:var(--line-soft)] sm:divide-y-0" data-pipeline-config>
+        <dl className="card grid sm:grid-cols-2 gap-x-8 gap-y-4 p-4" data-pipeline-config>
           {CONFIG.map(([k, v]) => (
-            <div key={k} className="px-4 py-3 flex flex-col gap-0.5 min-w-0 sm:border-b sm:border-[color:var(--line-soft)]">
+            <div key={k} className="flex flex-col gap-0.5 min-w-0">
               <dt className="text-[12px] text-ink-3">{k}</dt>
               <dd className="text-[13px] font-medium text-ink tabular break-words">{v}</dd>
             </div>
