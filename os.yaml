@@ -102,6 +102,7 @@ entities:
               Sent_At, Sent_Count, Failed_Count, Error_Message]
     fields:
       Report_Date:       { type: date, unique: true }
+      Status:            { one_of: [Ready, Sent, Failed] }
       Trigger:           { one_of: [Schedule, Manual] }
       Sentiment:         { one_of: [BULLISH, CAUTIOUSLY BULLISH, NEUTRAL, CAUTIOUSLY BEARISH, BEARISH] }
       Confidence_Level:  { one_of: [HIGH, MEDIUM, LOW] }
@@ -187,7 +188,7 @@ entities:
       Confidence_Pct:    { type: number, min: 0, max: 100, integer: true }
       FnO_View:          { one_of: [BULLISH BIAS, BEARISH BIAS, RANGE-BOUND, VOLATILE] }
       Articles_Analyzed: { type: number, min: 0, max: 40, integer: true }
-    seed: 12
+    seed: 0
     examples:
       - { Report_ID: MIR-2026-0101, Report_Date: "2026-10-15", Published_At: "2026-10-15T06:03:10+05:30", Sentiment: BULLISH, Confidence_Level: HIGH, Confidence_Pct: 74,
           Driver_1: "FII inflows strong — ₹4,280 Cr net buying in equities yesterday", Driver_2: "US Fed signals rate pause; Dow Jones +0.8%, NASDAQ +1.1% overnight", Driver_3: "RBI MPC minutes dovish; inflation within 4.5% comfort zone",
@@ -251,6 +252,7 @@ entities:
       Active: [Opt_In_At, Opt_In_Source]
     columns: [Subscriber_ID, Name, WhatsApp, Email, City, Status, Opt_In_At, Opt_In_Source, Joined_At, Last_Delivered_At, Notes]
     fields:
+      Status:        { one_of: [Active, Paused, Unsubscribed] }
       WhatsApp:      { type: phone, unique: true }
       Email:         { type: email }
       Opt_In_At:     { type: date }
@@ -275,12 +277,17 @@ entities:
     unique_together: [[Report_Date, Subscriber_ID, Kind]]
     columns: [Delivery_ID, Sent_At, Kind, Report_ID, Report_Date, Subscriber_ID, Subscriber_Name, Sentiment, Status, Message_ID, Error_Message]
     fields:
+      Status:      { one_of: [Queued, Sent, Failed] }
       Kind:        { one_of: [Report, Alert] }
       Report_Date: { type: date }
-    seed: 30
+    seed: 0
     examples:
       - { Delivery_ID: DLV-2026-2401, Sent_At: "2026-10-15T06:03:02+05:30", Kind: Report, Report_ID: MIR-2026-0101, Report_Date: "2026-10-15", Subscriber_ID: SUB-2026-0001, Subscriber_Name: Amit Shah, Sentiment: BULLISH, Status: Sent, Message_ID: "wamid.HBgMOTE5ODc2NTQzMjEwFQIAERgS", Error_Message: "" }
       - { Delivery_ID: DLV-2026-2402, Sent_At: "2026-10-15T06:03:04+05:30", Kind: Report, Report_ID: MIR-2026-0101, Report_Date: "2026-10-15", Subscriber_ID: SUB-2026-0002, Subscriber_Name: Neha Iyer, Sentiment: BULLISH, Status: Failed, Message_ID: "", Error_Message: "131026 · Message undeliverable — number not on WhatsApp" }
+      - { Delivery_ID: DLV-2026-2403, Sent_At: "2026-10-15T06:03:05+05:30", Kind: Report, Report_ID: MIR-2026-0101, Report_Date: "2026-10-15", Subscriber_ID: SUB-2026-0003, Subscriber_Name: Rohit Verma, Sentiment: BULLISH, Status: Sent, Message_ID: "wamid.HBgMOTE5ODExMTIyMzM0FQIAERgS", Error_Message: "" }
+      - { Delivery_ID: DLV-2026-2391, Sent_At: "2026-10-14T06:02:50+05:30", Kind: Report, Report_ID: MIR-2026-0100, Report_Date: "2026-10-14", Subscriber_ID: SUB-2026-0001, Subscriber_Name: Amit Shah, Sentiment: CAUTIOUSLY BULLISH, Status: Sent, Message_ID: "wamid.HBgMOTE5ODc2NTQzMjEwFQIAERgQ", Error_Message: "" }
+      - { Delivery_ID: DLV-2026-2392, Sent_At: "2026-10-14T06:02:52+05:30", Kind: Report, Report_ID: MIR-2026-0100, Report_Date: "2026-10-14", Subscriber_ID: SUB-2026-0002, Subscriber_Name: Neha Iyer, Sentiment: CAUTIOUSLY BULLISH, Status: Sent, Message_ID: "wamid.HBgMOTE5ODIwMDExMjIzFQIAERgQ", Error_Message: "" }
+      - { Delivery_ID: DLV-2026-2381, Sent_At: "2026-10-13T06:00:45+05:30", Kind: Alert, Report_ID: MIR-2026-0099, Report_Date: "2026-10-13", Subscriber_ID: "", Subscriber_Name: Market desk admins, Sentiment: "", Status: Sent, Message_ID: "wamid.HBgMOTE5ODAwMDAwMDAwFQIAERgA", Error_Message: "" }
 
 metrics:
   ready_unsent:      { entity: reports,       label: Reports not sent,           where: "Status=Ready",                                             tone: warn, icon: Send }
@@ -401,11 +408,28 @@ flows:
           - "Last step: POST BROADCAST — always for Failed (the admin alert), for Ready only when constants.auto_send is true; then POST /api/jobs/<id> done"
         typical_seconds: 45
         credits: 16
-        runs_per_month: 30
+        runs_per_month: 22
         effect:
           insert: reports
-          fill: { Trigger: Manual, Status: Ready, Sentiment: NEUTRAL, Confidence_Level: LOW, Confidence_Pct: 0, Model: simulated, Articles_Analyzed: 0,
+          fill: { Report_Date: now, Trigger: Manual, Status: Ready, Sentiment: NEUTRAL, Confidence_Level: LOW, Confidence_Pct: 0, Model: simulated, Articles_Analyzed: 0,
                   Driver_1: "SIMULATED — the MARKET_REPORT flow is not wired; nothing was fetched or analysed", Driver_2: "Set WEBHOOK_MARKET_REPORT to run the real report", Driver_3: "",
+                  WhatsApp_Message: "SIMULATED run — not a market report", Source_Status: "Simulated — no source was fetched" }
+          result: { Status: Ready }
+      - name: rerun
+        model: none
+        async: true
+        via: custom
+        payload: { Report_ID: string }
+        result: { Report_ID: string, Status: string, Articles_Analyzed: number }
+        rules:
+          - "The same pipeline as run, on an existing Failed report: fetch → analyse → PATCH that Report_ID Failed → Ready (or Failed again with the new error); a Sent report is refused"
+        typical_seconds: 45
+        credits: 16
+        runs_per_month: 8
+        effect:
+          patch: reports
+          fill: { Status: Ready, Sentiment: NEUTRAL, Confidence_Level: LOW, Confidence_Pct: 0, Model: simulated, Error_Message: "",
+                  Driver_1: "SIMULATED re-run — the MARKET_REPORT flow is not wired; nothing was fetched or analysed",
                   WhatsApp_Message: "SIMULATED run — not a market report", Source_Status: "Simulated — no source was fetched" }
           result: { Status: Ready }
 
@@ -465,7 +489,7 @@ pages:
     recent: { title: Latest reports, entity: reports, date: Created_At, limit: 6, link: /reports, columns: [ { key: Report_Date, type: date, grow: true }, { key: Sentiment, type: badge }, { key: Confidence_Pct, header: Confidence, type: number }, { key: Status, type: badge } ] }
     modals:
       - { id: send_now, kind: status, title: Send to subscribers, flow: BROADCAST, action: send, entity: reports, submit: Send to subscribers, pending: "Sending to subscribers…", success: "Sending — each delivery is logged", covers: [R9], summary: [Report_Date, Sentiment, Confidence_Pct], intro: "Goes to every Active, opted-in subscriber's WhatsApp as the approved Daily Market Intelligence template." }
-      - { id: rerun,    kind: status, title: Re-run report now, flow: MARKET_REPORT, action: run, entity: reports, submit: Re-run report, pending: "Fetching the five sources…", success: "The report is being prepared again — it turns Ready when done", covers: [R24], summary: [Report_Date, Error_Message], intro: "Fetches the five news sources again and rewrites this report. A report already sent is never re-run." }
+      - { id: rerun,    kind: status, title: Re-run report now, flow: MARKET_REPORT, action: rerun, entity: reports, submit: Re-run report, pending: "Fetching the five sources…", success: "The report is being prepared again — it turns Ready when done", covers: [R24], summary: [Report_Date, Error_Message], intro: "Fetches the five news sources again and rewrites this report. A report already sent is never re-run." }
       - { id: retry,    kind: status, title: Retry delivery, flow: BROADCAST, action: retry, entity: deliveries, submit: Send again, pending: "Sending…", success: "Delivery sent again", covers: [R27], summary: [Subscriber_Name, Report_Date, Error_Message], intro: "Goes to the WhatsApp number on the subscriber's record, only if they are still Active." }
 
   - id: today
@@ -576,7 +600,7 @@ pages:
         actions: { row: [rerun] }
         drawer: { title_column: Report_Date, sections: [ { type: tiles, title: Run, columns: [Trigger, Status, Articles_Analyzed, Model] }, { type: callout, column: Source_Status, title: Sources, tone: neutral }, { type: callout, column: Category_Breakdown, title: Categories, tone: neutral }, { type: callout, column: Error_Message, title: Error, tone: warn } ] }
     modals:
-      - { id: rerun, kind: status, title: Re-run report now, flow: MARKET_REPORT, action: run, submit: Re-run report, pending: "Fetching the five sources…", success: "The report is being prepared again — it turns Ready when done", covers: [R24], summary: [Report_Date, Error_Message], intro: "Fetches the five news sources again and rewrites this report. A report already sent is never re-run." }
+      - { id: rerun, kind: status, title: Re-run report now, flow: MARKET_REPORT, action: rerun, submit: Re-run report, pending: "Fetching the five sources…", success: "The report is being prepared again — it turns Ready when done", covers: [R24], summary: [Report_Date, Error_Message], intro: "Fetches the five news sources again and rewrites this report. A report already sent is never re-run." }
     actions: { header: [], row: [rerun] }
 
   - id: subscribers
