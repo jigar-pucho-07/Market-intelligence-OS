@@ -9,7 +9,7 @@ import StatusBadge from '../components/StatusBadge';
 import EmptyState from '../components/EmptyState';
 import { cn } from '../utils/cn';
 import { formatWhatsApp, parseSectors, parseRisks, DISCLAIMER } from './lib/market';
-import { outlookTone, levelTone, BADGE_CLASS, newestRow, istStamp, longDate, sourceRows } from './lib/view';
+import { outlookTone, levelTone, BADGE_CLASS, newestRow, cleanRow, istStamp, longDate, sourceRows, sourceSummary, sourceTone, sourceFigure, whatsappText } from './lib/view';
 
 const DOT = { ok: 'bg-ok', warn: 'bg-warn', bad: 'bg-bad', neutral: 'bg-ink-4' };
 const has = (v) => v !== undefined && v !== null && String(v).trim() !== '';
@@ -47,7 +47,7 @@ function Field({ label, children }) {
 const Reason = ({ children }) => (has(children) ? <p className="text-[13px] leading-[1.5] text-ink-2 break-words">{children}</p> : null);
 
 export default function MarketBrief({ rows }) {
-  const r = useMemo(() => newestRow(rows), [rows]);
+  const r = useMemo(() => cleanRow(newestRow(rows)), [rows]);
   if (!r) return <EmptyState icon={FileText} title="No report yet" description="The report is created at 06:00 IST every trading morning. Today's brief appears here as soon as it is ready." />;
 
   const desk = r.Status !== undefined;
@@ -56,8 +56,9 @@ export default function MarketBrief({ rows }) {
   const sectors = parseSectors(r.Sectors);
   const risks = parseRisks(r.Risks);
   const views = [['Positional traders', r.View_Positional], ['Intraday traders', r.View_Intraday], ['Long-term investors', r.View_LongTerm], ['F&O traders', r.View_FnO]].filter(([, v]) => has(v));
-  const whatsapp = formatWhatsApp(r, r.Created_At ?? r.Published_At);
   const sources = sourceRows(r.Source_Status);
+  const whatsapp = whatsappText(r, (row) => formatWhatsApp(row, row.Created_At ?? row.Published_At));
+  const summary = sourceSummary(sources);
   const counted = desk && sources.some((s) => s.count !== null);
   const drivers = [r.Driver_1, r.Driver_2, r.Driver_3].filter(has);
   const tone = outlookTone(r.Sentiment);
@@ -158,20 +159,21 @@ export default function MarketBrief({ rows }) {
 
       {/* (f) WhatsApp preview and (g) sources */}
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] items-start">
-        <Section id="mb-wa" title="WhatsApp delivery preview" aside={`${whatsapp.length.toLocaleString('en-IN')} / 4,000 characters`}>
+        <Section id="mb-wa" title="WhatsApp delivery preview" aside={whatsapp ? `${whatsapp.length.toLocaleString('en-IN')} / 4,000 characters` : undefined}>
           <div className="rounded-[var(--r-10)] bg-surface-2 border border-[color:var(--line-soft)] p-3 sm:p-4">
-            <div className="flex items-center gap-1.5 text-[12px] text-ink-3 mb-2"><MessageCircle className="w-3.5 h-3.5" aria-hidden />Template mi_daily_report · as a subscriber receives it</div>
-            <div tabIndex={0} role="region" aria-label="WhatsApp message text" className="max-h-[360px] overflow-y-auto rounded-[var(--r-8)] rounded-tl-[var(--r-4)] bg-surface border border-[color:var(--line)] px-3.5 py-3 text-[13px] leading-[1.55] text-ink whitespace-pre-wrap break-words" data-whatsapp-preview>{whatsapp}</div>
+            <div className="flex items-center gap-1.5 text-[12px] text-ink-3 mb-2"><MessageCircle className="w-3.5 h-3.5" aria-hidden />{r.WhatsApp_Message ? 'The message that was stored for this report' : 'Preview — this report has no stored message yet'}</div>
+            {whatsapp ? <div tabIndex={0} role="region" aria-label="WhatsApp message text" className="max-h-[360px] overflow-y-auto rounded-[var(--r-8)] rounded-tl-[var(--r-4)] bg-surface border border-[color:var(--line)] px-3.5 py-3 text-[13px] leading-[1.55] text-ink whitespace-pre-wrap break-words" data-whatsapp-preview>{whatsapp}</div>
+              : <Callout tone="bad" icon={FileWarning} label="No message produced">{has(r.Error_Message) ? r.Error_Message : 'This run failed before a WhatsApp message was written.'}</Callout>}
           </div>
         </Section>
-        <Section id="mb-src" title="Active news sources" aside={counted ? `${sources.reduce((n, s) => n + (s.count ?? 0), 0)} articles fetched` : undefined}>
+        <Section id="mb-src" title="Active news sources" aside={counted ? summary.text : undefined}>
           <ul className="card divide-y divide-[color:var(--line-soft)]">
             {sources.map((s) => {
-              const t = !counted || s.count === null ? 'neutral' : s.failed ? 'warn' : 'ok';
+              const t = sourceTone(s, counted);
               return (
                 <li key={s.name} className="px-3.5 py-2.5 flex items-center justify-between gap-3 text-[13px]" data-source={s.name}>
                   <span className="flex items-center gap-2 min-w-0 text-ink"><span aria-hidden className={cn('w-2 h-2 rounded-full shrink-0', DOT[t])} /><span className="break-words min-w-0">{s.name}</span></span>
-                  {counted && s.count !== null && <span className={cn('tabular shrink-0', s.failed ? 'text-warn-text' : 'text-ink-2')}>{s.failed ? '0 · failed' : `${s.count} articles`}</span>}
+                  {counted && s.count !== null && <span className={cn('tabular text-right min-w-0 max-w-[55%] break-words', t === 'warn' ? 'text-warn-text' : 'text-ink-2')}>{sourceFigure(s)}</span>}
                 </li>
               );
             })}

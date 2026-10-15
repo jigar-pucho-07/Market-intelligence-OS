@@ -6,7 +6,7 @@ import { CalendarClock, Rss, Filter, Sparkles, FileText, Save, Send, ListChecks,
 import { Callout } from '../components/ui/primitives';
 import StatusBadge from '../components/StatusBadge';
 import { cn } from '../utils/cn';
-import { newestRow, longDate, sourceRows } from './lib/view';
+import { newestRow, cleanRow, longDate, sourceRows, sourceSummary, sourceTone, sourceFigure, isTodayIST } from './lib/view';
 
 const DOT = { ok: 'bg-ok', warn: 'bg-warn', bad: 'bg-bad', neutral: 'bg-ink-4' };
 const TEXT = { ok: 'text-ok-text', warn: 'text-warn-text', bad: 'text-bad-text', neutral: 'text-ink-3' };
@@ -46,18 +46,19 @@ function Node({ step, icon: I, title, sub, tone, state, children, wide }) {
 }
 
 export default function PipelineMap({ rows }) {
-  const r = useMemo(() => newestRow(rows), [rows]);
+  const r = useMemo(() => cleanRow(newestRow(rows)), [rows]);
   const failed = r?.Status === 'Failed';
   const sent = r?.Status === 'Sent';
   const simulated = !!r && (/simulat/i.test(String(r.Model ?? '')) || /^simulated/i.test(String(r.Source_Status ?? '')));
   const sources = sourceRows(r?.Source_Status);
   const counted = !!r && sources.some((s) => s.count !== null);
-  const bad = sources.filter((s) => s.count !== null && s.failed).length;
+  const summary = sourceSummary(sources);
+  const today = isTodayIST(r?.Report_Date);
   const articles = n(r?.Articles_Analyzed);
   const none = 'No run yet';
 
-  const fetchTone = !counted ? 'neutral' : bad === 0 ? 'ok' : bad === 5 ? 'bad' : 'warn';
-  const fetchState = !r ? none : !counted ? (simulated ? 'Simulated — nothing fetched' : 'Counts not recorded') : bad === 0 ? 'All 5 sources answered' : `${bad} of 5 returned nothing`;
+  const fetchTone = summary.tone;
+  const fetchState = !r ? none : !counted && simulated ? 'Simulated — nothing fetched' : summary.text;
   const aiState = !r ? none : failed ? 'Failed' : `Done${has(r.Model) ? ` · ${r.Model}` : ''}`;
   const sentCount = n(r?.Sent_Count) ?? 0;
   const failedCount = n(r?.Failed_Count) ?? 0;
@@ -81,11 +82,11 @@ export default function PipelineMap({ rows }) {
         <Node step={2} icon={Rss} title="5 parallel RSS fetches" sub="One step per source; a failed source never stops the run" tone={fetchTone} state={fetchState}>
           <ul className="flex flex-col gap-1">
             {sources.map((s) => {
-              const t = !counted || s.count === null ? 'neutral' : s.failed ? 'warn' : 'ok';
+              const t = sourceTone(s, counted);
               return (
                 <li key={s.name} className="flex items-center justify-between gap-2 text-[12px] min-w-0" data-source={s.name}>
                   <span className="flex items-center gap-1.5 min-w-0 text-ink-2"><span aria-hidden className={cn('w-1.5 h-1.5 rounded-full shrink-0', DOT[t])} /><span className="truncate">{s.name}</span></span>
-                  {counted && s.count !== null && <span className={cn('tabular shrink-0', s.failed ? 'text-warn-text' : 'text-ink-3')}>{s.failed ? '0 · failed' : s.count}</span>}
+                  {counted && s.count !== null && <span className={cn('tabular text-right min-w-0 max-w-[60%] break-words', t === 'warn' ? 'text-warn-text' : 'text-ink-3')} title={sourceFigure(s)}>{sourceFigure(s)}</span>}
                 </li>
               );
             })}
@@ -110,7 +111,7 @@ export default function PipelineMap({ rows }) {
         <article className="rounded-[var(--r-10)] border border-dashed border-[color:var(--line-strong)] p-3.5 min-w-0 flex flex-col gap-2" data-pipeline-branch="watchdog">
           <div className="flex items-center gap-2.5"><Timer className="w-4 h-4 text-ink-3 shrink-0" strokeWidth={1.75} aria-hidden /><h3 className="text-[14px] font-semibold text-ink">06:20 watchdog</h3></div>
           <p className="text-[12px] text-ink-3">If no report exists by 06:20 IST, the admins are alerted.</p>
-          <Status tone={r ? 'ok' : 'warn'}>{r ? 'A report row exists' : 'No report row found'}</Status>
+          <Status tone={today ? 'ok' : 'warn'}>{today ? 'Report for today exists' : 'No report for today yet'}</Status>
         </article>
       </div>
 
