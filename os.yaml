@@ -698,7 +698,7 @@ pages:
       - { type: kpis, kpis: [ { metric: active_subs }, { label: Paused, formula: "count where Status=Paused", icon: PauseCircle, filter: "Status=Paused" }, { label: Unsubscribed, formula: "count where Status=Unsubscribed", icon: UserX, filter: "Status=Unsubscribed" } ] }
       - type: table
         segments: { column: Status, all: All subscribers }
-        columns: [ { key: Name, type: text, sub: City, grow: true }, { key: WhatsApp, type: phone }, { key: Status, type: badge }, { key: Opt_In_At, header: Opted in, type: date, sub: Opt_In_Source }, { key: Email, priority: low }, { key: Subscriber_ID, type: id, priority: low } ]
+        columns: [ { key: Name, type: text, sub: City, grow: true }, { key: WhatsApp, header: WhatsApp, type: phone }, { key: Status, type: badge }, { key: Opt_In_At, header: Opted in, type: date, sub: Opt_In_Source }, { key: Email, priority: low }, { key: Subscriber_ID, type: id, priority: low } ]
         search: [Name, WhatsApp, City, Email]
         filters: [City, Opt_In_Source]
         bulk: [set_status]
