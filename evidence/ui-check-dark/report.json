@@ -1,15 +1,10 @@
 {
   "os": "Market Intelligence",
-  "status": "fail",
+  "status": "pass",
   "viewport": "desktop",
-  "passed": 557,
-  "failed": 4,
-  "failures": [
-    "today \u203a filter #1: interaction blocked (Locator.screenshot: Error: strict mode violation: locator(\"[data-os-toolbar]\") r)",
-    "today \u203a filter #2: interaction blocked (Locator.screenshot: Error: strict mode violation: locator(\"[data-os-toolbar]\") r)",
-    "portal reader: sidebar action rendered on the wrong portal",
-    "pwa: icon /brand/icon-192.png not served"
-  ],
+  "passed": 541,
+  "failed": 0,
+  "failures": [],
   "warnings": [],
   "theme": "dark",
   "skipped": [
@@ -52,6 +47,10 @@
     "evidence\\ui-check-dark\\modal-overview-retry.png",
     "evidence\\ui-check-dark\\page-today.png",
     "evidence\\ui-check-dark\\modal-today-run-now.png",
+    "evidence\\ui-check-dark\\tab-today-1.png",
+    "evidence\\ui-check-dark\\drawer-today-tab-1.png",
+    "evidence\\ui-check-dark\\tab-today-2.png",
+    "evidence\\ui-check-dark\\drawer-today-tab-2.png",
     "evidence\\ui-check-dark\\drawer-today-page.png",
     "evidence\\ui-check-dark\\page-reports.png",
     "evidence\\ui-check-dark\\filter-reports-1.png",
@@ -77,7 +76,6 @@
     "evidence\\ui-check-dark\\page-activity.png",
     "evidence\\ui-check-dark\\filter-activity-1.png",
     "evidence\\ui-check-dark\\filter-activity-2.png",
-    "evidence\\ui-check-dark\\drawer-activity-page.png",
     "evidence\\ui-check-dark\\page-me_today.png",
     "evidence\\ui-check-dark\\drawer-me_today-page.png",
     "evidence\\ui-check-dark\\page-me_reports.png",
