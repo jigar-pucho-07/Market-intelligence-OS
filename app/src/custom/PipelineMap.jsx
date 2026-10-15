@@ -76,7 +76,7 @@ export default function PipelineMap({ rows }) {
       </div>
       {simulated && <Callout tone="warn" label="Simulated">This run was simulated — no source was fetched and nothing was sent.</Callout>}
 
-      <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 list-none p-0 m-0" aria-label="Daily workflow, in order">
+      <ol className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-4 list-none p-0 m-0" aria-label="Daily workflow, in order">
         <Node step={1} icon={CalendarClock} title="Schedule" sub="06:00 IST, Monday to Friday" tone={r ? 'ok' : 'neutral'} state={r ? `Started${has(r.Trigger) ? ` · ${r.Trigger}` : ''}` : none} />
         <Node step={2} icon={Rss} title="5 parallel RSS fetches" sub="One step per source; a failed source never stops the run" tone={fetchTone} state={fetchState}>
           <ul className="flex flex-col gap-1">

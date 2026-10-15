@@ -28,11 +28,11 @@ design:
   tone: pucho
   shell: sidebar
   direction: "Analysts read one dense report each morning; numbers in mono, status carries the colour, dark mode for the early start"
-  sidebar: { footer: profile, action: { label: Run report now, page: today, modal: run_now } }
+  sidebar: { footer: profile }
 
 requirements:
   - { id: R1,  text: "Schedule Trigger runs the report Mon–Fri at 6:00 AM IST" }
-  - { id: R2,  text: "Fetch ET Markets, Moneycontrol, Reuters India, Google Finance News and Global Market Cues RSS; a failed source does not stop the run" }
+  - { id: R2,  text: "Fetch ET Markets, Moneycontrol, Reuters India, Google Finance News and Global Market Cues RSS; a failed source does not stop the run" }  # owner 15 Oct: the three dead feeds are read through Google News scoped to the publisher
   - { id: R3,  text: "Parse every RSS item into title, summary (HTML stripped, up to 300 characters), date and source" }
   - { id: R4,  text: "Deduplicate news by the first 60 characters of the normalised title" }
   - { id: R5,  text: "Categorize news as Macro Economic, Benchmark Index, Banking Sector, IT Sector, Pharma Sector, Auto Sector, Commodity, Global Cues, F&O or General Market" }
@@ -250,7 +250,7 @@ entities:
       Unsubscribed: [Unsubscribed]
     requires_on:
       Active: [Opt_In_At, Opt_In_Source]
-    columns: [Subscriber_ID, Name, WhatsApp, Email, City, Status, Opt_In_At, Opt_In_Source, Joined_At, Last_Delivered_At, Notes]
+    columns: [Subscriber_ID, Name, WhatsApp, Email, City, Status, Opt_In_At, Opt_In_Source, Joined_At, Notes]
     fields:
       Status:        { one_of: [Active, Paused, Unsubscribed] }
       WhatsApp:      { type: phone, unique: true }
@@ -259,9 +259,9 @@ entities:
       Opt_In_Source: { one_of: [WhatsApp reply, Web form, Signed form, Phone call] }
     seed: 24
     examples:
-      - { Subscriber_ID: SUB-2026-0001, Name: Amit Shah, WhatsApp: "+919876543210", Email: amit.shah@example.in, City: Ahmedabad, Status: Active, Opt_In_At: "2026-08-01", Opt_In_Source: WhatsApp reply, Joined_At: "2026-08-01T10:00:00+05:30", Last_Delivered_At: "2026-10-15T06:03:10+05:30", Notes: "Intraday trader" }
-      - { Subscriber_ID: SUB-2026-0002, Name: Neha Iyer, WhatsApp: "+919820011223", Email: neha.iyer@example.in, City: Mumbai, Status: Active, Opt_In_At: "2026-08-04", Opt_In_Source: Web form, Joined_At: "2026-08-04T09:30:00+05:30", Last_Delivered_At: "2026-10-15T06:03:10+05:30", Notes: "F&O" }
-      - { Subscriber_ID: SUB-2026-0003, Name: Rohit Verma, WhatsApp: "+919811122334", Email: rohit.verma@example.in, City: Delhi, Status: Paused, Opt_In_At: "2026-08-20", Opt_In_Source: Signed form, Joined_At: "2026-08-20T18:10:00+05:30", Last_Delivered_At: "2026-10-01T06:02:40+05:30", Notes: "Paused while travelling" }
+      - { Subscriber_ID: SUB-2026-0001, Name: Amit Shah, WhatsApp: "+919876543210", Email: amit.shah@example.in, City: Ahmedabad, Status: Active, Opt_In_At: "2026-08-01", Opt_In_Source: WhatsApp reply, Joined_At: "2026-08-01T10:00:00+05:30", Notes: "Intraday trader" }
+      - { Subscriber_ID: SUB-2026-0002, Name: Neha Iyer, WhatsApp: "+919820011223", Email: neha.iyer@example.in, City: Mumbai, Status: Active, Opt_In_At: "2026-08-04", Opt_In_Source: Web form, Joined_At: "2026-08-04T09:30:00+05:30", Notes: "F&O" }
+      - { Subscriber_ID: SUB-2026-0003, Name: Rohit Verma, WhatsApp: "+919811122334", Email: rohit.verma@example.in, City: Delhi, Status: Paused, Opt_In_At: "2026-08-20", Opt_In_Source: Signed form, Joined_At: "2026-08-20T18:10:00+05:30", Notes: "Paused while travelling" }
 
   # ── One row per WhatsApp sent (or attempted). No phone copy here — the subscriber record holds it (architect #5, DPDP). ──
   - name: deliveries
@@ -378,16 +378,15 @@ flows:
         result: { queued: boolean }
         rules:
           - "every_day at 06:00 Asia/Kolkata, weekends off; a date in constants.holidays (NSE trading holidays, ⚑ G3 — the owner fills the list from the NSE circular) skips the run → POST MARKET_REPORT {Trigger: Schedule} without /sync (the run is longer than the 25 s sync window) → Return. Fixes S1 (the source ran at 00:30 IST)"
-          - "Watchdog (second schedule, 06:20 IST weekdays): GET today's report; no row → POST BROADCAST {Kind: Alert, Error_Message: 'No report row by 06:20'} so a crashed run still alerts the admins"
         typical_seconds: 4
-        credits: 4
-        runs_per_month: 44
+        credits: 5
+        runs_per_month: 22
 
   # ── The daily report — a custom pipeline (5 fetches → CODE → router → one AI call → CODE → writes → BROADCAST) ─────────
   - name: MARKET_REPORT
     covers: [R1, R2, R3, R4, R5, R6, R7, R8, R10]
     trigger: { tool: webhook, name: catch_webhook, auth: none }
-    constants: { news_limit: 40, summary_chars: 300, dedupe_chars: 60, auto_send: true }
+    constants: { news_limit: 40, summary_chars: 300, dedupe_chars: 60, max_age_hours: 48, auto_send: true }
     writes: [reports, news_articles]
     actions:
       - name: run
@@ -407,7 +406,7 @@ flows:
           - "One report per Report_Date (unique). A payload Report_ID re-runs that row (Failed → Ready, PATCH); a Sent report is never re-run (refused). The report is written first, then news_articles with deterministic ids (Report_ID + dedupe key) so a re-run never doubles them"
           - "Last step: POST BROADCAST — always for Failed (the admin alert), for Ready only when constants.auto_send is true; then POST /api/jobs/<id> done"
         typical_seconds: 45
-        credits: 16
+        credits: 25
         runs_per_month: 22
         effect:
           insert: reports
@@ -424,7 +423,7 @@ flows:
         rules:
           - "The same pipeline as run, on an existing Failed report: fetch → analyse → PATCH that Report_ID Failed → Ready (or Failed again with the new error); a Sent report is refused"
         typical_seconds: 45
-        credits: 16
+        credits: 25
         runs_per_month: 8
         effect:
           patch: reports
@@ -438,7 +437,7 @@ flows:
     covers: [R9, R10, R11, R27]
     trigger: { tool: webhook, name: catch_webhook, auth: none }
     constants: { report_template: mi_daily_report, alert_template: mi_run_failed, alert_to: SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS, portal_url: SET_IN_STUDIO_APP_URL }
-    writes: [reports, published_reports, deliveries, subscribers]
+    writes: [reports, published_reports, deliveries]
     actions:
       - name: send
         model: none
@@ -448,10 +447,10 @@ flows:
         result: { sent: number, failed: number, skipped: number }
         rules:
           - "Ready report → for each Active subscriber with Opt_In_At and Opt_In_Source: INSERT a Queued delivery (unique Report_Date + Subscriber_ID + Kind; a 409 means already sent → skip) → pucho-whatsapp approved template mi_daily_report (date, sentiment, confidence, first driver; the portal link is the template's URL button) → PATCH the delivery Sent with the message id, or Failed with the error (CODE + LOOP_ON_ITEMS)"
-          - "Then UPSERT published_reports (the reader-safe columns) and PATCH the report Sent, Sent_At, Sent_Count, Failed_Count; subscriber Last_Delivered_At"
+          - "Then POST MARKET_PUBLISH: UPSERT published_reports (the reader-safe columns) and PATCH the report Sent, Sent_At, Sent_Count, Failed_Count (owner trim 15 Oct: no per-subscriber write — the delivery log is the record)"
           - "Failed report → template mi_run_failed (error, date, IST time) to constants.alert_to; a Kind=Alert delivery row; nothing goes to subscribers"
         typical_seconds: 30
-        credits: 105
+        credits: 260
         runs_per_month: 26
         effect: { patch: reports, fill: { Status: Sent, Sent_At: now } }
       - name: retry
@@ -462,9 +461,56 @@ flows:
         rules:
           - "Reads the delivery and its subscriber; refuses unless the subscriber is Active and opted in and the delivery is a Failed Report; sends the same template to the number on the subscriber record (never a number from the payload); PATCHes the same delivery row Sent or Failed"
         typical_seconds: 6
-        credits: 6
+        credits: 19
         runs_per_month: 20
         effect: { patch: deliveries, fill: { Status: Sent, Sent_At: now, Error_Message: "" }, result: { sent: true } }
+
+  # ── Helper flows the budget required (one trigger per Studio flow; ≤14 steps per path) — workflow agent, 15 Oct 2026 ──
+  - name: DAILY_WATCHDOG
+    covers: [R11]
+    trigger: { tool: schedule, name: cron_expression }
+    constants: { cron: "20 6 * * 1-5", timezone: Asia/Kolkata, holidays: [] }
+    writes: [reports]
+    actions:
+      - name: check
+        model: none
+        via: custom
+        payload: {}
+        result: { alerted: boolean }
+        rules: ["06:20 IST Mon–Fri: GET reports; no row for today (or the app unreadable) → POST BROADCAST {action: send, Kind: Alert, Error_Message} → Return — a crashed run still alerts the admins"]
+        typical_seconds: 4
+        credits: 10
+        runs_per_month: 22
+  - name: MARKET_STORE
+    covers: [R10]
+    trigger: { tool: webhook, name: catch_webhook, auth: none }
+    constants: { auto_send: true }
+    writes: [reports, news_articles]
+    actions:
+      - name: store
+        model: none
+        via: custom
+        payload: { Mode: string, Trigger: string, Report_ID: string }
+        result: { Report_ID: string, Status: string }
+        rules: ["Called only by MARKET_REPORT with the finished report and articles. run: no row today → POST; today's row Failed → PATCH it; Ready / Sent → refused. rerun: only a Failed report of today; Sent refused. Then news_articles (NWS-<Report_ID>-<hash>), BROADCAST (Failed → Kind Alert; Ready → only when auto_send), POST /api/jobs/<_job>"]
+        typical_seconds: 5
+        credits: 12
+        runs_per_month: 30
+  - name: MARKET_PUBLISH
+    covers: [R9, R10]
+    trigger: { tool: webhook, name: catch_webhook, auth: none }
+    constants: {}
+    writes: [reports, published_reports]
+    actions:
+      - name: publish
+        model: none
+        via: custom
+        payload: { Report_ID: string, Since: string }
+        result: { sent: number, failed: number }
+        rules: ["Called only by BROADCAST (after send and after retry). From the app's rows: report Sent + Sent_At + Sent_Count + Failed_Count; UPSERT published_reports (POST, then PATCH); POST /api/jobs/<_job> done. A Failed or unknown report writes nothing"]
+        typical_seconds: 6
+        credits: 62
+        runs_per_month: 46
 
 pages:
   - id: overview
@@ -503,14 +549,21 @@ pages:
     covers: [R13, R15, R16, R17, R18, R19, R20, R23, R24]
     blocks:
       - { type: custom, name: MarketBrief, covers: [R13, R15, R16, R17, R19, R20, R23] }
-      - { type: table, label: Today's report, where: "Report_Date in last 1 days",
-          columns: [ { key: Report_Date, type: date, sub: Report_ID }, { key: Sentiment, type: badge }, { key: Confidence_Pct, header: Confidence, type: number }, { key: Articles_Analyzed, header: News, type: number }, { key: Trigger, type: tag }, { key: Status, type: badge }, { key: Sent_Count, header: Sent, type: number } ],
-          actions: { row: [review, send_all, pdf] },
-          empty: { title: No report yet today, reason: "The 6:00 AM IST run has not written today's report yet (Mon–Fri only).", action: run_now } }
-      - { type: table, entity: news_articles, label: Today's news, where: "Fetched_At in last 1 days", covers: [R18],
-          segments: { column: Category, all: All news },
-          columns: [ { key: Title, type: text, sub: Summary, grow: true }, { key: Impact, type: badge }, { key: Source, type: tag }, { key: Published_At, header: Published, type: text, priority: low } ],
-          search: [Title, Summary], filters: [Source, Impact] }
+      - type: tabs
+        tabs:
+          - label: Today's report
+            blocks:
+                - { type: table, label: Today's report, where: "Report_Date in last 1 days",
+                    columns: [ { key: Report_Date, type: date, sub: Report_ID }, { key: Sentiment, type: badge }, { key: Confidence_Pct, header: Confidence, type: number }, { key: Articles_Analyzed, header: News, type: number }, { key: Trigger, type: tag }, { key: Status, type: badge }, { key: Sent_Count, header: Sent, type: number } ],
+                    actions: { row: [review, send_all, pdf] },
+                    empty: { title: No report yet today, reason: "The 6:00 AM IST run has not written today's report yet (Mon–Fri only).", action: run_now } }
+          - label: Today's news
+            covers: [R18]
+            blocks:
+                - { type: table, entity: news_articles, label: Today's news, where: "Fetched_At in last 1 days", covers: [R18],
+                    segments: { column: Category, all: All news },
+                    columns: [ { key: Title, type: text, sub: Summary, grow: true }, { key: Impact, type: badge }, { key: Source, type: tag }, { key: Published_At, header: Published, type: text, priority: low } ],
+                    search: [Title, Summary], filters: [Source, Impact] }
     modals:
       - { id: run_now,  kind: create, title: Run report now, flow: MARKET_REPORT, action: run, primary: true, submit: Run report now, pending: "Fetching the five sources…", success: "The report is being prepared — it appears here as Ready", covers: [R24], fields: [ { key: Trigger, label: Run type, type: select, options: [Manual], default: Manual, required: true } ] }
       - { id: review,   kind: edit, title: Review & edit report, direct: patch, covers: [R24], summary: [Report_Date, Status], intro: "Edit before sending. A sent report is already with subscribers — edit it only to correct, then send again to update their copy.",
@@ -616,7 +669,7 @@ pages:
       - { type: kpis, kpis: [ { metric: active_subs }, { label: Paused, formula: "count where Status=Paused", icon: PauseCircle, filter: "Status=Paused" }, { label: Unsubscribed, formula: "count where Status=Unsubscribed", icon: UserX, filter: "Status=Unsubscribed" } ] }
       - type: table
         segments: { column: Status, all: All subscribers }
-        columns: [ { key: Name, type: text, sub: City, grow: true }, { key: WhatsApp, type: phone }, { key: Status, type: badge }, { key: Opt_In_At, header: Opted in, type: date, sub: Opt_In_Source }, { key: Last_Delivered_At, header: Last delivered, type: date, time: true }, { key: Email, priority: low }, { key: Subscriber_ID, type: id, priority: low } ]
+        columns: [ { key: Name, type: text, sub: City, grow: true }, { key: WhatsApp, type: phone }, { key: Status, type: badge }, { key: Opt_In_At, header: Opted in, type: date, sub: Opt_In_Source }, { key: Email, priority: low }, { key: Subscriber_ID, type: id, priority: low } ]
         search: [Name, WhatsApp, City, Email]
         filters: [City, Opt_In_Source]
         bulk: [set_status]

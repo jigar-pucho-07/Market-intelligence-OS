@@ -20,7 +20,7 @@ database, workflows, with detailed QA and QC … use the given files and referen
 | — | Parity | **Parity with the workflow, subset of the dashboard.** Every n8n node is rebuilt. Dashboard panels that need data the workflow never fetches (live ticker, VIX/PCR/FII figures, gold/crude prices, sector "prev. perf") are deferred with a reason. |
 
 Environment (first pass): Node 24.19, Git 2.55, PostgreSQL 18 (service running on :5432), Python 3.12.10 installed for the
-gates (winget, official package), Playwright Chromium. The app's dev database is a **separate cluster on 127.0.0.1:5433**
+gates (winget, official package), Playwright Chromium. The app's dev database is **`market_intel_os_dev` on the owner's PostgreSQL 18 server (localhost:5432)**, owned by a dedicated login `market_intel_owner` (owner request, 15 Oct 2026)
 (`.devdb/` beside the repo), so the existing server on :5432 and its `sales_quotation` database are never touched. The app
 listens on **PORT=5000** (the owner's setting).
 
