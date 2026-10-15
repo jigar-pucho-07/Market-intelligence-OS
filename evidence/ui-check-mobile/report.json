@@ -1,13 +1,10 @@
 {
   "os": "Market Intelligence",
-  "status": "fail",
+  "status": "pass",
   "viewport": "mobile",
-  "passed": 503,
-  "failed": 2,
-  "failures": [
-    "portal desk: Powered by rendered although design.powered_by is false",
-    "portal reader: Powered by rendered although design.powered_by is false"
-  ],
+  "passed": 505,
+  "failed": 0,
+  "failures": [],
   "warnings": [],
   "theme": "light",
   "skipped": [],
