@@ -2,13 +2,12 @@
   "os": "Market Intelligence",
   "status": "fail",
   "viewport": "mobile",
-  "passed": 517,
-  "failed": 4,
+  "passed": 518,
+  "failed": 3,
   "failures": [
     "today \u203a filter #1: interaction blocked (Locator.screenshot: Error: strict mode violation: locator(\"[data-os-toolbar]\") r)",
     "today \u203a filter #2: interaction blocked (Locator.screenshot: Error: strict mode violation: locator(\"[data-os-toolbar]\") r)",
-    "pwa: icon /brand/icon-192.png not served",
-    "metric `failed_deliveries` shows different numbers on different pages: {'overview': '1', 'deliveries': '2', 'notifications': '1'}"
+    "pwa: icon /brand/icon-192.png not served"
   ],
   "warnings": [],
   "theme": "light",
