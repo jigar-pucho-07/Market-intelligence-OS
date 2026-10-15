@@ -406,7 +406,7 @@ flows:
           - "One report per Report_Date (unique). A payload Report_ID re-runs that row (Failed → Ready, PATCH); a Sent report is never re-run (refused). The report is written first, then news_articles with deterministic ids (Report_ID + dedupe key) so a re-run never doubles them"
           - "Last step: POST BROADCAST — always for Failed (the admin alert), for Ready only when constants.auto_send is true; then POST /api/jobs/<id> done"
         typical_seconds: 45
-        credits: 25
+        credits: 19
         runs_per_month: 22
         effect:
           insert: reports
@@ -423,7 +423,7 @@ flows:
         rules:
           - "The same pipeline as run, on an existing Failed report: fetch → analyse → PATCH that Report_ID Failed → Ready (or Failed again with the new error); a Sent report is refused"
         typical_seconds: 45
-        credits: 25
+        credits: 19
         runs_per_month: 8
         effect:
           patch: reports
@@ -450,7 +450,7 @@ flows:
           - "Then POST MARKET_PUBLISH: UPSERT published_reports (the reader-safe columns) and PATCH the report Sent, Sent_At, Sent_Count, Failed_Count (owner trim 15 Oct: no per-subscriber write — the delivery log is the record)"
           - "Failed report → template mi_run_failed (error, date, IST time) to constants.alert_to; a Kind=Alert delivery row; nothing goes to subscribers"
         typical_seconds: 30
-        credits: 260
+        credits: 258
         runs_per_month: 26
         effect: { patch: reports, fill: { Status: Sent, Sent_At: now } }
       - name: retry
@@ -461,7 +461,7 @@ flows:
         rules:
           - "Reads the delivery and its subscriber; refuses unless the subscriber is Active and opted in and the delivery is a Failed Report; sends the same template to the number on the subscriber record (never a number from the payload); PATCHes the same delivery row Sent or Failed"
         typical_seconds: 6
-        credits: 19
+        credits: 12
         runs_per_month: 20
         effect: { patch: deliveries, fill: { Status: Sent, Sent_At: now, Error_Message: "" }, result: { sent: true } }
 
@@ -479,7 +479,7 @@ flows:
         result: { alerted: boolean }
         rules: ["06:20 IST Mon–Fri: GET reports; no row for today (or the app unreadable) → POST BROADCAST {action: send, Kind: Alert, Error_Message} → Return — a crashed run still alerts the admins"]
         typical_seconds: 4
-        credits: 10
+        credits: 5
         runs_per_month: 22
   - name: MARKET_STORE
     covers: [R10]
@@ -509,7 +509,7 @@ flows:
         result: { sent: number, failed: number }
         rules: ["Called only by BROADCAST (after send and after retry). From the app's rows: report Sent + Sent_At + Sent_Count + Failed_Count; UPSERT published_reports (POST, then PATCH); POST /api/jobs/<_job> done. A Failed or unknown report writes nothing"]
         typical_seconds: 6
-        credits: 62
+        credits: 12
         runs_per_month: 46
 
 pages:
