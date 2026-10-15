@@ -133,3 +133,23 @@ test('secretMatches: equal only for the exact configured secret; a placeholder o
   assert.equal(M.secretMatches('SET_IN_STUDIO_WEBHOOK_SECRET', 'SET_IN_STUDIO_WEBHOOK_SECRET'), false);
   assert.equal(M.secretMatches('short', 'short'), false);
 });
+
+// ── security audit round 2 ──
+test('SA-24: send derives the recipients from the report row only — a caller Kind is ignored; another day\'s Sent report is refused', () => {
+  const p = (r, body) => FL.sendPlan({ body: { action: 'send', Report_ID: 'MIR-1', ...body }, C, reports: out([r]), subscribers: out(SUBS), now: NOW });
+  const viaKind = p(rep(), { Kind: 'Alert' });
+  assert.equal(viaKind.kind, 'Report'); assert.deepEqual(viaKind.items.map((i) => i.to), ['+919876543210'], 'Kind:Alert from the caller is ignored');
+  assert.equal(p(rep({ Status: 'Sent' })).items.length, 1, 'today\'s Sent report: the 409 skips who has it');
+  const old = p(rep({ Status: 'Sent', Report_Date: '2026-10-14' })); assert.equal(old.items.length, 0); assert.equal(old.code, 'NOT_TODAY');
+  assert.equal(p(rep({ Status: 'Failed', Error_Message: 'NO_NEWS' })).kind, 'Alert', 'a Failed row → the admins');
+  assert.equal(FL.sendPlan({ body: { action: 'send', Kind: 'Alert' }, C, now: NOW }).items.length, 0, 'send without a report alerts nobody');
+  const wd = FL.sendPlan({ body: { action: 'alert' }, C, now: NOW });
+  assert.equal(wd.items.length, 2); assert.match(wd.items[0].template_variables.error, /No report row by 06:20 IST/);
+});
+test('SA-20: error texts a flow writes never carry a URL or a ?k= secret', () => {
+  const f = M.fetchedText({ error: 'request to https://news.google.com/rss?q=x&k=s3cr3t-s3cr3t failed, reason: ETIMEDOUT' });
+  assert.doesNotMatch(f.error, /https?:|k=s3cr3t/);
+  const r = FL.sendResult({ Delivery_ID: 'D', sent: { error: 'POST https://studio.example/webhook?k=abcdefabcdefabcdef 500' } });
+  assert.doesNotMatch(r.Error_Message, /https?:|abcdefabcdef/);
+  assert.equal(M.scrubSecrets('see http://a.b/c?k=1234567890abcdef and k=zzzzzzzzzzzzzzzz'), 'see <url> and k=…');
+});
