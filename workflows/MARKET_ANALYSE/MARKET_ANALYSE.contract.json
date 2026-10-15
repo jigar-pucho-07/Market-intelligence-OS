@@ -1,0 +1,38 @@
+{
+  "flow": "MARKET_ANALYSE",
+  "connections": "portable",
+  "fire_and_forget": false,
+  "allow_pieces": [
+    "@puchoaistudio/tool-http",
+    "@puchoaistudio/tool-llm-ai",
+    "@puchoaistudio/tool-webhook"
+  ],
+  "allow_names": [
+    "askLlm",
+    "catch_webhook",
+    "return_response",
+    "send_request"
+  ],
+  "require_capabilities": [
+    "webhook=trigger:webhook:trigger",
+    "auth_gate=step_constants:code:transform",
+    "answer_unauthorized=step_denied_done:webhook:respond",
+    "answer_bad_action=step_bad_action_done:webhook:respond",
+    "auth_route=step_auth:router:route",
+    "fetch_et=step_fetch_et:http:read",
+    "fetch_mc=step_fetch_mc:http:read",
+    "fetch_reuters=step_fetch_reuters:http:read",
+    "fetch_gfn=step_fetch_gfn:http:read",
+    "fetch_global=step_fetch_global:http:read",
+    "prep=step_prep:code:transform",
+    "route=step_router:router:route",
+    "model=step_ai:llm-ai:read",
+    "finish=step_finish:code:transform",
+    "store=step_store:http:write",
+    "answer=step_done:webhook:respond",
+    "store_failed=step_nonews_store:http:write",
+    "answer_failed=step_nonews_done:webhook:respond",
+    "answer_invalid=step_invalid_done:webhook:respond"
+  ],
+  "built_by": "tools/build_market_flows.py"
+}

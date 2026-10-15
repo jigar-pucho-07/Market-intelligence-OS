@@ -49,10 +49,13 @@
         "type": "CODE",
         "valid": true,
         "settings": {
-          "input": {},
+          "input": {
+            "k": "{{trigger['queryParams']['k']}}",
+            "action": "{{trigger['body']['action']}}"
+          },
           "sampleData": {},
           "sourceCode": {
-            "code": "// @ts-nocheck\nexport const code = async (inputs) => {\n  return {\n    \"flow\": \"MARKET_PUBLISH\",\n    \"app_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"inbound_token\": \"SET_IN_STUDIO_INBOUND_TOKEN\"\n  };\n};",
+            "code": "// @ts-nocheck\n// lib: secretMatches — app/src/custom/lib/market.js (constant-time, fail closed)\nfunction secretMatches(given, expected) {\n  const a = String(given ?? ''); const b = String(expected ?? '');\n  if (b.length < 16 || /SET_IN_STUDIO/.test(b)) return false;\n  let d = a.length ^ b.length;\n  for (let i = 0; i < b.length; i++) d |= (a.charCodeAt(i) || 0) ^ b.charCodeAt(i);\n  return d === 0;\n}\n// end lib\nexport const code = async (inputs) => {\n  const C = {\n    \"flow\": \"MARKET_PUBLISH\",\n    \"app_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"inbound_token\": \"SET_IN_STUDIO_INBOUND_TOKEN\",\n    \"webhook_secret\": \"SET_IN_STUDIO_MARKET_PUBLISH_WEBHOOK_SECRET\"\n  };\n  const actions = [\"publish\"];\n  const gate = !secretMatches(inputs.k, C.webhook_secret) ? 'denied' : actions.includes(String(inputs.action || '')) ? 'ok' : 'bad_action';\n  const { webhook_secret, ...rest } = C;\n  return { ...rest, gate };\n};",
             "packageJson": "{}"
           },
           "errorHandlingOptions": {
@@ -65,65 +68,184 @@
           }
         },
         "nextAction": {
-          "name": "step_read_reports",
+          "name": "step_auth",
           "skip": false,
-          "type": "PIECE",
+          "type": "ROUTER",
           "valid": true,
+          "children": [
+            {
+              "name": "step_denied_done",
+              "skip": false,
+              "type": "PIECE",
+              "valid": true,
+              "settings": {
+                "input": {
+                  "fields": {
+                    "body": {
+                      "ok": false,
+                      "error": "unauthorized"
+                    },
+                    "status": 401,
+                    "headers": {}
+                  },
+                  "respond": "stop",
+                  "responseType": "json"
+                },
+                "pieceName": "@puchoaistudio/tool-webhook",
+                "actionName": "return_response",
+                "sampleData": {},
+                "pieceVersion": "^2.0.4",
+                "propertySettings": {
+                  "fields": {
+                    "type": "MANUAL",
+                    "schema": {
+                      "body": {
+                        "type": "JSON",
+                        "required": true,
+                        "displayName": "JSON Body"
+                      },
+                      "status": {
+                        "type": "NUMBER",
+                        "required": false,
+                        "displayName": "Status",
+                        "defaultValue": 200
+                      },
+                      "headers": {
+                        "type": "OBJECT",
+                        "required": false,
+                        "displayName": "Headers"
+                      }
+                    }
+                  },
+                  "respond": {
+                    "type": "MANUAL"
+                  },
+                  "responseType": {
+                    "type": "MANUAL"
+                  }
+                },
+                "errorHandlingOptions": {
+                  "retryOnFailure": {
+                    "value": false
+                  },
+                  "continueOnFailure": {
+                    "value": false
+                  }
+                }
+              },
+              "displayName": "Return 401: missing or wrong webhook secret"
+            },
+            {
+              "name": "step_bad_action_done",
+              "skip": false,
+              "type": "PIECE",
+              "valid": true,
+              "settings": {
+                "input": {
+                  "fields": {
+                    "body": {
+                      "ok": false,
+                      "error": "unknown action"
+                    },
+                    "status": 400,
+                    "headers": {}
+                  },
+                  "respond": "stop",
+                  "responseType": "json"
+                },
+                "pieceName": "@puchoaistudio/tool-webhook",
+                "actionName": "return_response",
+                "sampleData": {},
+                "pieceVersion": "^2.0.4",
+                "propertySettings": {
+                  "fields": {
+                    "type": "MANUAL",
+                    "schema": {
+                      "body": {
+                        "type": "JSON",
+                        "required": true,
+                        "displayName": "JSON Body"
+                      },
+                      "status": {
+                        "type": "NUMBER",
+                        "required": false,
+                        "displayName": "Status",
+                        "defaultValue": 200
+                      },
+                      "headers": {
+                        "type": "OBJECT",
+                        "required": false,
+                        "displayName": "Headers"
+                      }
+                    }
+                  },
+                  "respond": {
+                    "type": "MANUAL"
+                  },
+                  "responseType": {
+                    "type": "MANUAL"
+                  }
+                },
+                "errorHandlingOptions": {
+                  "retryOnFailure": {
+                    "value": false
+                  },
+                  "continueOnFailure": {
+                    "value": false
+                  }
+                }
+              },
+              "displayName": "Return 400: unknown action"
+            },
+            null
+          ],
           "settings": {
-            "input": {
-              "method": "GET",
-              "url": "{{step_constants['app_url']}}/api/data/reports",
-              "headers": {
-                "Accept": "application/json",
-                "Authorization": "Bearer {{step_constants['inbound_token']}}",
-                "X-Flow": "{{step_constants['flow']}}"
+            "branches": [
+              {
+                "branchName": "Unauthorized → 401",
+                "branchType": "CONDITION",
+                "conditions": [
+                  [
+                    {
+                      "operator": "TEXT_EXACTLY_MATCHES",
+                      "firstValue": "{{step_constants['gate']}}",
+                      "secondValue": "denied",
+                      "caseSensitive": false
+                    }
+                  ]
+                ]
               },
-              "queryParams": {
-                "select": "*"
+              {
+                "branchName": "Unknown action → 400",
+                "branchType": "CONDITION",
+                "conditions": [
+                  [
+                    {
+                      "operator": "TEXT_EXACTLY_MATCHES",
+                      "firstValue": "{{step_constants['gate']}}",
+                      "secondValue": "bad_action",
+                      "caseSensitive": false
+                    }
+                  ]
+                ]
               },
-              "authType": "NONE"
-            },
-            "pieceName": "@puchoaistudio/tool-http",
-            "actionName": "send_request",
+              {
+                "branchName": "Authorised",
+                "branchType": "FALLBACK"
+              }
+            ],
             "sampleData": {},
-            "pieceVersion": "^2.0.0",
-            "propertySettings": {
-              "method": {
-                "type": "MANUAL"
-              },
-              "url": {
-                "type": "MANUAL"
-              },
-              "headers": {
-                "type": "MANUAL",
-                "schema": {}
-              },
-              "queryParams": {
-                "type": "MANUAL",
-                "schema": {}
-              },
-              "authType": {
-                "type": "MANUAL"
-              }
-            },
-            "errorHandlingOptions": {
-              "retryOnFailure": {
-                "value": true
-              },
-              "continueOnFailure": {
-                "value": true
-              }
-            }
+            "executionType": "EXECUTE_FIRST_MATCH"
           },
           "nextAction": {
-            "name": "step_read_deliveries",
+            "name": "step_read_reports",
             "skip": false,
             "type": "PIECE",
             "valid": true,
             "settings": {
               "input": {
                 "method": "GET",
-                "url": "{{step_constants['app_url']}}/api/data/deliveries",
+                "url": "{{step_constants['app_url']}}/api/data/reports",
                 "headers": {
                   "Accept": "application/json",
                   "Authorization": "Bearer {{step_constants['inbound_token']}}",
@@ -167,160 +289,116 @@
               }
             },
             "nextAction": {
-              "name": "step_plan",
+              "name": "step_read_deliveries",
               "skip": false,
-              "type": "CODE",
+              "type": "PIECE",
               "valid": true,
               "settings": {
                 "input": {
-                  "body": "{{trigger['body']}}",
-                  "reports": "{{step_read_reports}}",
-                  "deliveries": "{{step_read_deliveries}}"
+                  "method": "GET",
+                  "url": "{{step_constants['app_url']}}/api/data/deliveries",
+                  "headers": {
+                    "Accept": "application/json",
+                    "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                    "X-Flow": "{{step_constants['flow']}}"
+                  },
+                  "queryParams": {
+                    "select": "*"
+                  },
+                  "authType": "NONE"
                 },
+                "pieceName": "@puchoaistudio/tool-http",
+                "actionName": "send_request",
                 "sampleData": {},
-                "sourceCode": {
-                  "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what publishPlan() reaches (tools/build_market_flows.py)\nconst PUBLISHED_COLUMNS = ['Report_Date', 'Sentiment', 'Confidence_Level', 'Confidence_Pct', 'Driver_1', 'Driver_2', 'Driver_3',\n  'Sensex_Outlook', 'Sensex_Range', 'Sensex_Reason', 'Nifty_Outlook', 'Nifty_Range', 'Nifty_Reason', 'BankNifty_Outlook', 'BankNifty_Range',\n  'BankNifty_Reason', 'FnO_View', 'VIX_Expectation', 'FnO_Reason', 'MidSmall_Outlook', 'MidSmall_Focus', 'MidSmall_Reason', 'Commodity_Outlook',\n  'Commodity_Reason', 'Sectors', 'Risks', 'View_Positional', 'View_Intraday', 'View_LongTerm', 'View_FnO', 'Articles_Analyzed', 'WhatsApp_Message'];\nfunction toIso(dateText) { const t = Date.parse(String(dateText || '').trim()); return Number.isFinite(t) ? new Date(t).toISOString() : ''; }\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst JOB = /^JOB-[0-9A-F]{12}$/;\nfunction jobItems(job, status, result) { return JOB.test(String(job || '')) ? [{ id: String(job), status, result }] : []; }\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction publishPlan(inp) {\n  const body = (inp && inp.body) || {}; const now = nowOf(inp);\n  const reports = rowsOf(inp && inp.reports); const dels = rowsOf(inp && inp.deliveries);\n  const report = reports ? reports.find((r) => r.Report_ID === String(body.Report_ID || '')) || null : null;\n  const mine = report && dels ? dels.filter((d) => d.Kind === 'Report' && (d.Report_ID === report.Report_ID || (!d.Report_ID && d.Report_Date === report.Report_Date))) : [];\n  const sent = mine.filter((d) => d.Status === 'Sent'); const failedN = mine.filter((d) => d.Status === 'Failed').length;\n  const ok = !!report && ['Ready', 'Sent'].includes(report.Status) && mine.length > 0;\n  const firstSent = sent.map((d) => toIso(d.Sent_At)).filter(Boolean).sort()[0];\n  const sentAt = toIso(report && report.Sent_At) || firstSent || now.toISOString();\n  const reason = !reports || !dels ? doorError(!reports ? inp.reports : inp.deliveries, !reports ? 'reports' : 'deliveries')\n    : !report ? `No report ${String(body.Report_ID || '').slice(0, 30)}` : !ok ? `${report.Report_ID} is ${report.Status} with ${mine.length} report deliveries — nothing published` : '';\n  const published = ok ? { Report_ID: report.Report_ID, Published_At: sentAt, ...Object.fromEntries(PUBLISHED_COLUMNS.map((c) => [c, report[c] ?? ''])) } : {};\n  const pub = ok ? [{ Report_ID: report.Report_ID, patch: { Status: 'Sent', Sent_At: sentAt, Sent_Count: sent.length, Failed_Count: failedN }, published }] : [];\n  const result = { sent: sent.length, failed: failedN, skipped: 0, published: ok, ...(reason ? { note: reason } : {}) };\n  return { ok, reason, Report_ID: report ? report.Report_ID : '', pub, jobs: jobItems(body._job, 'done', result), Sent_Count: sent.length, Failed_Count: failedN };\n}\n// end lib\nexport const code = async (inputs) => {\n  return publishPlan(inputs);\n};",
-                  "packageJson": "{}"
+                "pieceVersion": "^2.0.0",
+                "propertySettings": {
+                  "method": {
+                    "type": "MANUAL"
+                  },
+                  "url": {
+                    "type": "MANUAL"
+                  },
+                  "headers": {
+                    "type": "MANUAL",
+                    "schema": {}
+                  },
+                  "queryParams": {
+                    "type": "MANUAL",
+                    "schema": {}
+                  },
+                  "authType": {
+                    "type": "MANUAL"
+                  }
                 },
                 "errorHandlingOptions": {
                   "retryOnFailure": {
-                    "value": false
+                    "value": true
                   },
                   "continueOnFailure": {
-                    "value": false
+                    "value": true
                   }
                 }
               },
               "nextAction": {
-                "name": "step_pub_loop",
-                "type": "LOOP_ON_ITEMS",
-                "displayName": "Publish (0 or 1 — only a Ready / Sent report with deliveries)",
-                "valid": true,
+                "name": "step_plan",
                 "skip": false,
+                "type": "CODE",
+                "valid": true,
                 "settings": {
-                  "items": "{{step_plan['pub']}}",
-                  "sampleData": {}
-                },
-                "firstLoopAction": {
-                  "name": "step_report_update",
-                  "skip": false,
-                  "type": "PIECE",
-                  "valid": true,
-                  "settings": {
-                    "input": {
-                      "method": "PATCH",
-                      "url": "{{step_constants['app_url']}}/api/data/reports",
-                      "headers": {
-                        "Content-Type": "application/json",
-                        "Authorization": "Bearer {{step_constants['inbound_token']}}",
-                        "X-Flow": "{{step_constants['flow']}}"
-                      },
-                      "queryParams": {
-                        "Report_ID": "eq.{{step_pub_loop['item']['Report_ID']}}"
-                      },
-                      "authType": "NONE",
-                      "body_type": "json",
-                      "body": {
-                        "data": {
-                          "Status": "{{step_pub_loop['item']['patch']['Status']}}",
-                          "Sent_At": "{{step_pub_loop['item']['patch']['Sent_At']}}",
-                          "Sent_Count": "{{step_pub_loop['item']['patch']['Sent_Count']}}",
-                          "Failed_Count": "{{step_pub_loop['item']['patch']['Failed_Count']}}"
-                        }
-                      }
-                    },
-                    "pieceName": "@puchoaistudio/tool-http",
-                    "actionName": "send_request",
-                    "sampleData": {},
-                    "pieceVersion": "^2.0.0",
-                    "propertySettings": {
-                      "method": {
-                        "type": "MANUAL"
-                      },
-                      "url": {
-                        "type": "MANUAL"
-                      },
-                      "headers": {
-                        "type": "MANUAL",
-                        "schema": {}
-                      },
-                      "queryParams": {
-                        "type": "MANUAL",
-                        "schema": {}
-                      },
-                      "authType": {
-                        "type": "MANUAL"
-                      },
-                      "body_type": {
-                        "type": "MANUAL"
-                      },
-                      "body": {
-                        "type": "MANUAL",
-                        "schema": {}
-                      }
-                    },
-                    "errorHandlingOptions": {
-                      "retryOnFailure": {
-                        "value": true
-                      },
-                      "continueOnFailure": {
-                        "value": true
-                      }
-                    }
+                  "input": {
+                    "body": "{{trigger['body']}}",
+                    "reports": "{{step_read_reports}}",
+                    "deliveries": "{{step_read_deliveries}}"
                   },
-                  "nextAction": {
-                    "name": "step_published_insert",
+                  "sampleData": {},
+                  "sourceCode": {
+                    "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what publishPlan() reaches (tools/build_market_flows.py)\nconst PUBLISHED_COLUMNS = ['Report_Date', 'Sentiment', 'Confidence_Level', 'Confidence_Pct', 'Driver_1', 'Driver_2', 'Driver_3',\n  'Sensex_Outlook', 'Sensex_Range', 'Sensex_Reason', 'Nifty_Outlook', 'Nifty_Range', 'Nifty_Reason', 'BankNifty_Outlook', 'BankNifty_Range',\n  'BankNifty_Reason', 'FnO_View', 'VIX_Expectation', 'FnO_Reason', 'MidSmall_Outlook', 'MidSmall_Focus', 'MidSmall_Reason', 'Commodity_Outlook',\n  'Commodity_Reason', 'Sectors', 'Risks', 'View_Positional', 'View_Intraday', 'View_LongTerm', 'View_FnO', 'Articles_Analyzed', 'WhatsApp_Message'];\nfunction toIso(dateText) { const t = Date.parse(String(dateText || '').trim()); return Number.isFinite(t) ? new Date(t).toISOString() : ''; }\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst JOB = /^JOB-[0-9A-F]{12}$/;\nfunction jobItems(job, status, result) { return JOB.test(String(job || '')) ? [{ id: String(job), status, result }] : []; }\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction publishPlan(inp) {\n  const body = (inp && inp.body) || {}; const now = nowOf(inp);\n  const reports = rowsOf(inp && inp.reports); const dels = rowsOf(inp && inp.deliveries);\n  const report = reports ? reports.find((r) => r.Report_ID === String(body.Report_ID || '')) || null : null;\n  const mine = report && dels ? dels.filter((d) => d.Kind === 'Report' && (d.Report_ID === report.Report_ID || (!d.Report_ID && d.Report_Date === report.Report_Date))) : [];\n  const sent = mine.filter((d) => d.Status === 'Sent'); const failedN = mine.filter((d) => d.Status === 'Failed').length;\n  const ok = !!report && ['Ready', 'Sent'].includes(report.Status) && sent.length > 0;\n  const firstSent = sent.map((d) => toIso(d.Sent_At)).filter(Boolean).sort()[0];\n  const sentAt = toIso(report && report.Sent_At) || firstSent || now.toISOString();\n  const alertRun = !!report && report.Status === 'Failed';\n  const reason = !reports || !dels ? doorError(!reports ? inp.reports : inp.deliveries, !reports ? 'reports' : 'deliveries')\n    : !report ? `No report ${String(body.Report_ID || '').slice(0, 30)}` : alertRun ? `${report.Report_ID} is Failed — the admins were alerted, nothing published`\n    : !ok ? `NOTHING_SENT: ${report.Report_ID} has ${mine.length} report deliveries and none was sent — left ${report.Status}` : '';\n  const published = ok ? { Report_ID: report.Report_ID, Published_At: sentAt, ...Object.fromEntries(PUBLISHED_COLUMNS.map((c) => [c, report[c] ?? ''])) } : {};\n  const pub = ok ? [{ Report_ID: report.Report_ID, patch: { Status: 'Sent', Sent_At: sentAt, Sent_Count: sent.length, Failed_Count: failedN }, published }] : [];\n  const result = { sent: sent.length, failed: failedN, skipped: 0, published: ok, ...(reason ? { note: reason } : {}) };\n  return { ok, reason, Report_ID: report ? report.Report_ID : '', pub, jobs: jobItems(body._job, ok || alertRun ? 'done' : 'failed', result), Sent_Count: sent.length, Failed_Count: failedN };\n}\n// end lib\nexport const code = async (inputs) => {\n  return publishPlan(inputs);\n};",
+                    "packageJson": "{}"
+                  },
+                  "errorHandlingOptions": {
+                    "retryOnFailure": {
+                      "value": false
+                    },
+                    "continueOnFailure": {
+                      "value": false
+                    }
+                  }
+                },
+                "nextAction": {
+                  "name": "step_pub_loop",
+                  "type": "LOOP_ON_ITEMS",
+                  "displayName": "Publish (0 or 1 — a Ready / Sent report with at least one Sent delivery)",
+                  "valid": true,
+                  "skip": false,
+                  "settings": {
+                    "items": "{{step_plan['pub']}}",
+                    "sampleData": {}
+                  },
+                  "firstLoopAction": {
+                    "name": "step_report_update",
                     "skip": false,
                     "type": "PIECE",
                     "valid": true,
                     "settings": {
                       "input": {
-                        "method": "POST",
-                        "url": "{{step_constants['app_url']}}/api/data/published_reports",
+                        "method": "PATCH",
+                        "url": "{{step_constants['app_url']}}/api/data/reports",
                         "headers": {
                           "Content-Type": "application/json",
                           "Authorization": "Bearer {{step_constants['inbound_token']}}",
                           "X-Flow": "{{step_constants['flow']}}"
                         },
-                        "queryParams": {},
+                        "queryParams": {
+                          "Report_ID": "eq.{{step_pub_loop['item']['Report_ID']}}"
+                        },
                         "authType": "NONE",
                         "body_type": "json",
                         "body": {
                           "data": {
-                            "Report_ID": "{{step_pub_loop['item']['published']['Report_ID']}}",
-                            "Published_At": "{{step_pub_loop['item']['published']['Published_At']}}",
-                            "Report_Date": "{{step_pub_loop['item']['published']['Report_Date']}}",
-                            "Sentiment": "{{step_pub_loop['item']['published']['Sentiment']}}",
-                            "Confidence_Level": "{{step_pub_loop['item']['published']['Confidence_Level']}}",
-                            "Confidence_Pct": "{{step_pub_loop['item']['published']['Confidence_Pct']}}",
-                            "Driver_1": "{{step_pub_loop['item']['published']['Driver_1']}}",
-                            "Driver_2": "{{step_pub_loop['item']['published']['Driver_2']}}",
-                            "Driver_3": "{{step_pub_loop['item']['published']['Driver_3']}}",
-                            "Sensex_Outlook": "{{step_pub_loop['item']['published']['Sensex_Outlook']}}",
-                            "Sensex_Range": "{{step_pub_loop['item']['published']['Sensex_Range']}}",
-                            "Sensex_Reason": "{{step_pub_loop['item']['published']['Sensex_Reason']}}",
-                            "Nifty_Outlook": "{{step_pub_loop['item']['published']['Nifty_Outlook']}}",
-                            "Nifty_Range": "{{step_pub_loop['item']['published']['Nifty_Range']}}",
-                            "Nifty_Reason": "{{step_pub_loop['item']['published']['Nifty_Reason']}}",
-                            "BankNifty_Outlook": "{{step_pub_loop['item']['published']['BankNifty_Outlook']}}",
-                            "BankNifty_Range": "{{step_pub_loop['item']['published']['BankNifty_Range']}}",
-                            "BankNifty_Reason": "{{step_pub_loop['item']['published']['BankNifty_Reason']}}",
-                            "FnO_View": "{{step_pub_loop['item']['published']['FnO_View']}}",
-                            "VIX_Expectation": "{{step_pub_loop['item']['published']['VIX_Expectation']}}",
-                            "FnO_Reason": "{{step_pub_loop['item']['published']['FnO_Reason']}}",
-                            "MidSmall_Outlook": "{{step_pub_loop['item']['published']['MidSmall_Outlook']}}",
-                            "MidSmall_Focus": "{{step_pub_loop['item']['published']['MidSmall_Focus']}}",
-                            "MidSmall_Reason": "{{step_pub_loop['item']['published']['MidSmall_Reason']}}",
-                            "Commodity_Outlook": "{{step_pub_loop['item']['published']['Commodity_Outlook']}}",
-                            "Commodity_Reason": "{{step_pub_loop['item']['published']['Commodity_Reason']}}",
-                            "Sectors": "{{step_pub_loop['item']['published']['Sectors']}}",
-                            "Risks": "{{step_pub_loop['item']['published']['Risks']}}",
-                            "View_Positional": "{{step_pub_loop['item']['published']['View_Positional']}}",
-                            "View_Intraday": "{{step_pub_loop['item']['published']['View_Intraday']}}",
-                            "View_LongTerm": "{{step_pub_loop['item']['published']['View_LongTerm']}}",
-                            "View_FnO": "{{step_pub_loop['item']['published']['View_FnO']}}",
-                            "Articles_Analyzed": "{{step_pub_loop['item']['published']['Articles_Analyzed']}}",
-                            "WhatsApp_Message": "{{step_pub_loop['item']['published']['WhatsApp_Message']}}"
+                            "Status": "{{step_pub_loop['item']['patch']['Status']}}",
+                            "Sent_At": "{{step_pub_loop['item']['patch']['Sent_At']}}",
+                            "Sent_Count": "{{step_pub_loop['item']['patch']['Sent_Count']}}",
+                            "Failed_Count": "{{step_pub_loop['item']['patch']['Failed_Count']}}"
                           }
                         }
                       },
@@ -356,7 +434,7 @@
                       },
                       "errorHandlingOptions": {
                         "retryOnFailure": {
-                          "value": false
+                          "value": true
                         },
                         "continueOnFailure": {
                           "value": true
@@ -364,26 +442,25 @@
                       }
                     },
                     "nextAction": {
-                      "name": "step_published_update",
+                      "name": "step_published_insert",
                       "skip": false,
                       "type": "PIECE",
                       "valid": true,
                       "settings": {
                         "input": {
-                          "method": "PATCH",
+                          "method": "POST",
                           "url": "{{step_constants['app_url']}}/api/data/published_reports",
                           "headers": {
                             "Content-Type": "application/json",
                             "Authorization": "Bearer {{step_constants['inbound_token']}}",
                             "X-Flow": "{{step_constants['flow']}}"
                           },
-                          "queryParams": {
-                            "Report_ID": "eq.{{step_pub_loop['item']['Report_ID']}}"
-                          },
+                          "queryParams": {},
                           "authType": "NONE",
                           "body_type": "json",
                           "body": {
                             "data": {
+                              "Report_ID": "{{step_pub_loop['item']['published']['Report_ID']}}",
                               "Published_At": "{{step_pub_loop['item']['published']['Published_At']}}",
                               "Report_Date": "{{step_pub_loop['item']['published']['Report_Date']}}",
                               "Sentiment": "{{step_pub_loop['item']['published']['Sentiment']}}",
@@ -452,6 +529,181 @@
                         },
                         "errorHandlingOptions": {
                           "retryOnFailure": {
+                            "value": false
+                          },
+                          "continueOnFailure": {
+                            "value": true
+                          }
+                        }
+                      },
+                      "nextAction": {
+                        "name": "step_published_update",
+                        "skip": false,
+                        "type": "PIECE",
+                        "valid": true,
+                        "settings": {
+                          "input": {
+                            "method": "PATCH",
+                            "url": "{{step_constants['app_url']}}/api/data/published_reports",
+                            "headers": {
+                              "Content-Type": "application/json",
+                              "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                              "X-Flow": "{{step_constants['flow']}}"
+                            },
+                            "queryParams": {
+                              "Report_ID": "eq.{{step_pub_loop['item']['Report_ID']}}"
+                            },
+                            "authType": "NONE",
+                            "body_type": "json",
+                            "body": {
+                              "data": {
+                                "Published_At": "{{step_pub_loop['item']['published']['Published_At']}}",
+                                "Report_Date": "{{step_pub_loop['item']['published']['Report_Date']}}",
+                                "Sentiment": "{{step_pub_loop['item']['published']['Sentiment']}}",
+                                "Confidence_Level": "{{step_pub_loop['item']['published']['Confidence_Level']}}",
+                                "Confidence_Pct": "{{step_pub_loop['item']['published']['Confidence_Pct']}}",
+                                "Driver_1": "{{step_pub_loop['item']['published']['Driver_1']}}",
+                                "Driver_2": "{{step_pub_loop['item']['published']['Driver_2']}}",
+                                "Driver_3": "{{step_pub_loop['item']['published']['Driver_3']}}",
+                                "Sensex_Outlook": "{{step_pub_loop['item']['published']['Sensex_Outlook']}}",
+                                "Sensex_Range": "{{step_pub_loop['item']['published']['Sensex_Range']}}",
+                                "Sensex_Reason": "{{step_pub_loop['item']['published']['Sensex_Reason']}}",
+                                "Nifty_Outlook": "{{step_pub_loop['item']['published']['Nifty_Outlook']}}",
+                                "Nifty_Range": "{{step_pub_loop['item']['published']['Nifty_Range']}}",
+                                "Nifty_Reason": "{{step_pub_loop['item']['published']['Nifty_Reason']}}",
+                                "BankNifty_Outlook": "{{step_pub_loop['item']['published']['BankNifty_Outlook']}}",
+                                "BankNifty_Range": "{{step_pub_loop['item']['published']['BankNifty_Range']}}",
+                                "BankNifty_Reason": "{{step_pub_loop['item']['published']['BankNifty_Reason']}}",
+                                "FnO_View": "{{step_pub_loop['item']['published']['FnO_View']}}",
+                                "VIX_Expectation": "{{step_pub_loop['item']['published']['VIX_Expectation']}}",
+                                "FnO_Reason": "{{step_pub_loop['item']['published']['FnO_Reason']}}",
+                                "MidSmall_Outlook": "{{step_pub_loop['item']['published']['MidSmall_Outlook']}}",
+                                "MidSmall_Focus": "{{step_pub_loop['item']['published']['MidSmall_Focus']}}",
+                                "MidSmall_Reason": "{{step_pub_loop['item']['published']['MidSmall_Reason']}}",
+                                "Commodity_Outlook": "{{step_pub_loop['item']['published']['Commodity_Outlook']}}",
+                                "Commodity_Reason": "{{step_pub_loop['item']['published']['Commodity_Reason']}}",
+                                "Sectors": "{{step_pub_loop['item']['published']['Sectors']}}",
+                                "Risks": "{{step_pub_loop['item']['published']['Risks']}}",
+                                "View_Positional": "{{step_pub_loop['item']['published']['View_Positional']}}",
+                                "View_Intraday": "{{step_pub_loop['item']['published']['View_Intraday']}}",
+                                "View_LongTerm": "{{step_pub_loop['item']['published']['View_LongTerm']}}",
+                                "View_FnO": "{{step_pub_loop['item']['published']['View_FnO']}}",
+                                "Articles_Analyzed": "{{step_pub_loop['item']['published']['Articles_Analyzed']}}",
+                                "WhatsApp_Message": "{{step_pub_loop['item']['published']['WhatsApp_Message']}}"
+                              }
+                            }
+                          },
+                          "pieceName": "@puchoaistudio/tool-http",
+                          "actionName": "send_request",
+                          "sampleData": {},
+                          "pieceVersion": "^2.0.0",
+                          "propertySettings": {
+                            "method": {
+                              "type": "MANUAL"
+                            },
+                            "url": {
+                              "type": "MANUAL"
+                            },
+                            "headers": {
+                              "type": "MANUAL",
+                              "schema": {}
+                            },
+                            "queryParams": {
+                              "type": "MANUAL",
+                              "schema": {}
+                            },
+                            "authType": {
+                              "type": "MANUAL"
+                            },
+                            "body_type": {
+                              "type": "MANUAL"
+                            },
+                            "body": {
+                              "type": "MANUAL",
+                              "schema": {}
+                            }
+                          },
+                          "errorHandlingOptions": {
+                            "retryOnFailure": {
+                              "value": true
+                            },
+                            "continueOnFailure": {
+                              "value": true
+                            }
+                          }
+                        },
+                        "displayName": "UPSERT published_reports, 2 of 2: PATCH (the corrected copy after an edit)"
+                      },
+                      "displayName": "UPSERT published_reports, 1 of 2: POST (409 = already published)"
+                    },
+                    "displayName": "PATCH the report Sent · Sent_At · Sent_Count · Failed_Count"
+                  },
+                  "nextAction": {
+                    "name": "step_job_loop",
+                    "type": "LOOP_ON_ITEMS",
+                    "displayName": "Report the app's job (0 or 1)",
+                    "valid": true,
+                    "skip": false,
+                    "settings": {
+                      "items": "{{step_plan['jobs']}}",
+                      "sampleData": {}
+                    },
+                    "firstLoopAction": {
+                      "name": "step_job",
+                      "skip": false,
+                      "type": "PIECE",
+                      "valid": true,
+                      "settings": {
+                        "input": {
+                          "method": "POST",
+                          "url": "{{step_constants['app_url']}}/api/jobs/{{step_job_loop['item']['id']}}",
+                          "headers": {
+                            "Content-Type": "application/json",
+                            "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                            "X-Flow": "{{step_constants['flow']}}"
+                          },
+                          "queryParams": {},
+                          "authType": "NONE",
+                          "body_type": "json",
+                          "body": {
+                            "data": {
+                              "status": "{{step_job_loop['item']['status']}}",
+                              "result": "{{step_job_loop['item']['result']}}"
+                            }
+                          }
+                        },
+                        "pieceName": "@puchoaistudio/tool-http",
+                        "actionName": "send_request",
+                        "sampleData": {},
+                        "pieceVersion": "^2.0.0",
+                        "propertySettings": {
+                          "method": {
+                            "type": "MANUAL"
+                          },
+                          "url": {
+                            "type": "MANUAL"
+                          },
+                          "headers": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          },
+                          "queryParams": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          },
+                          "authType": {
+                            "type": "MANUAL"
+                          },
+                          "body_type": {
+                            "type": "MANUAL"
+                          },
+                          "body": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          }
+                        },
+                        "errorHandlingOptions": {
+                          "retryOnFailure": {
                             "value": true
                           },
                           "continueOnFailure": {
@@ -459,161 +711,84 @@
                           }
                         }
                       },
-                      "displayName": "UPSERT published_reports, 2 of 2: PATCH (the corrected copy after an edit)"
+                      "displayName": "POST /api/jobs/<id> done | failed"
                     },
-                    "displayName": "UPSERT published_reports, 1 of 2: POST (409 = already published)"
-                  },
-                  "displayName": "PATCH the report Sent · Sent_At · Sent_Count · Failed_Count"
-                },
-                "nextAction": {
-                  "name": "step_job_loop",
-                  "type": "LOOP_ON_ITEMS",
-                  "displayName": "Report the app's job (0 or 1)",
-                  "valid": true,
-                  "skip": false,
-                  "settings": {
-                    "items": "{{step_plan['jobs']}}",
-                    "sampleData": {}
-                  },
-                  "firstLoopAction": {
-                    "name": "step_job",
-                    "skip": false,
-                    "type": "PIECE",
-                    "valid": true,
-                    "settings": {
-                      "input": {
-                        "method": "POST",
-                        "url": "{{step_constants['app_url']}}/api/jobs/{{step_job_loop['item']['id']}}",
-                        "headers": {
-                          "Content-Type": "application/json",
-                          "Authorization": "Bearer {{step_constants['inbound_token']}}",
-                          "X-Flow": "{{step_constants['flow']}}"
-                        },
-                        "queryParams": {},
-                        "authType": "NONE",
-                        "body_type": "json",
-                        "body": {
-                          "data": {
-                            "status": "{{step_job_loop['item']['status']}}",
-                            "result": "{{step_job_loop['item']['result']}}"
-                          }
-                        }
-                      },
-                      "pieceName": "@puchoaistudio/tool-http",
-                      "actionName": "send_request",
-                      "sampleData": {},
-                      "pieceVersion": "^2.0.0",
-                      "propertySettings": {
-                        "method": {
-                          "type": "MANUAL"
-                        },
-                        "url": {
-                          "type": "MANUAL"
-                        },
-                        "headers": {
-                          "type": "MANUAL",
-                          "schema": {}
-                        },
-                        "queryParams": {
-                          "type": "MANUAL",
-                          "schema": {}
-                        },
-                        "authType": {
-                          "type": "MANUAL"
-                        },
-                        "body_type": {
-                          "type": "MANUAL"
-                        },
-                        "body": {
-                          "type": "MANUAL",
-                          "schema": {}
-                        }
-                      },
-                      "errorHandlingOptions": {
-                        "retryOnFailure": {
-                          "value": true
-                        },
-                        "continueOnFailure": {
-                          "value": true
-                        }
-                      }
-                    },
-                    "displayName": "POST /api/jobs/<id> done"
-                  },
-                  "nextAction": {
-                    "name": "step_done",
-                    "skip": false,
-                    "type": "PIECE",
-                    "valid": true,
-                    "settings": {
-                      "input": {
-                        "fields": {
-                          "body": {
-                            "ok": "{{step_plan['ok']}}",
-                            "Report_ID": "{{step_plan['Report_ID']}}",
-                            "sent": "{{step_plan['Sent_Count']}}",
-                            "failed": "{{step_plan['Failed_Count']}}",
-                            "note": "{{step_plan['reason']}}"
-                          },
-                          "status": 200,
-                          "headers": {}
-                        },
-                        "respond": "stop",
-                        "responseType": "json"
-                      },
-                      "pieceName": "@puchoaistudio/tool-webhook",
-                      "actionName": "return_response",
-                      "sampleData": {},
-                      "pieceVersion": "^2.0.4",
-                      "propertySettings": {
-                        "fields": {
-                          "type": "MANUAL",
-                          "schema": {
+                    "nextAction": {
+                      "name": "step_done",
+                      "skip": false,
+                      "type": "PIECE",
+                      "valid": true,
+                      "settings": {
+                        "input": {
+                          "fields": {
                             "body": {
-                              "type": "JSON",
-                              "required": true,
-                              "displayName": "JSON Body"
+                              "ok": "{{step_plan['ok']}}",
+                              "Report_ID": "{{step_plan['Report_ID']}}",
+                              "sent": "{{step_plan['Sent_Count']}}",
+                              "failed": "{{step_plan['Failed_Count']}}",
+                              "note": "{{step_plan['reason']}}"
                             },
-                            "status": {
-                              "type": "NUMBER",
-                              "required": false,
-                              "displayName": "Status",
-                              "defaultValue": 200
-                            },
-                            "headers": {
-                              "type": "OBJECT",
-                              "required": false,
-                              "displayName": "Headers"
+                            "status": 200,
+                            "headers": {}
+                          },
+                          "respond": "stop",
+                          "responseType": "json"
+                        },
+                        "pieceName": "@puchoaistudio/tool-webhook",
+                        "actionName": "return_response",
+                        "sampleData": {},
+                        "pieceVersion": "^2.0.4",
+                        "propertySettings": {
+                          "fields": {
+                            "type": "MANUAL",
+                            "schema": {
+                              "body": {
+                                "type": "JSON",
+                                "required": true,
+                                "displayName": "JSON Body"
+                              },
+                              "status": {
+                                "type": "NUMBER",
+                                "required": false,
+                                "displayName": "Status",
+                                "defaultValue": 200
+                              },
+                              "headers": {
+                                "type": "OBJECT",
+                                "required": false,
+                                "displayName": "Headers"
+                              }
                             }
+                          },
+                          "respond": {
+                            "type": "MANUAL"
+                          },
+                          "responseType": {
+                            "type": "MANUAL"
                           }
                         },
-                        "respond": {
-                          "type": "MANUAL"
-                        },
-                        "responseType": {
-                          "type": "MANUAL"
+                        "errorHandlingOptions": {
+                          "retryOnFailure": {
+                            "value": false
+                          },
+                          "continueOnFailure": {
+                            "value": false
+                          }
                         }
                       },
-                      "errorHandlingOptions": {
-                        "retryOnFailure": {
-                          "value": false
-                        },
-                        "continueOnFailure": {
-                          "value": false
-                        }
-                      }
-                    },
-                    "displayName": "Return: published"
+                      "displayName": "Return: published"
+                    }
                   }
-                }
+                },
+                "displayName": "Counts · reader copy — only when something was sent (CODE)"
               },
-              "displayName": "Counts · reader copy (CODE)"
+              "displayName": "GET deliveries"
             },
-            "displayName": "GET deliveries"
+            "displayName": "GET reports"
           },
-          "displayName": "GET reports"
+          "displayName": "Webhook secret · action"
         },
-        "displayName": "Constants — app_url, inbound_token and the flow's settings (set in Studio)"
+        "displayName": "Constants + webhook secret check (first step)"
       }
     },
     "valid": true,

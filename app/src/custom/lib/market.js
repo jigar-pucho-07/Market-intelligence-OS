@@ -43,7 +43,7 @@ export function formatWhatsApp(r, generatedAt) {
   const body = [
     `📈 *DAILY MARKET INTELLIGENCE*`, `━━━━━━━━━━━━━━━━━━━━`, `📅 *${t.day}, ${t.date}*`, `⏰ Report Time: ${t.time} IST`, `━━━━━━━━━━━━━━━━━━━━`, '',
     `🎯 OVERALL MARKET SENTIMENT: *${r.Sentiment || '—'}*`,
-    `CONFIDENCE LEVEL: ${r.Confidence_Level || '—'}${r.Confidence_Pct !== undefined && r.Confidence_Pct !== '' ? ` (${r.Confidence_Pct}%)` : ''}`, '',
+    `CONFIDENCE LEVEL: ${r.Confidence_Level || '—'}${pctText(r.Confidence_Pct)}`, '',
     drivers && `📌 KEY MARKET DRIVERS TODAY:\n${drivers}\n`,
     `📊 SEGMENT-WISE ANALYSIS:`,
     line('1️⃣ SENSEX', r.Sensex_Outlook, r.Sensex_Range),
@@ -58,7 +58,7 @@ export function formatWhatsApp(r, generatedAt) {
   ].filter((x) => x !== false && x !== undefined && x !== null && x !== '' || x === '').join('\n');
   const footer = `\n━━━━━━━━━━━━━━━━━━━━\n🤖 *Powered by AI Market Intelligence*\n📊 *Market Opens: 9:15 AM IST*\n━━━━━━━━━━━━━━━━━━━━\n⚠️ ${DISCLAIMER}`;
   const room = WHATSAPP_LIMIT - footer.length;
-  const main = body.length > room ? body.slice(0, Math.max(0, room - 60)) + '…\n\n[Full report in the Market Intelligence portal]' : body;
+  const main = body.length > room ? cut(body, Math.max(0, room - 60)) + '…\n\n[Full report in the Market Intelligence portal]' : body;
   return main + footer;
 }
 
@@ -113,6 +113,8 @@ export function istDate(at) {
   return `${p.year}-${p.month}-${p.day}`;
 }
 export function istWeekday(at) { return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', weekday: 'short' }).format(asDate(at)); }
+/** "0620" — the IST wall clock, for a per-attempt id. */
+export function istHHmm(at) { return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).format(asDate(at)).replace(':', ''); }
 export function istLabel(at) {
   const f = (o) => new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', ...o }).format(asDate(at));
   return { date: f({ day: '2-digit', month: 'short', year: 'numeric' }), time: f({ hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() + ' IST' };
@@ -127,12 +129,16 @@ export function decodeEntities(s) {
   });
 }
 const unCdata = (s) => String(s || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1');
-/** Markup → plain text: CDATA unwrapped, entities decoded (twice — feeds double-encode), tags removed, whitespace collapsed. */
+const TAG = /<\/?[a-z][a-z0-9:-]*(?:\s[^<>]*)?\/?>|<!--[\s\S]*?-->/gi;
+/** Markup → plain text: CDATA unwrapped, real tags stripped, THEN entities decoded — so "Nifty &lt; 25,000" stays text. Feeds that
+ *  entity-encode their HTML (&lt;img …&gt;) are stripped once more after the decode; the second decode handles double encoding. */
 export function plainText(s) {
-  let t = decodeEntities(unCdata(s)).replace(/<[^>]*>/g, ' ');
-  t = decodeEntities(t).replace(/<[^>]*>/g, ' ');
-  return t.replace(/\s+/g, ' ').trim();
+  let t = unCdata(s).replace(TAG, ' ');
+  t = decodeEntities(t).replace(TAG, ' ');
+  return decodeEntities(t).replace(/\s+/g, ' ').trim();
 }
+/** Cut to n characters without splitting a surrogate pair (emoji, rare scripts). */
+export function cut(s, n) { const a = Array.from(String(s ?? '')); return a.length <= n ? a.join('') : a.slice(0, Math.max(0, n)).join(''); }
 function tagText(block, tag) { const m = block.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, 'i')); return m ? m[1] : ''; }
 export function toIso(dateText) { const t = Date.parse(String(dateText || '').trim()); return Number.isFinite(t) ? new Date(t).toISOString() : ''; }
 
@@ -142,12 +148,14 @@ export function parseRss(xml, source, summaryChars = 300) {
   const out = [];
   for (const m of xml.matchAll(/<item(?:\s[^>]*)?>([\s\S]*?)<\/item>/gi)) {
     const block = m[1];
-    const title = plainText(tagText(block, 'title'));
+    const publisher = plainText(tagText(block, 'source'));
+    let title = plainText(tagText(block, 'title'));
+    if (publisher && title.endsWith(` - ${publisher}`)) title = title.slice(0, -(publisher.length + 3)).trim();
     if (title.length <= 5) continue;
     const link = plainText(tagText(block, 'link')) || plainText(tagText(block, 'guid'));
     const pubDate = plainText(tagText(block, 'pubDate'));
-    out.push({ title: title.slice(0, 300), summary: plainText(tagText(block, 'description')).slice(0, summaryChars), pubDate, publishedAt: toIso(pubDate),
-      link: /^https?:\/\//i.test(link) ? link.slice(0, 500) : '', source });
+    out.push({ title: cut(title, 300), summary: cut(plainText(tagText(block, 'description')), summaryChars), pubDate, publishedAt: toIso(pubDate),
+      link: /^https?:\/\//i.test(link) ? cut(link, 500) : '', source });
   }
   return out;
 }
@@ -261,33 +269,65 @@ export function buildPrompt({ articles, now = Date.now() }) {
 }
 
 // ── the model's answer → declared fields only ──
-const ADVICE = /\b(stop[- ]?loss(es)?|sl\s*[:@]?\s*\d|targets?\s*(price)?\s*(of|at|:)?\s*₹?\s*\d|buy\s+(the\s+)?(dips?|calls?|puts?|ce|pe)\b|sell\s+(calls?|puts?|ce|pe)\b|go\s+(long|short)\b|\d{4,6}\s?(ce|pe)\b|strike\s*(price)?\s*(of|at|:)?\s*\d)/i;
+const ADVICE = [
+  /\bstop[\s-]?loss(es)?\b/i,
+  /\bSL\b\s*[:@-]?\s*(₹|rs\.?\s*)?\d/i,
+  /\btargets?\b\s*(price\s*)?(of|at|:|-|=)?\s*(₹|rs\.?\s*)?\d[\d,.]*(?![\d,.]*\s*%)/i,
+  /\b(buy|sell|accumulate|short)\s+(on|the|in|into)\s+(dips?|rise|rises|rallies|rally|declines?|weakness|strength)\b/i,
+  /\b\d{3,6}\s?(ce|pe)\b/i, /\b(ce|pe)\s+strikes?\b/i, /\bstrikes?\b\s*(price\s*)?(of|at|:)?\s*\d/i,
+  /\bbuy\s+(the\s+)?(calls?|puts?)\b/i, /\bsell\s+(calls?|puts?)\b/i, /\bgo\s+(long|short)\b/i,
+  // an instruction at the start of a sentence or clause, or after "traders / investors should | can | may | must"
+  /(?:^|[.;:!?•\n]\s*|\b(?:traders|investors|one|you)\s+(?:should|can|may|must|could)\s+(?:consider\s+)?)(buy|sell|accumulate|short|exit|avoid|book\s+profits?|hold)\b(?![-\u2010-\u2015])(?!\s+(polls?|interest|side|term|of)\b)\s*\S/i,
+];
 /** A trade instruction that slipped into a field (the prompt forbids it). Commentary such as "FIIs sold ₹2,000 Cr" is not one. */
-export function isAdvice(text) { return ADVICE.test(String(text || '')); }
+export function isAdvice(text) { const t = String(text || ''); return ADVICE.some((re) => re.test(t)); }
 const enumOf = (v, list) => { const u = String(v ?? '').trim().toUpperCase().replace(/\s+/g, ' '); return list.includes(u) ? u : ''; };
-const clean = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+const clean = (v, max) => cut(String(v ?? '').replace(/\s+/g, ' ').trim(), max);
+/** " (74%)" for a real percentage, nothing for a blank, null or junk value. */
+function pctText(v) { return v === '' || v == null || !Number.isFinite(Number(v)) ? '' : ` (${Math.round(Number(v))}%)`; }
+
+/** The first JSON object in a text, by a string-aware brace scan (prose before or after it, even with braces, is ignored). */
+export function firstJsonObject(text) {
+  const t = String(text ?? '');
+  for (let i = t.indexOf('{'); i >= 0; i = t.indexOf('{', i + 1)) {
+    let depth = 0, inStr = false, esc = false;
+    for (let j = i; j < t.length; j++) {
+      const ch = t[j];
+      if (inStr) { if (esc) esc = false; else if (ch === '\\') esc = true; else if (ch === '"') inStr = false; continue; }
+      if (ch === '"') inStr = true;
+      else if (ch === '{') depth++;
+      else if (ch === '}' && --depth === 0) {
+        try { const v = JSON.parse(t.slice(i, j + 1)); if (v && typeof v === 'object' && !Array.isArray(v)) return v; } catch { /* try the next brace */ }
+        break;
+      }
+    }
+  }
+  return null;
+}
+const pctOf = (v) => { if (v === '' || v == null) return ''; const n = Number(String(v).replace('%', '')); return Number.isFinite(n) ? Math.min(100, Math.max(0, Math.round(n))) : ''; };
+function sectorsText(list) {
+  return (Array.isArray(list) ? list : parseSectors(list)).map((x) => ({ sector: clean(x && x.sector, 60).replace(/\|/g, '/'), call: enumOf(x && x.call, ENUMS.SectorCall), reason: clean(x && x.reason, 160).replace(/\|/g, '/') }))
+    .filter((x) => x.sector && x.call && !isAdvice(x.sector) && !isAdvice(x.reason)).slice(0, 6).map((x) => `${x.sector}|${x.call}|${x.reason}`).join('\n');
+}
+function risksText(list) {
+  return (Array.isArray(list) ? list : parseRisks(list)).map((x) => ({ level: enumOf(x && x.level, ENUMS.RiskLevel), text: clean(x && x.text, 200).replace(/\|/g, '/') }))
+    .filter((x) => x.text && !isAdvice(x.text)).slice(0, 5).map((x) => `${x.level}|${x.text}`).join('\n');
+}
 
 /** "```json {…}```" or prose around JSON → { ok, fields, error, removed }. Only MODEL_KEYS survive; enums outside the lists → ''. */
 export function parseModel(raw) {
-  const text = String(raw ?? '').replace(/```(?:json)?/gi, '').trim();
-  const m = text.match(/\{[\s\S]*\}/);
-  let j = null; try { j = JSON.parse(m ? m[0] : text); } catch { j = null; }
-  if (!j || typeof j !== 'object' || Array.isArray(j)) return { ok: false, fields: {}, error: 'MODEL_JSON: the model did not answer with a JSON object', removed: [] };
+  const j = firstJsonObject(String(raw ?? '').replace(/```(?:json)?/gi, ''));
+  if (!j) return { ok: false, fields: {}, error: 'MODEL_JSON: the model did not answer with a JSON object', removed: [] };
   const f = {}; const removed = [];
   f.Sentiment = enumOf(j.Sentiment, ENUMS.Sentiment);
   f.Confidence_Level = enumOf(j.Confidence_Level, ENUMS.Confidence_Level);
-  const pct = Number(String(j.Confidence_Pct ?? '').replace('%', ''));
-  f.Confidence_Pct = Number.isFinite(pct) ? Math.min(100, Math.max(0, Math.round(pct))) : 0;
+  f.Confidence_Pct = pctOf(j.Confidence_Pct);
   for (const k of OUTLOOK_KEYS) f[k] = enumOf(j[k], ENUMS.Outlook);
   f.FnO_View = enumOf(j.FnO_View, ENUMS.FnO_View);
   f.VIX_Expectation = enumOf(String(j.VIX_Expectation ?? '').split(/\s/)[0], ENUMS.VIX_Expectation);
   for (const [k, max] of Object.entries(TEXT_KEYS)) { const v = clean(j[k], max); if (isAdvice(v)) { removed.push(k); f[k] = ''; } else f[k] = v; }
-  const sectors = Array.isArray(j.Sectors) ? j.Sectors : parseSectors(j.Sectors);
-  f.Sectors = sectors.map((s) => ({ sector: clean(s && s.sector, 60).replace(/\|/g, '/'), call: enumOf(s && s.call, ENUMS.SectorCall), reason: clean(s && s.reason, 160).replace(/\|/g, '/') }))
-    .filter((s) => s.sector && s.call && !isAdvice(s.reason)).slice(0, 6).map((s) => `${s.sector}|${s.call}|${s.reason}`).join('\n');
-  const risks = Array.isArray(j.Risks) ? j.Risks : parseRisks(j.Risks);
-  f.Risks = risks.map((r) => ({ level: enumOf(r && r.level, ENUMS.RiskLevel) || 'MED', text: clean(r && r.text, 200).replace(/\|/g, '/') }))
-    .filter((r) => r.text && !isAdvice(r.text)).slice(0, 5).map((r) => `${r.level}|${r.text}`).join('\n');
+  f.Sectors = sectorsText(j.Sectors);
+  f.Risks = risksText(j.Risks);
   const missing = ['Sentiment', 'Confidence_Level', 'Driver_1'].filter((k) => !f[k]);
   if (missing.length) return { ok: false, fields: f, error: `MODEL_FIELDS: the model's answer is missing ${missing.join(' / ')}`, removed };
   return { ok: true, fields: f, error: '', removed };
@@ -298,7 +338,7 @@ export function buildReportRow({ fields = {}, status, error = '', meta = {}, now
   const row = Object.fromEntries(REPORT_WRITE_COLUMNS.map((c) => [c, '']));
   const at = asDate(now).toISOString();
   Object.assign(row, { Report_Date: meta.Report_Date || istDate(now), Created_At: at, Trigger: ENUMS.Trigger.includes(meta.Trigger) ? meta.Trigger : 'Manual',
-    Status: status === 'Ready' ? 'Ready' : 'Failed', Confidence_Pct: 0, Articles_Analyzed: Math.min(40, Number(meta.Articles_Analyzed) || 0),
+    Status: status === 'Ready' ? 'Ready' : 'Failed', Confidence_Pct: '', Articles_Analyzed: Math.min(40, Number(meta.Articles_Analyzed) || 0),
     Category_Breakdown: meta.Category_Breakdown || '', Source_Status: meta.Source_Status || '', Model: 'standard', Message_Length: 0 });
   if (row.Status === 'Ready') {
     for (const k of MODEL_KEYS) if (k in fields) row[k] = fields[k];
@@ -307,24 +347,33 @@ export function buildReportRow({ fields = {}, status, error = '', meta = {}, now
   return row;
 }
 
-/** A row that crossed a webhook, back to the declared columns and enums (the store step trusts nothing it is handed). */
+export const ADVICE_REMOVED = 'Advice language removed — review';
+/**
+ * A row that crossed a webhook, back to the declared columns and enums. The store step trusts nothing it is handed: every free-text
+ * field goes through isAdvice (a hit blanks it; a hit in Driver_1 fails the row), the sector / risk lines are filtered like a model
+ * answer, and the WhatsApp text is rebuilt from the cleaned fields — never taken from the body (SA-01, SA-15).
+ */
 export function sanitizeReportRow(r) {
   const src = r && typeof r === 'object' ? r : {};
-  const row = Object.fromEntries(REPORT_WRITE_COLUMNS.map((c) => [c, src[c] ?? '']));
-  row.Status = row.Status === 'Ready' ? 'Ready' : 'Failed';
-  row.Trigger = ENUMS.Trigger.includes(row.Trigger) ? row.Trigger : 'Manual';
-  row.Report_Date = /^\d{4}-\d{2}-\d{2}$/.test(row.Report_Date) ? row.Report_Date : istDate();
-  row.Created_At = toIso(row.Created_At) || new Date().toISOString();
-  row.Sentiment = enumOf(row.Sentiment, ENUMS.Sentiment); row.Confidence_Level = enumOf(row.Confidence_Level, ENUMS.Confidence_Level);
-  for (const k of OUTLOOK_KEYS) row[k] = enumOf(row[k], ENUMS.Outlook);
-  row.FnO_View = enumOf(row.FnO_View, ENUMS.FnO_View); row.VIX_Expectation = enumOf(row.VIX_Expectation, ENUMS.VIX_Expectation);
-  const caps = { Confidence_Pct: 100, Articles_Analyzed: 40, Message_Length: 4096 };
-  for (const [k, max] of Object.entries(caps)) row[k] = Math.max(0, Math.min(max, Math.round(Number(row[k]) || 0)));
-  for (const k of REPORT_WRITE_COLUMNS) if (typeof row[k] === 'string') row[k] = row[k].slice(0, k === 'WhatsApp_Message' ? 4096 : 2000);
-  if (row.Status === 'Ready' && (!row.Sentiment || !row.Confidence_Level || !row.Driver_1 || !row.WhatsApp_Message))
-    return { ...row, Status: 'Failed', Error_Message: 'The analysis reached the store step incomplete — kept as Failed' };
-  if (row.Status === 'Failed' && !row.Error_Message) row.Error_Message = 'The report could not be generated';
-  if (row.Status === 'Ready') row.Error_Message = '';
+  const row = Object.fromEntries(REPORT_WRITE_COLUMNS.map((c) => [c, '']));
+  row.Status = src.Status === 'Ready' ? 'Ready' : 'Failed';
+  row.Trigger = ENUMS.Trigger.includes(src.Trigger) ? src.Trigger : 'Manual';
+  row.Report_Date = /^\d{4}-\d{2}-\d{2}$/.test(String(src.Report_Date || '')) ? src.Report_Date : istDate();
+  row.Created_At = toIso(src.Created_At) || new Date().toISOString();
+  row.Sentiment = enumOf(src.Sentiment, ENUMS.Sentiment); row.Confidence_Level = enumOf(src.Confidence_Level, ENUMS.Confidence_Level);
+  row.Confidence_Pct = pctOf(src.Confidence_Pct);
+  for (const k of OUTLOOK_KEYS) row[k] = enumOf(src[k], ENUMS.Outlook);
+  row.FnO_View = enumOf(src.FnO_View, ENUMS.FnO_View); row.VIX_Expectation = enumOf(src.VIX_Expectation, ENUMS.VIX_Expectation);
+  row.Articles_Analyzed = Math.max(0, Math.min(40, Math.round(Number(src.Articles_Analyzed) || 0)));
+  const removed = [];
+  for (const [k, max] of Object.entries(TEXT_KEYS)) { const v = clean(src[k], max); if (isAdvice(v)) { removed.push(k); row[k] = ''; } else row[k] = v; }
+  row.Sectors = sectorsText(src.Sectors); row.Risks = risksText(src.Risks);
+  row.Category_Breakdown = clean(src.Category_Breakdown, 500); row.Source_Status = clean(src.Source_Status, 500);
+  row.Model = clean(src.Model, 40) || 'standard'; row.Error_Message = clean(src.Error_Message, 500);
+  if (row.Status === 'Ready' && removed.includes('Driver_1')) { row.Status = 'Failed'; row.Error_Message = ADVICE_REMOVED; }
+  else if (row.Status === 'Ready' && (!row.Sentiment || !row.Confidence_Level || !row.Driver_1)) { row.Status = 'Failed'; row.Error_Message = 'The analysis reached the store step incomplete — kept as Failed'; }
+  if (row.Status === 'Failed') { row.WhatsApp_Message = ''; row.Message_Length = 0; if (!row.Error_Message) row.Error_Message = 'The report could not be generated'; }
+  else { row.Error_Message = ''; row.WhatsApp_Message = formatWhatsApp(row, row.Created_At); row.Message_Length = row.WhatsApp_Message.length; }
   return row;
 }
 
@@ -352,7 +401,7 @@ export function adminNumbers(alertTo) { return /SET_IN_STUDIO/.test(String(alert
 export function isEligible(s) { return !!s && s.Status === 'Active' && !!String(s.Opt_In_At || '').trim() && ENUMS.Opt_In_Source.includes(s.Opt_In_Source) && !!normaliseWhatsApp(s.WhatsApp); }
 /** mi_daily_report's variables: date, sentiment, confidence, the first driver (the portal link is the template's URL button). */
 export function reportTemplateVars(r) {
-  const pct = r.Confidence_Pct !== '' && r.Confidence_Pct != null ? ` (${r.Confidence_Pct}%)` : '';
+  const pct = pctText(r.Confidence_Pct);
   return { date: istLabel(`${r.Report_Date}T09:00:00+05:30`).date, sentiment: r.Sentiment || '', confidence: `${r.Confidence_Level || ''}${pct}`.trim(), driver: clean(r.Driver_1, 120) };
 }
 /** mi_run_failed's variables: the error, the date, the IST time. */
@@ -376,3 +425,15 @@ export function doorError(out, entity) {
 const JOB = /^JOB-[0-9A-F]{12}$/;
 /** The app's async job (when the app asked) → [{ id, status, result }] for a 0-or-1 loop; a flow-to-flow call carries none. */
 export function jobItems(job, status, result) { return JOB.test(String(job || '')) ? [{ id: String(job), status, result }] : []; }
+
+/**
+ * The webhook secret check every webhook flow runs first (SA-01..SA-04): the caller's ?k= against the flow's constant, in time that
+ * depends only on the configured secret's length. Fail closed: a placeholder or a secret shorter than 16 characters never matches.
+ */
+export function secretMatches(given, expected) {
+  const a = String(given ?? ''); const b = String(expected ?? '');
+  if (b.length < 16 || /SET_IN_STUDIO/.test(b)) return false;
+  let d = a.length ^ b.length;
+  for (let i = 0; i < b.length; i++) d |= (a.charCodeAt(i) || 0) ^ b.charCodeAt(i);
+  return d === 0;
+}

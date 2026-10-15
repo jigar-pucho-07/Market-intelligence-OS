@@ -15,7 +15,7 @@ export class ServiceError extends Error { constructor(status, msg) { super(`HTTP
 export const FEED_FILES = { 'site:economictimes.indiatimes.com': ['et-markets.xml'], 'site:moneycontrol.com': ['moneycontrol.xml'], 'site:reuters.com': ['reuters-india.xml'],
   'q=India+stock': ['google-finance.xml'], 'q=SGX+Nifty': ['global-cues.xml'] };
 
-/** opts: { model: text the model answers, whatsapp: (inputs) => output | throws, app: (method, url, query, body) => {status, body}, calls: [] } */
+/** opts: { feeds: 'down' (every feed fails), model: text the model answers, whatsapp: (inputs) => output | throws, app: (method, url, query, body) => {status, body}, calls: [] } */
 export function makeFakes(opts = {}) {
   const calls = opts.calls || [];
   return async (piece, inputs, node) => {
@@ -23,6 +23,7 @@ export function makeFakes(opts = {}) {
     if (piece === 'http:send_request') {
       const url = String(inputs.url || '');
       if (/feeds\.reuters\.com/.test(url)) throw new ServiceError(0, 'getaddrinfo ENOTFOUND feeds.reuters.com');
+      if (opts.feeds === 'down' && /news.google.com/.test(url)) throw new ServiceError(503, 'feed down');
       for (const [k, [file, enc]] of Object.entries(FEED_FILES)) if (url.includes(k)) return { status: 200, headers: {}, body: rss(file, enc) };
       if (opts.app && /\/api\/(appdata|data|jobs)\//.test(url)) {
         const r = opts.app(String(inputs.method || 'GET').toUpperCase(), url, inputs.queryParams || {}, inputs.body ? inputs.body.data : undefined);

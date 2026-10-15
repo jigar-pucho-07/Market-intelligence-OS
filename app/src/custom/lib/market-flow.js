@@ -5,7 +5,7 @@
 import {
   SOURCES, ENUMS, PUBLISHED_COLUMNS, selectArticles, buildPrompt, parseModel, buildReportRow, sanitizeReportRow, newsRows, istDate,
   istWeekday, rowsOf, statusOf, doorError, jobItems, isEligible, normaliseWhatsApp, adminNumbers, reportTemplateVars,
-  alertTemplateVars, toIso,
+  alertTemplateVars, toIso, istHHmm,
 } from './market.js';
 
 const nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());
@@ -44,12 +44,43 @@ export function finishReport(inp) {
   return { report, Status: report.Status, error: parsed.error, removed: parsed.removed.join(', ') };
 }
 
-// ─────────────────────────────── MARKET_STORE ───────────────────────────────
+// ─────────────────────────────── MARKET_REPORT (the gate) · MARKET_STORE ───────────────────────────────
 
 /**
- * step_plan — decide the write. run: no row for today → new; today's row Failed → re-run it (PATCH); Ready or Sent → refused.
+ * One report per Report_Date. run: no row today → new; today's row Failed → re-run it (PATCH); Ready or Sent → refused.
  * rerun: the Report_ID must exist, be Failed and be today's (the feeds only carry today's news). Sent is always refused.
  */
+export function decideReport(Mode, reportId, rows, reportDate, today) {
+  const no = (code, error) => ({ route: 'refuse', code, error, target: null });
+  if (Mode === 'run') {
+    const existing = rows.find((r) => r.Report_Date === reportDate);
+    if (!existing) return { route: 'new', code: '', error: '', target: null };
+    if (existing.Status === 'Failed') return { route: 'rerun', code: '', error: '', target: existing };
+    return no('EXISTS', `Today's report already exists (${existing.Report_ID}, ${existing.Status}) — a Ready or Sent report is not overwritten`);
+  }
+  if (Mode !== 'rerun') return no('INVALID_INPUT', 'the action must be run or rerun');
+  const target = rows.find((r) => r.Report_ID === String(reportId || ''));
+  if (!target) return no('NOT_FOUND', `No report ${String(reportId || '').slice(0, 30)}`);
+  if (target.Status === 'Sent') return no('SENT', `${target.Report_ID} was already sent — a sent report is never re-run`);
+  if (target.Status !== 'Failed') return no('NOT_FAILED', `${target.Report_ID} is ${target.Status} — only a Failed report is re-run (edit a Ready one with Review)`);
+  if (target.Report_Date !== today) return no('STALE_DATE', `${target.Report_ID} is for ${target.Report_Date}; the feeds carry today's news, so only today's report can be re-run`);
+  return { route: 'rerun', code: '', error: '', target };
+}
+
+/** MARKET_REPORT step_gate — decide from the app's rows BEFORE any feed or model call is paid for (SA-02). */
+export function reportGate(inp) {
+  const body = (inp && inp.body) || {}; const now = nowOf(inp); const today = istDate(now);
+  const Mode = ACTIONS.includes(body.action) ? body.action : '';
+  const Trigger = Mode === 'run' && ENUMS.Trigger.includes(body.Trigger) ? body.Trigger : 'Manual';
+  const rows = rowsOf(inp && inp.reports);
+  const d = !rows ? { route: 'refuse', code: statusOf(inp.reports) === 403 ? 'APP_CLOSED' : 'APP_READ_FAILED', error: doorError(inp.reports, 'reports') }
+    : decideReport(Mode, body.Report_ID, rows, today, today);
+  const go = d.route !== 'refuse';
+  return { route: go ? 'go' : 'refuse', code: d.code, error: d.error, Mode, Trigger, Report_ID: Mode === 'rerun' ? String(body.Report_ID || '') : '',
+    _job: String(body._job || ''), jobs: go ? [] : jobItems(body._job, 'failed', { code: d.code, error: d.error }) };
+}
+
+/** MARKET_STORE step_plan — the same decision again at write time (race-safe), on a row that is re-checked field by field. */
 export function storePlan(inp) {
   const body = (inp && inp.body) || {}; const now = nowOf(inp); const today = istDate(now);
   const rows = rowsOf(inp && inp.reports); const Mode = body.Mode === 'rerun' ? 'rerun' : body.Mode === 'run' ? 'run' : '';
@@ -59,18 +90,8 @@ export function storePlan(inp) {
     jobs: route === 'refuse' ? jobItems(body._job, 'failed', { code, error }) : [] });
   if (!Mode) return out('refuse', 'INVALID_INPUT', 'store needs Mode run or rerun', null);
   if (!rows) return out('refuse', statusOf(inp.reports) === 403 ? 'APP_CLOSED' : 'APP_READ_FAILED', doorError(inp.reports, 'reports'), null);
-  if (Mode === 'run') {
-    const existing = rows.find((r) => r.Report_Date === row.Report_Date);
-    if (!existing) return out('new', '', '', null);
-    if (existing.Status === 'Failed') return out('rerun', '', '', existing);
-    return out('refuse', 'EXISTS', `Today's report already exists (${existing.Report_ID}, ${existing.Status}) — a Ready or Sent report is not overwritten`, null);
-  }
-  const target = rows.find((r) => r.Report_ID === String(body.Report_ID || ''));
-  if (!target) return out('refuse', 'NOT_FOUND', `No report ${String(body.Report_ID || '').slice(0, 30)}`, null);
-  if (target.Status === 'Sent') return out('refuse', 'SENT', `${target.Report_ID} was already sent — a sent report is never re-run`, null);
-  if (target.Status !== 'Failed') return out('refuse', 'NOT_FAILED', `${target.Report_ID} is ${target.Status} — only a Failed report is re-run (edit a Ready one with Review)`, null);
-  if (target.Report_Date !== today) return out('refuse', 'STALE_DATE', `${target.Report_ID} is for ${target.Report_Date}; the feeds carry today's news, so only today's report can be re-run`, null);
-  return out('rerun', '', '', target);
+  const d = decideReport(Mode, body.Report_ID, rows, row.Report_Date, today);
+  return out(d.route, d.code, d.error, d.target);
 }
 
 /** step_*_after — read the write's answer: the app-numbered Report_ID, the news rows with their ids, the hand-offs. */
@@ -91,73 +112,77 @@ export function afterWrite(inp) {
 
 // ─────────────────────────────── BROADCAST ───────────────────────────────
 
+/** The only alert text the watchdog can cause — fixed here, never taken from the caller (SA-03). */
+export function watchdogText(today) { return `No report row by 06:20 IST for ${today} (or the app could not be read) — the 06:00 run did not finish`; }
+
 /**
- * step_send_plan — who gets what. A Failed report, or Kind=Alert (the run or the 06:20 watchdog), → mi_run_failed to
- * constants.alert_to, one Kind=Alert delivery per admin, nothing to subscribers. A Ready or Sent report → mi_daily_report to
- * every Active, opted-in subscriber. Each item becomes a Queued delivery first; one who already has it answers 409 → skip.
+ * step_send_plan — who gets what. Kind=Alert, or a Failed report → mi_run_failed to constants.alert_to, one Kind=Alert delivery
+ * per admin and attempt, nothing to subscribers; the text is the report's Error_Message or the fixed watchdog text. A Ready report
+ * of today, or a Sent report (resend: those who have it answer 409 → skip) → mi_daily_report to every Active, opted-in subscriber.
  */
 export function sendPlan(inp) {
-  const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp);
+  const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp); const today = istDate(now);
   const reports = rowsOf(inp && inp.reports); const subs = rowsOf(inp && inp.subscribers);
   const report = reports && body.Report_ID ? reports.find((r) => r.Report_ID === String(body.Report_ID)) || null : null;
   const tpl = C.whatsapp_templates || {};
   const publish = { Report_ID: report ? report.Report_ID : '', _job: String(body._job || '') };
   const done = (kind, items, reason) => ({ kind, items, reason, Report_ID: publish.Report_ID, publish, queued: items.length });
   if (body.Kind === 'Alert' || (report && report.Status === 'Failed')) {
-    const date = report ? report.Report_Date : istDate(now);
-    const error = (report && report.Error_Message) || String(body.Error_Message || '').replace(/[^\p{L}\p{N}\s.,:;()'%/–-]/gu, ' ') || 'The report could not be generated';
-    const numbers = adminNumbers(C.alert_to);
+    if (body.Report_ID && (!report || report.Status !== 'Failed')) return done('Alert', [], `${String(body.Report_ID).slice(0, 30)} is not a Failed report — no alert`);
+    const date = report ? report.Report_Date : today;
+    const error = report ? report.Error_Message || 'The report could not be generated' : watchdogText(today);
+    const numbers = adminNumbers(C.alert_to); const at = istHHmm(now);
     const items = numbers.map((to, i) => ({ to, template_id: tpl.alert || '', template_variables: alertTemplateVars({ error, reportDate: date, now }),
-      delivery: { Kind: 'Alert', Report_ID: report ? report.Report_ID : '', Report_Date: date, Subscriber_ID: `ADMIN-${i + 1}`, Subscriber_Name: `Admin alert ${i + 1}`, Sentiment: '', Status: 'Queued' } }));
+      delivery: { Kind: 'Alert', Report_ID: report ? report.Report_ID : '', Report_Date: date, Subscriber_ID: `ADMIN-${i + 1}-${at}`, Subscriber_Name: `Admin alert ${i + 1}`, Sentiment: '', Status: 'Queued' } }));
     return done('Alert', items, numbers.length ? '' : 'constants.alert_to has no WhatsApp number yet — nobody was alerted');
   }
   if (!reports) return done('Report', [], doorError(inp.reports, 'reports'));
   if (!report) return done('Report', [], `No report ${String(body.Report_ID || '').slice(0, 30)}`);
   if (!['Ready', 'Sent'].includes(report.Status)) return done('Report', [], `${report.Report_ID} is ${report.Status} — not sent`);
+  if (report.Status === 'Ready' && report.Report_Date !== today) return done('Report', [], `${report.Report_ID} is a Ready report for ${report.Report_Date} — only today's report is sent`);
   if (!subs) return done('Report', [], doorError(inp.subscribers, 'subscribers'));
   const vars = reportTemplateVars(report);
   const items = subs.filter(isEligible).map((s) => ({ to: normaliseWhatsApp(s.WhatsApp), template_id: tpl.report || '', template_variables: vars,
     delivery: { Kind: 'Report', Report_ID: report.Report_ID, Report_Date: report.Report_Date, Subscriber_ID: s.Subscriber_ID, Subscriber_Name: s.Name || '', Sentiment: report.Sentiment || '', Status: 'Queued' } }));
-  return done('Report', items, items.length ? '' : 'No Active, opted-in subscriber is waiting for this report');
-}
-
-/** step_send_gate — the Queued insert answered: 201 → send to this number; 409 (already there) or any refusal → skip, no message. */
-export function queueGate(inp) {
-  const item = (inp && inp.item) || {}; const rows = rowsOf(inp && inp.queued); const st = statusOf(inp && inp.queued);
-  const id = rows && rows[0] && rows[0].Delivery_ID ? rows[0].Delivery_ID : '';
-  if (!id) return { go: false, to: '', Delivery_ID: '', template_id: '', template_variables: {}, note: st === 409 || /409|already in use/i.test(JSON.stringify((inp && inp.queued) || {})) ? 'already sent — skipped' : `queue write refused (${st || 'no response'}) — skipped` };
-  return { go: true, to: item.to || '', Delivery_ID: id, template_id: item.template_id || '', template_variables: item.template_variables || {}, note: '' };
+  return done('Report', items, items.length ? '' : 'No Active, opted-in subscriber');
 }
 
 /** step_*_result — what WhatsApp answered → the delivery's Status, Message_ID, Error_Message. Unconfirmed is Failed (retryable). */
 export function sendResult(inp) {
-  const gate = (inp && inp.gate) || {}; const out = inp && inp.sent; const now = nowOf(inp).toISOString();
-  if (!gate.go) return { Delivery_ID: '', Status: '', Message_ID: '', Error_Message: '', Sent_At: '', sent: false, note: gate.note || 'skipped' };
+  const id = String((inp && inp.Delivery_ID) || ''); const out = inp && inp.sent; const now = nowOf(inp).toISOString();
   const o = out && typeof out === 'object' ? out : {};
   const pick = (...vals) => vals.find((v) => typeof v === 'string' && v.trim()) || '';
   const msgId = pick(o.messageId, o.message_id, o.id, o.wamid, o.messages && o.messages[0] && o.messages[0].id, o.data && o.data.messages && o.data.messages[0] && o.data.messages[0].id,
     o.body && o.body.messages && o.body.messages[0] && o.body.messages[0].id, o.data && o.data.id);
   const err = pick(o.error && (o.error.message || o.error), o.errorMessage, o.success === false ? o.message : '', o.status === 'failed' ? o.message : '');
   const failed = !!err || !out || (typeof out === 'object' && !Object.keys(o).length);
-  return { Delivery_ID: gate.Delivery_ID, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),
-    Error_Message: failed ? (err || 'WhatsApp step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed, note: '' };
+  return { Delivery_ID: id, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),
+    Error_Message: failed ? (err || 'WhatsApp step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed };
 }
 
-/** step_retry_plan — one Failed Report delivery, again, to the number on the subscriber record (never one from the payload). */
+export const MAX_ATTEMPTS = 3;
+/**
+ * step_retry_plan — one Failed Report delivery, again, to the number on the subscriber record (never one from the payload), at most
+ * MAX_ATTEMPTS times. The claim is a PATCH of Attempts = read + 1, conditional on Attempts = the value read; only a claimed row
+ * (the PATCH answered with it) is sent. A refusal leaves the claim's Delivery_ID blank, so the app refuses the PATCH and nothing goes out.
+ */
 export function retryPlan(inp) {
   const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp);
   const dels = rowsOf(inp && inp.deliveries); const subs = rowsOf(inp && inp.subscribers); const reports = rowsOf(inp && inp.reports);
-  const none = (reason, d) => ({ items: [], reason, Delivery_ID: d ? d.Delivery_ID : '', publish: { Report_ID: d ? d.Report_ID : '', _job: '' } });
+  const none = (reason, d) => ({ claim: { Delivery_ID: '', Attempts: 0, expect: '' }, send: { to: '', template_id: '', template_variables: {} }, reason,
+    Delivery_ID: d ? d.Delivery_ID : '', publish: { Report_ID: d ? d.Report_ID : '', _job: '' } });
   if (!dels || !subs || !reports) return none(doorError(!dels ? inp.deliveries : !subs ? inp.subscribers : inp.reports, !dels ? 'deliveries' : !subs ? 'subscribers' : 'reports'));
   const d = dels.find((x) => x.Delivery_ID === String(body.Delivery_ID || ''));
   if (!d) return none(`No delivery ${String(body.Delivery_ID || '').slice(0, 30)}`);
   if (d.Kind !== 'Report' || d.Status !== 'Failed') return none(`${d.Delivery_ID} is a ${d.Kind} delivery that is ${d.Status} — only a Failed report delivery is retried`, d);
+  const n = Math.max(0, Math.round(Number(d.Attempts) || 0));
+  if (n >= MAX_ATTEMPTS) return none(`${d.Delivery_ID} has had ${n} attempts — the cap is ${MAX_ATTEMPTS} attempts`, d);
   const s = subs.find((x) => x.Subscriber_ID === d.Subscriber_ID);
   if (!isEligible(s)) return none(`${d.Subscriber_Name || d.Subscriber_ID} is not Active and opted in — not sent`, d);
   const r = reports.find((x) => x.Report_ID === d.Report_ID);
   if (!r || !['Ready', 'Sent'].includes(r.Status)) return none(`Report ${d.Report_ID} is not Ready or Sent — not sent`, d);
   const tpl = C.whatsapp_templates || {};
-  return { items: [{ go: true, to: normaliseWhatsApp(s.WhatsApp), Delivery_ID: d.Delivery_ID, template_id: tpl.report || '', template_variables: reportTemplateVars(r) }],
+  return { claim: { Delivery_ID: d.Delivery_ID, Attempts: n + 1, expect: `eq.${n}` }, send: { to: normaliseWhatsApp(s.WhatsApp), template_id: tpl.report || '', template_variables: reportTemplateVars(r) },
     reason: '', Delivery_ID: d.Delivery_ID, publish: { Report_ID: r.Report_ID, _job: '' } };
 }
 
@@ -165,8 +190,8 @@ export function retryPlan(inp) {
 
 /**
  * step_plan — after a send or a retry, from the app's own rows: the report's Sent / Failed counts and Status Sent, the reader-safe
- * copy (published_reports) and the app's job. When a subscriber last got a report is in the delivery log. Publishes only a Ready / Sent report that has
- * report deliveries — a Failed report or an unknown id writes nothing.
+ * copy (published_reports) and the app's job. Only a Ready / Sent report with at least one delivery that was actually Sent is marked
+ * Sent and published; nothing sent leaves it Ready and fails the job (NOTHING_SENT). A Failed report (an alert run) writes nothing.
  */
 export function publishPlan(inp) {
   const body = (inp && inp.body) || {}; const now = nowOf(inp);
@@ -174,15 +199,17 @@ export function publishPlan(inp) {
   const report = reports ? reports.find((r) => r.Report_ID === String(body.Report_ID || '')) || null : null;
   const mine = report && dels ? dels.filter((d) => d.Kind === 'Report' && (d.Report_ID === report.Report_ID || (!d.Report_ID && d.Report_Date === report.Report_Date))) : [];
   const sent = mine.filter((d) => d.Status === 'Sent'); const failedN = mine.filter((d) => d.Status === 'Failed').length;
-  const ok = !!report && ['Ready', 'Sent'].includes(report.Status) && mine.length > 0;
+  const ok = !!report && ['Ready', 'Sent'].includes(report.Status) && sent.length > 0;
   const firstSent = sent.map((d) => toIso(d.Sent_At)).filter(Boolean).sort()[0];
   const sentAt = toIso(report && report.Sent_At) || firstSent || now.toISOString();
+  const alertRun = !!report && report.Status === 'Failed';
   const reason = !reports || !dels ? doorError(!reports ? inp.reports : inp.deliveries, !reports ? 'reports' : 'deliveries')
-    : !report ? `No report ${String(body.Report_ID || '').slice(0, 30)}` : !ok ? `${report.Report_ID} is ${report.Status} with ${mine.length} report deliveries — nothing published` : '';
+    : !report ? `No report ${String(body.Report_ID || '').slice(0, 30)}` : alertRun ? `${report.Report_ID} is Failed — the admins were alerted, nothing published`
+    : !ok ? `NOTHING_SENT: ${report.Report_ID} has ${mine.length} report deliveries and none was sent — left ${report.Status}` : '';
   const published = ok ? { Report_ID: report.Report_ID, Published_At: sentAt, ...Object.fromEntries(PUBLISHED_COLUMNS.map((c) => [c, report[c] ?? ''])) } : {};
   const pub = ok ? [{ Report_ID: report.Report_ID, patch: { Status: 'Sent', Sent_At: sentAt, Sent_Count: sent.length, Failed_Count: failedN }, published }] : [];
   const result = { sent: sent.length, failed: failedN, skipped: 0, published: ok, ...(reason ? { note: reason } : {}) };
-  return { ok, reason, Report_ID: report ? report.Report_ID : '', pub, jobs: jobItems(body._job, 'done', result), Sent_Count: sent.length, Failed_Count: failedN };
+  return { ok, reason, Report_ID: report ? report.Report_ID : '', pub, jobs: jobItems(body._job, ok || alertRun ? 'done' : 'failed', result), Sent_Count: sent.length, Failed_Count: failedN };
 }
 
 // ─────────────────────────────── DAILY_SCHEDULE · DAILY_WATCHDOG ───────────────────────────────
@@ -199,8 +226,8 @@ export function scheduleGate(inp) {
 export function watchdogCheck(inp) {
   const C = (inp && inp.C) || {}; const gate = scheduleGate(inp); const rows = rowsOf(inp && inp.reports);
   if (gate.route === 'skip') return { route: 'ok', today: gate.today, reason: gate.reason, Error_Message: '' };
-  if (!rows) return { route: 'alert', today: gate.today, reason: 'app unreadable', Error_Message: `Watchdog 06:20: ${doorError(inp.reports, 'reports')}` };
+  if (!rows) return { route: 'alert', today: gate.today, reason: 'app unreadable', Error_Message: '' };
   const row = rows.find((r) => r.Report_Date === gate.today);
   if (row) return { route: 'ok', today: gate.today, reason: `${row.Report_ID} is ${row.Status}`, Error_Message: '' };
-  return { route: 'alert', today: gate.today, reason: 'no row', Error_Message: `No report row by 06:20 IST for ${gate.today} — the 06:00 run did not finish` };
+  return { route: 'alert', today: gate.today, reason: 'no row', Error_Message: '' };
 }

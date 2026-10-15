@@ -4,35 +4,26 @@
   "fire_and_forget": false,
   "allow_pieces": [
     "@puchoaistudio/tool-http",
-    "@puchoaistudio/tool-llm-ai",
     "@puchoaistudio/tool-webhook"
   ],
   "allow_names": [
-    "askLlm",
     "catch_webhook",
     "return_response",
     "send_request"
   ],
   "require_capabilities": [
     "webhook=trigger:webhook:trigger",
-    "fetch_et=step_fetch_et:http:read",
-    "fetch_mc=step_fetch_mc:http:read",
-    "fetch_reuters=step_fetch_reuters:http:read",
-    "fetch_gfn=step_fetch_gfn:http:read",
-    "fetch_global=step_fetch_global:http:read",
-    "prep=step_prep:code:transform",
+    "auth_gate=step_constants:code:transform",
+    "answer_unauthorized=step_denied_done:webhook:respond",
+    "answer_bad_action=step_bad_action_done:webhook:respond",
+    "auth_route=step_auth:router:route",
+    "read_reports=step_read_reports:http:read",
+    "gate=step_gate:code:transform",
     "route=step_router:router:route",
-    "model_run=step_run_ai:llm-ai:read",
-    "finish_run=step_run_finish:code:transform",
-    "store_run=step_run_store:http:write",
-    "answer_run=step_run_done:webhook:respond",
-    "model_rerun=step_rerun_ai:llm-ai:read",
-    "finish_rerun=step_rerun_finish:code:transform",
-    "store_rerun=step_rerun_store:http:write",
-    "answer_rerun=step_rerun_done:webhook:respond",
-    "store_failed=step_nonews_store:http:write",
-    "answer_failed=step_nonews_done:webhook:respond",
-    "answer_unknown=step_unknown_done:webhook:respond"
+    "refuse_job=step_refuse_job:http:write",
+    "answer_refused=step_refuse_done:webhook:respond",
+    "start_analysis=step_analyse_post:http:write",
+    "answer_queued=step_analyse_done:webhook:respond"
   ],
   "built_by": "tools/build_market_flows.py"
 }

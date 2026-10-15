@@ -50,10 +50,13 @@
         "type": "CODE",
         "valid": true,
         "settings": {
-          "input": {},
+          "input": {
+            "k": "{{trigger['queryParams']['k']}}",
+            "action": "{{trigger['body']['action']}}"
+          },
           "sampleData": {},
           "sourceCode": {
-            "code": "// @ts-nocheck\nexport const code = async (inputs) => {\n  return {\n    \"flow\": \"BROADCAST\",\n    \"app_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"inbound_token\": \"SET_IN_STUDIO_INBOUND_TOKEN\",\n    \"whatsapp_account_id\": \"SET_IN_STUDIO_WHATSAPP_ACCOUNT_ID\",\n    \"whatsapp_templates\": {\n      \"report\": \"SET_IN_STUDIO_TEMPLATE_ID_MI_DAILY_REPORT\",\n      \"alert\": \"SET_IN_STUDIO_TEMPLATE_ID_MI_RUN_FAILED\"\n    },\n    \"whatsapp_template_names\": {\n      \"report\": \"mi_daily_report\",\n      \"alert\": \"mi_run_failed\"\n    },\n    \"alert_to\": \"SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS\",\n    \"portal_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"publish_webhook\": \"SET_IN_STUDIO_MARKET_PUBLISH_WEBHOOK_URL\"\n  };\n};",
+            "code": "// @ts-nocheck\n// lib: secretMatches — app/src/custom/lib/market.js (constant-time, fail closed)\nfunction secretMatches(given, expected) {\n  const a = String(given ?? ''); const b = String(expected ?? '');\n  if (b.length < 16 || /SET_IN_STUDIO/.test(b)) return false;\n  let d = a.length ^ b.length;\n  for (let i = 0; i < b.length; i++) d |= (a.charCodeAt(i) || 0) ^ b.charCodeAt(i);\n  return d === 0;\n}\n// end lib\nexport const code = async (inputs) => {\n  const C = {\n    \"flow\": \"BROADCAST\",\n    \"app_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"inbound_token\": \"SET_IN_STUDIO_INBOUND_TOKEN\",\n    \"webhook_secret\": \"SET_IN_STUDIO_BROADCAST_WEBHOOK_SECRET\",\n    \"whatsapp_account_id\": \"SET_IN_STUDIO_WHATSAPP_ACCOUNT_ID\",\n    \"whatsapp_templates\": {\n      \"report\": \"SET_IN_STUDIO_TEMPLATE_ID_MI_DAILY_REPORT\",\n      \"alert\": \"SET_IN_STUDIO_TEMPLATE_ID_MI_RUN_FAILED\"\n    },\n    \"whatsapp_template_names\": {\n      \"report\": \"mi_daily_report\",\n      \"alert\": \"mi_run_failed\"\n    },\n    \"alert_to\": \"SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS\",\n    \"portal_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"market_publish_webhook\": \"SET_IN_STUDIO_MARKET_PUBLISH_WEBHOOK_URL\",\n    \"market_publish_secret\": \"SET_IN_STUDIO_MARKET_PUBLISH_WEBHOOK_SECRET\"\n  };\n  const actions = [\"send\", \"retry\"];\n  const gate = !secretMatches(inputs.k, C.webhook_secret) ? 'denied' : actions.includes(String(inputs.action || '')) ? 'ok' : 'bad_action';\n  const { webhook_secret, ...rest } = C;\n  return { ...rest, gate };\n};",
             "packageJson": "{}"
           },
           "errorHandlingOptions": {
@@ -71,6 +74,68 @@
           "type": "ROUTER",
           "valid": true,
           "children": [
+            {
+              "name": "step_denied_done",
+              "skip": false,
+              "type": "PIECE",
+              "valid": true,
+              "settings": {
+                "input": {
+                  "fields": {
+                    "body": {
+                      "ok": false,
+                      "error": "unauthorized"
+                    },
+                    "status": 401,
+                    "headers": {}
+                  },
+                  "respond": "stop",
+                  "responseType": "json"
+                },
+                "pieceName": "@puchoaistudio/tool-webhook",
+                "actionName": "return_response",
+                "sampleData": {},
+                "pieceVersion": "^2.0.4",
+                "propertySettings": {
+                  "fields": {
+                    "type": "MANUAL",
+                    "schema": {
+                      "body": {
+                        "type": "JSON",
+                        "required": true,
+                        "displayName": "JSON Body"
+                      },
+                      "status": {
+                        "type": "NUMBER",
+                        "required": false,
+                        "displayName": "Status",
+                        "defaultValue": 200
+                      },
+                      "headers": {
+                        "type": "OBJECT",
+                        "required": false,
+                        "displayName": "Headers"
+                      }
+                    }
+                  },
+                  "respond": {
+                    "type": "MANUAL"
+                  },
+                  "responseType": {
+                    "type": "MANUAL"
+                  }
+                },
+                "errorHandlingOptions": {
+                  "retryOnFailure": {
+                    "value": false
+                  },
+                  "continueOnFailure": {
+                    "value": false
+                  }
+                }
+              },
+              "displayName": "Return 401: missing or wrong webhook secret"
+            },
             {
               "name": "step_send_reports",
               "skip": false,
@@ -187,7 +252,7 @@
                     },
                     "sampleData": {},
                     "sourceCode": {
-                      "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendPlan() reaches (tools/build_market_flows.py)\nconst ENUMS = {\n  Sentiment: ['BULLISH', 'CAUTIOUSLY BULLISH', 'NEUTRAL', 'CAUTIOUSLY BEARISH', 'BEARISH'],\n  Confidence_Level: ['HIGH', 'MEDIUM', 'LOW'],\n  Outlook: ['BULLISH', 'BEARISH', 'NEUTRAL', 'CAUTIOUS'],\n  FnO_View: ['BULLISH BIAS', 'BEARISH BIAS', 'RANGE-BOUND', 'VOLATILE'],\n  VIX_Expectation: ['LOW', 'MEDIUM', 'HIGH'],\n  SectorCall: ['POSITIVE', 'WATCH', 'NEGATIVE'],\n  RiskLevel: ['HIGH', 'MED'],\n  Trigger: ['Schedule', 'Manual'],\n  Opt_In_Source: ['WhatsApp reply', 'Web form', 'Signed form', 'Phone call'],\n};\nconst asDate = (at) => (at instanceof Date ? at : new Date(at || Date.now()));\nfunction istDate(at) {\n  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(asDate(at)).map((x) => [x.type, x.value]));\n  return `${p.year}-${p.month}-${p.day}`;\n}\nfunction istLabel(at) {\n  const f = (o) => new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', ...o }).format(asDate(at));\n  return { date: f({ day: '2-digit', month: 'short', year: 'numeric' }), time: f({ hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() + ' IST' };\n}\nconst clean = (v, max) => String(v ?? '').replace(/\\s+/g, ' ').trim().slice(0, max);\nfunction normaliseWhatsApp(n) {\n  const digits = String(n || '').replace(/\\D/g, '');\n  if (!/^\\d{10,15}$/.test(digits)) return '';\n  return digits.length === 10 ? `+91${digits}` : `+${digits}`;\n}\nfunction adminNumbers(alertTo) { return /SET_IN_STUDIO/.test(String(alertTo || '')) ? [] : [...new Set(String(alertTo || '').split(/[,;\\s]+/).map(normaliseWhatsApp).filter(Boolean))]; }\nfunction isEligible(s) { return !!s && s.Status === 'Active' && !!String(s.Opt_In_At || '').trim() && ENUMS.Opt_In_Source.includes(s.Opt_In_Source) && !!normaliseWhatsApp(s.WhatsApp); }\nfunction reportTemplateVars(r) {\n  const pct = r.Confidence_Pct !== '' && r.Confidence_Pct != null ? ` (${r.Confidence_Pct}%)` : '';\n  return { date: istLabel(`${r.Report_Date}T09:00:00+05:30`).date, sentiment: r.Sentiment || '', confidence: `${r.Confidence_Level || ''}${pct}`.trim(), driver: clean(r.Driver_1, 120) };\n}\nfunction alertTemplateVars({ error, reportDate, now = Date.now() }) {\n  const t = istLabel(now);\n  return { error: clean(error, 160) || 'The report could not be generated', date: reportDate ? istLabel(`${reportDate}T09:00:00+05:30`).date : t.date, time: t.time };\n}\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction sendPlan(inp) {\n  const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp);\n  const reports = rowsOf(inp && inp.reports); const subs = rowsOf(inp && inp.subscribers);\n  const report = reports && body.Report_ID ? reports.find((r) => r.Report_ID === String(body.Report_ID)) || null : null;\n  const tpl = C.whatsapp_templates || {};\n  const publish = { Report_ID: report ? report.Report_ID : '', _job: String(body._job || '') };\n  const done = (kind, items, reason) => ({ kind, items, reason, Report_ID: publish.Report_ID, publish, queued: items.length });\n  if (body.Kind === 'Alert' || (report && report.Status === 'Failed')) {\n    const date = report ? report.Report_Date : istDate(now);\n    const error = (report && report.Error_Message) || String(body.Error_Message || '').replace(/[^\\p{L}\\p{N}\\s.,:;()'%/–-]/gu, ' ') || 'The report could not be generated';\n    const numbers = adminNumbers(C.alert_to);\n    const items = numbers.map((to, i) => ({ to, template_id: tpl.alert || '', template_variables: alertTemplateVars({ error, reportDate: date, now }),\n      delivery: { Kind: 'Alert', Report_ID: report ? report.Report_ID : '', Report_Date: date, Subscriber_ID: `ADMIN-${i + 1}`, Subscriber_Name: `Admin alert ${i + 1}`, Sentiment: '', Status: 'Queued' } }));\n    return done('Alert', items, numbers.length ? '' : 'constants.alert_to has no WhatsApp number yet — nobody was alerted');\n  }\n  if (!reports) return done('Report', [], doorError(inp.reports, 'reports'));\n  if (!report) return done('Report', [], `No report ${String(body.Report_ID || '').slice(0, 30)}`);\n  if (!['Ready', 'Sent'].includes(report.Status)) return done('Report', [], `${report.Report_ID} is ${report.Status} — not sent`);\n  if (!subs) return done('Report', [], doorError(inp.subscribers, 'subscribers'));\n  const vars = reportTemplateVars(report);\n  const items = subs.filter(isEligible).map((s) => ({ to: normaliseWhatsApp(s.WhatsApp), template_id: tpl.report || '', template_variables: vars,\n    delivery: { Kind: 'Report', Report_ID: report.Report_ID, Report_Date: report.Report_Date, Subscriber_ID: s.Subscriber_ID, Subscriber_Name: s.Name || '', Sentiment: report.Sentiment || '', Status: 'Queued' } }));\n  return done('Report', items, items.length ? '' : 'No Active, opted-in subscriber is waiting for this report');\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendPlan(inputs);\n};",
+                      "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendPlan() reaches (tools/build_market_flows.py)\nconst ENUMS = {\n  Sentiment: ['BULLISH', 'CAUTIOUSLY BULLISH', 'NEUTRAL', 'CAUTIOUSLY BEARISH', 'BEARISH'],\n  Confidence_Level: ['HIGH', 'MEDIUM', 'LOW'],\n  Outlook: ['BULLISH', 'BEARISH', 'NEUTRAL', 'CAUTIOUS'],\n  FnO_View: ['BULLISH BIAS', 'BEARISH BIAS', 'RANGE-BOUND', 'VOLATILE'],\n  VIX_Expectation: ['LOW', 'MEDIUM', 'HIGH'],\n  SectorCall: ['POSITIVE', 'WATCH', 'NEGATIVE'],\n  RiskLevel: ['HIGH', 'MED'],\n  Trigger: ['Schedule', 'Manual'],\n  Opt_In_Source: ['WhatsApp reply', 'Web form', 'Signed form', 'Phone call'],\n};\nconst asDate = (at) => (at instanceof Date ? at : new Date(at || Date.now()));\nfunction istDate(at) {\n  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(asDate(at)).map((x) => [x.type, x.value]));\n  return `${p.year}-${p.month}-${p.day}`;\n}\nfunction istHHmm(at) { return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).format(asDate(at)).replace(':', ''); }\nfunction istLabel(at) {\n  const f = (o) => new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', ...o }).format(asDate(at));\n  return { date: f({ day: '2-digit', month: 'short', year: 'numeric' }), time: f({ hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() + ' IST' };\n}\nfunction cut(s, n) { const a = Array.from(String(s ?? '')); return a.length <= n ? a.join('') : a.slice(0, Math.max(0, n)).join(''); }\nconst clean = (v, max) => cut(String(v ?? '').replace(/\\s+/g, ' ').trim(), max);\nfunction pctText(v) { return v === '' || v == null || !Number.isFinite(Number(v)) ? '' : ` (${Math.round(Number(v))}%)`; }\nfunction normaliseWhatsApp(n) {\n  const digits = String(n || '').replace(/\\D/g, '');\n  if (!/^\\d{10,15}$/.test(digits)) return '';\n  return digits.length === 10 ? `+91${digits}` : `+${digits}`;\n}\nfunction adminNumbers(alertTo) { return /SET_IN_STUDIO/.test(String(alertTo || '')) ? [] : [...new Set(String(alertTo || '').split(/[,;\\s]+/).map(normaliseWhatsApp).filter(Boolean))]; }\nfunction isEligible(s) { return !!s && s.Status === 'Active' && !!String(s.Opt_In_At || '').trim() && ENUMS.Opt_In_Source.includes(s.Opt_In_Source) && !!normaliseWhatsApp(s.WhatsApp); }\nfunction reportTemplateVars(r) {\n  const pct = pctText(r.Confidence_Pct);\n  return { date: istLabel(`${r.Report_Date}T09:00:00+05:30`).date, sentiment: r.Sentiment || '', confidence: `${r.Confidence_Level || ''}${pct}`.trim(), driver: clean(r.Driver_1, 120) };\n}\nfunction alertTemplateVars({ error, reportDate, now = Date.now() }) {\n  const t = istLabel(now);\n  return { error: clean(error, 160) || 'The report could not be generated', date: reportDate ? istLabel(`${reportDate}T09:00:00+05:30`).date : t.date, time: t.time };\n}\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction watchdogText(today) { return `No report row by 06:20 IST for ${today} (or the app could not be read) — the 06:00 run did not finish`; }\nfunction sendPlan(inp) {\n  const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp); const today = istDate(now);\n  const reports = rowsOf(inp && inp.reports); const subs = rowsOf(inp && inp.subscribers);\n  const report = reports && body.Report_ID ? reports.find((r) => r.Report_ID === String(body.Report_ID)) || null : null;\n  const tpl = C.whatsapp_templates || {};\n  const publish = { Report_ID: report ? report.Report_ID : '', _job: String(body._job || '') };\n  const done = (kind, items, reason) => ({ kind, items, reason, Report_ID: publish.Report_ID, publish, queued: items.length });\n  if (body.Kind === 'Alert' || (report && report.Status === 'Failed')) {\n    if (body.Report_ID && (!report || report.Status !== 'Failed')) return done('Alert', [], `${String(body.Report_ID).slice(0, 30)} is not a Failed report — no alert`);\n    const date = report ? report.Report_Date : today;\n    const error = report ? report.Error_Message || 'The report could not be generated' : watchdogText(today);\n    const numbers = adminNumbers(C.alert_to); const at = istHHmm(now);\n    const items = numbers.map((to, i) => ({ to, template_id: tpl.alert || '', template_variables: alertTemplateVars({ error, reportDate: date, now }),\n      delivery: { Kind: 'Alert', Report_ID: report ? report.Report_ID : '', Report_Date: date, Subscriber_ID: `ADMIN-${i + 1}-${at}`, Subscriber_Name: `Admin alert ${i + 1}`, Sentiment: '', Status: 'Queued' } }));\n    return done('Alert', items, numbers.length ? '' : 'constants.alert_to has no WhatsApp number yet — nobody was alerted');\n  }\n  if (!reports) return done('Report', [], doorError(inp.reports, 'reports'));\n  if (!report) return done('Report', [], `No report ${String(body.Report_ID || '').slice(0, 30)}`);\n  if (!['Ready', 'Sent'].includes(report.Status)) return done('Report', [], `${report.Report_ID} is ${report.Status} — not sent`);\n  if (report.Status === 'Ready' && report.Report_Date !== today) return done('Report', [], `${report.Report_ID} is a Ready report for ${report.Report_Date} — only today's report is sent`);\n  if (!subs) return done('Report', [], doorError(inp.subscribers, 'subscribers'));\n  const vars = reportTemplateVars(report);\n  const items = subs.filter(isEligible).map((s) => ({ to: normaliseWhatsApp(s.WhatsApp), template_id: tpl.report || '', template_variables: vars,\n    delivery: { Kind: 'Report', Report_ID: report.Report_ID, Report_Date: report.Report_Date, Subscriber_ID: s.Subscriber_ID, Subscriber_Name: s.Name || '', Sentiment: report.Sentiment || '', Status: 'Queued' } }));\n  return done('Report', items, items.length ? '' : 'No Active, opted-in subscriber');\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendPlan(inputs);\n};",
                       "packageJson": "{}"
                     },
                     "errorHandlingOptions": {
@@ -235,7 +300,8 @@
                               "Subscriber_Name": "{{step_send_loop['item']['delivery']['Subscriber_Name']}}",
                               "Sentiment": "{{step_send_loop['item']['delivery']['Sentiment']}}",
                               "Status": "{{step_send_loop['item']['delivery']['Status']}}",
-                              "Delivery_ID": ""
+                              "Delivery_ID": "",
+                              "Attempts": 1
                             }
                           }
                         },
@@ -279,30 +345,16 @@
                         }
                       },
                       "nextAction": {
-                        "name": "step_send_gate",
-                        "skip": false,
-                        "type": "CODE",
+                        "name": "step_send_queued",
+                        "type": "LOOP_ON_ITEMS",
+                        "displayName": "Only if queued (0 or 1: a 409 skips — no WhatsApp, no PATCH)",
                         "valid": true,
+                        "skip": false,
                         "settings": {
-                          "input": {
-                            "queued": "{{step_send_queue}}",
-                            "item": "{{step_send_loop['item']}}"
-                          },
-                          "sampleData": {},
-                          "sourceCode": {
-                            "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what queueGate() reaches (tools/build_market_flows.py)\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction queueGate(inp) {\n  const item = (inp && inp.item) || {}; const rows = rowsOf(inp && inp.queued); const st = statusOf(inp && inp.queued);\n  const id = rows && rows[0] && rows[0].Delivery_ID ? rows[0].Delivery_ID : '';\n  if (!id) return { go: false, to: '', Delivery_ID: '', template_id: '', template_variables: {}, note: st === 409 || /409|already in use/i.test(JSON.stringify((inp && inp.queued) || {})) ? 'already sent — skipped' : `queue write refused (${st || 'no response'}) — skipped` };\n  return { go: true, to: item.to || '', Delivery_ID: id, template_id: item.template_id || '', template_variables: item.template_variables || {}, note: '' };\n}\n// end lib\nexport const code = async (inputs) => {\n  return queueGate(inputs);\n};",
-                            "packageJson": "{}"
-                          },
-                          "errorHandlingOptions": {
-                            "retryOnFailure": {
-                              "value": false
-                            },
-                            "continueOnFailure": {
-                              "value": false
-                            }
-                          }
+                          "items": "{{step_send_queue['body']}}",
+                          "sampleData": {}
                         },
-                        "nextAction": {
+                        "firstLoopAction": {
                           "name": "step_send_whatsapp",
                           "skip": false,
                           "type": "PIECE",
@@ -310,9 +362,9 @@
                           "settings": {
                             "input": {
                               "account_id": "{{step_constants['whatsapp_account_id']}}",
-                              "to": "{{step_send_gate['to']}}",
-                              "template_id": "{{step_send_gate['template_id']}}",
-                              "template_variables": "{{step_send_gate['template_variables']}}"
+                              "to": "{{step_send_loop['item']['to']}}",
+                              "template_id": "{{step_send_loop['item']['template_id']}}",
+                              "template_variables": "{{step_send_loop['item']['template_variables']}}"
                             },
                             "pieceName": "@puchoaistudio/tool-pucho-whatsapp",
                             "actionName": "send_template_message",
@@ -348,12 +400,12 @@
                             "valid": true,
                             "settings": {
                               "input": {
-                                "gate": "{{step_send_gate}}",
+                                "Delivery_ID": "{{step_send_queued['item']['Delivery_ID']}}",
                                 "sent": "{{step_send_whatsapp}}"
                               },
                               "sampleData": {},
                               "sourceCode": {
-                                "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendResult() reaches (tools/build_market_flows.py)\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction sendResult(inp) {\n  const gate = (inp && inp.gate) || {}; const out = inp && inp.sent; const now = nowOf(inp).toISOString();\n  if (!gate.go) return { Delivery_ID: '', Status: '', Message_ID: '', Error_Message: '', Sent_At: '', sent: false, note: gate.note || 'skipped' };\n  const o = out && typeof out === 'object' ? out : {};\n  const pick = (...vals) => vals.find((v) => typeof v === 'string' && v.trim()) || '';\n  const msgId = pick(o.messageId, o.message_id, o.id, o.wamid, o.messages && o.messages[0] && o.messages[0].id, o.data && o.data.messages && o.data.messages[0] && o.data.messages[0].id,\n    o.body && o.body.messages && o.body.messages[0] && o.body.messages[0].id, o.data && o.data.id);\n  const err = pick(o.error && (o.error.message || o.error), o.errorMessage, o.success === false ? o.message : '', o.status === 'failed' ? o.message : '');\n  const failed = !!err || !out || (typeof out === 'object' && !Object.keys(o).length);\n  return { Delivery_ID: gate.Delivery_ID, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),\n    Error_Message: failed ? (err || 'WhatsApp step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed, note: '' };\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendResult(inputs);\n};",
+                                "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendResult() reaches (tools/build_market_flows.py)\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction sendResult(inp) {\n  const id = String((inp && inp.Delivery_ID) || ''); const out = inp && inp.sent; const now = nowOf(inp).toISOString();\n  const o = out && typeof out === 'object' ? out : {};\n  const pick = (...vals) => vals.find((v) => typeof v === 'string' && v.trim()) || '';\n  const msgId = pick(o.messageId, o.message_id, o.id, o.wamid, o.messages && o.messages[0] && o.messages[0].id, o.data && o.data.messages && o.data.messages[0] && o.data.messages[0].id,\n    o.body && o.body.messages && o.body.messages[0] && o.body.messages[0].id, o.data && o.data.id);\n  const err = pick(o.error && (o.error.message || o.error), o.errorMessage, o.success === false ? o.message : '', o.status === 'failed' ? o.message : '');\n  const failed = !!err || !out || (typeof out === 'object' && !Object.keys(o).length);\n  return { Delivery_ID: id, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),\n    Error_Message: failed ? (err || 'WhatsApp step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed };\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendResult(inputs);\n};",
                                 "packageJson": "{}"
                               },
                               "errorHandlingOptions": {
@@ -437,10 +489,9 @@
                             "displayName": "Sent or Failed? (CODE)"
                           },
                           "displayName": "Send WhatsApp template (mi_daily_report · mi_run_failed)"
-                        },
-                        "displayName": "Queued? then send, else skip (CODE)"
+                        }
                       },
-                      "displayName": "POST deliveries — Queued (409 = already sent → skip)"
+                      "displayName": "POST deliveries — Queued, Attempts 1 (409 = already sent)"
                     },
                     "nextAction": {
                       "name": "step_send_publish",
@@ -450,11 +501,13 @@
                       "settings": {
                         "input": {
                           "method": "POST",
-                          "url": "{{step_constants['publish_webhook']}}",
+                          "url": "{{step_constants['market_publish_webhook']}}",
                           "headers": {
                             "Content-Type": "application/json"
                           },
-                          "queryParams": {},
+                          "queryParams": {
+                            "k": "{{step_constants['market_publish_secret']}}"
+                          },
                           "authType": "NONE",
                           "body_type": "json",
                           "body": {
@@ -570,10 +623,10 @@
                         },
                         "displayName": "Return: handed to WhatsApp"
                       },
-                      "displayName": "POST MARKET_PUBLISH — counts, reader copy, job"
+                      "displayName": "POST MARKET_PUBLISH ?k= — counts, reader copy, job"
                     }
                   },
-                  "displayName": "Who gets what: report → eligible subscribers · Failed / Alert → admins (CODE)"
+                  "displayName": "Who gets what: today's Ready report → eligible subscribers · Failed / Alert → admins (CODE)"
                 },
                 "displayName": "GET subscribers"
               },
@@ -747,7 +800,7 @@
                       },
                       "sampleData": {},
                       "sourceCode": {
-                        "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what retryPlan() reaches (tools/build_market_flows.py)\nconst ENUMS = {\n  Sentiment: ['BULLISH', 'CAUTIOUSLY BULLISH', 'NEUTRAL', 'CAUTIOUSLY BEARISH', 'BEARISH'],\n  Confidence_Level: ['HIGH', 'MEDIUM', 'LOW'],\n  Outlook: ['BULLISH', 'BEARISH', 'NEUTRAL', 'CAUTIOUS'],\n  FnO_View: ['BULLISH BIAS', 'BEARISH BIAS', 'RANGE-BOUND', 'VOLATILE'],\n  VIX_Expectation: ['LOW', 'MEDIUM', 'HIGH'],\n  SectorCall: ['POSITIVE', 'WATCH', 'NEGATIVE'],\n  RiskLevel: ['HIGH', 'MED'],\n  Trigger: ['Schedule', 'Manual'],\n  Opt_In_Source: ['WhatsApp reply', 'Web form', 'Signed form', 'Phone call'],\n};\nconst asDate = (at) => (at instanceof Date ? at : new Date(at || Date.now()));\nfunction istLabel(at) {\n  const f = (o) => new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', ...o }).format(asDate(at));\n  return { date: f({ day: '2-digit', month: 'short', year: 'numeric' }), time: f({ hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() + ' IST' };\n}\nconst clean = (v, max) => String(v ?? '').replace(/\\s+/g, ' ').trim().slice(0, max);\nfunction normaliseWhatsApp(n) {\n  const digits = String(n || '').replace(/\\D/g, '');\n  if (!/^\\d{10,15}$/.test(digits)) return '';\n  return digits.length === 10 ? `+91${digits}` : `+${digits}`;\n}\nfunction isEligible(s) { return !!s && s.Status === 'Active' && !!String(s.Opt_In_At || '').trim() && ENUMS.Opt_In_Source.includes(s.Opt_In_Source) && !!normaliseWhatsApp(s.WhatsApp); }\nfunction reportTemplateVars(r) {\n  const pct = r.Confidence_Pct !== '' && r.Confidence_Pct != null ? ` (${r.Confidence_Pct}%)` : '';\n  return { date: istLabel(`${r.Report_Date}T09:00:00+05:30`).date, sentiment: r.Sentiment || '', confidence: `${r.Confidence_Level || ''}${pct}`.trim(), driver: clean(r.Driver_1, 120) };\n}\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction retryPlan(inp) {\n  const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp);\n  const dels = rowsOf(inp && inp.deliveries); const subs = rowsOf(inp && inp.subscribers); const reports = rowsOf(inp && inp.reports);\n  const none = (reason, d) => ({ items: [], reason, Delivery_ID: d ? d.Delivery_ID : '', publish: { Report_ID: d ? d.Report_ID : '', _job: '' } });\n  if (!dels || !subs || !reports) return none(doorError(!dels ? inp.deliveries : !subs ? inp.subscribers : inp.reports, !dels ? 'deliveries' : !subs ? 'subscribers' : 'reports'));\n  const d = dels.find((x) => x.Delivery_ID === String(body.Delivery_ID || ''));\n  if (!d) return none(`No delivery ${String(body.Delivery_ID || '').slice(0, 30)}`);\n  if (d.Kind !== 'Report' || d.Status !== 'Failed') return none(`${d.Delivery_ID} is a ${d.Kind} delivery that is ${d.Status} — only a Failed report delivery is retried`, d);\n  const s = subs.find((x) => x.Subscriber_ID === d.Subscriber_ID);\n  if (!isEligible(s)) return none(`${d.Subscriber_Name || d.Subscriber_ID} is not Active and opted in — not sent`, d);\n  const r = reports.find((x) => x.Report_ID === d.Report_ID);\n  if (!r || !['Ready', 'Sent'].includes(r.Status)) return none(`Report ${d.Report_ID} is not Ready or Sent — not sent`, d);\n  const tpl = C.whatsapp_templates || {};\n  return { items: [{ go: true, to: normaliseWhatsApp(s.WhatsApp), Delivery_ID: d.Delivery_ID, template_id: tpl.report || '', template_variables: reportTemplateVars(r) }],\n    reason: '', Delivery_ID: d.Delivery_ID, publish: { Report_ID: r.Report_ID, _job: '' } };\n}\n\n// ─────────────────────────────── MARKET_PUBLISH ───────────────────────────────\n// end lib\nexport const code = async (inputs) => {\n  return retryPlan(inputs);\n};",
+                        "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what retryPlan() reaches (tools/build_market_flows.py)\nconst ENUMS = {\n  Sentiment: ['BULLISH', 'CAUTIOUSLY BULLISH', 'NEUTRAL', 'CAUTIOUSLY BEARISH', 'BEARISH'],\n  Confidence_Level: ['HIGH', 'MEDIUM', 'LOW'],\n  Outlook: ['BULLISH', 'BEARISH', 'NEUTRAL', 'CAUTIOUS'],\n  FnO_View: ['BULLISH BIAS', 'BEARISH BIAS', 'RANGE-BOUND', 'VOLATILE'],\n  VIX_Expectation: ['LOW', 'MEDIUM', 'HIGH'],\n  SectorCall: ['POSITIVE', 'WATCH', 'NEGATIVE'],\n  RiskLevel: ['HIGH', 'MED'],\n  Trigger: ['Schedule', 'Manual'],\n  Opt_In_Source: ['WhatsApp reply', 'Web form', 'Signed form', 'Phone call'],\n};\nconst asDate = (at) => (at instanceof Date ? at : new Date(at || Date.now()));\nfunction istLabel(at) {\n  const f = (o) => new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', ...o }).format(asDate(at));\n  return { date: f({ day: '2-digit', month: 'short', year: 'numeric' }), time: f({ hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() + ' IST' };\n}\nfunction cut(s, n) { const a = Array.from(String(s ?? '')); return a.length <= n ? a.join('') : a.slice(0, Math.max(0, n)).join(''); }\nconst clean = (v, max) => cut(String(v ?? '').replace(/\\s+/g, ' ').trim(), max);\nfunction pctText(v) { return v === '' || v == null || !Number.isFinite(Number(v)) ? '' : ` (${Math.round(Number(v))}%)`; }\nfunction normaliseWhatsApp(n) {\n  const digits = String(n || '').replace(/\\D/g, '');\n  if (!/^\\d{10,15}$/.test(digits)) return '';\n  return digits.length === 10 ? `+91${digits}` : `+${digits}`;\n}\nfunction isEligible(s) { return !!s && s.Status === 'Active' && !!String(s.Opt_In_At || '').trim() && ENUMS.Opt_In_Source.includes(s.Opt_In_Source) && !!normaliseWhatsApp(s.WhatsApp); }\nfunction reportTemplateVars(r) {\n  const pct = pctText(r.Confidence_Pct);\n  return { date: istLabel(`${r.Report_Date}T09:00:00+05:30`).date, sentiment: r.Sentiment || '', confidence: `${r.Confidence_Level || ''}${pct}`.trim(), driver: clean(r.Driver_1, 120) };\n}\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nconst MAX_ATTEMPTS = 3;\nfunction retryPlan(inp) {\n  const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp);\n  const dels = rowsOf(inp && inp.deliveries); const subs = rowsOf(inp && inp.subscribers); const reports = rowsOf(inp && inp.reports);\n  const none = (reason, d) => ({ claim: { Delivery_ID: '', Attempts: 0, expect: '' }, send: { to: '', template_id: '', template_variables: {} }, reason,\n    Delivery_ID: d ? d.Delivery_ID : '', publish: { Report_ID: d ? d.Report_ID : '', _job: '' } });\n  if (!dels || !subs || !reports) return none(doorError(!dels ? inp.deliveries : !subs ? inp.subscribers : inp.reports, !dels ? 'deliveries' : !subs ? 'subscribers' : 'reports'));\n  const d = dels.find((x) => x.Delivery_ID === String(body.Delivery_ID || ''));\n  if (!d) return none(`No delivery ${String(body.Delivery_ID || '').slice(0, 30)}`);\n  if (d.Kind !== 'Report' || d.Status !== 'Failed') return none(`${d.Delivery_ID} is a ${d.Kind} delivery that is ${d.Status} — only a Failed report delivery is retried`, d);\n  const n = Math.max(0, Math.round(Number(d.Attempts) || 0));\n  if (n >= MAX_ATTEMPTS) return none(`${d.Delivery_ID} has had ${n} attempts — the cap is ${MAX_ATTEMPTS} attempts`, d);\n  const s = subs.find((x) => x.Subscriber_ID === d.Subscriber_ID);\n  if (!isEligible(s)) return none(`${d.Subscriber_Name || d.Subscriber_ID} is not Active and opted in — not sent`, d);\n  const r = reports.find((x) => x.Report_ID === d.Report_ID);\n  if (!r || !['Ready', 'Sent'].includes(r.Status)) return none(`Report ${d.Report_ID} is not Ready or Sent — not sent`, d);\n  const tpl = C.whatsapp_templates || {};\n  return { claim: { Delivery_ID: d.Delivery_ID, Attempts: n + 1, expect: `eq.${n}` }, send: { to: normaliseWhatsApp(s.WhatsApp), template_id: tpl.report || '', template_variables: reportTemplateVars(r) },\n    reason: '', Delivery_ID: d.Delivery_ID, publish: { Report_ID: r.Report_ID, _job: '' } };\n}\n\n// ─────────────────────────────── MARKET_PUBLISH ───────────────────────────────\n// end lib\nexport const code = async (inputs) => {\n  return retryPlan(inputs);\n};",
                         "packageJson": "{}"
                       },
                       "errorHandlingOptions": {
@@ -760,166 +813,168 @@
                       }
                     },
                     "nextAction": {
-                      "name": "step_retry_loop",
-                      "type": "LOOP_ON_ITEMS",
-                      "displayName": "Send again (0 or 1)",
-                      "valid": true,
+                      "name": "step_retry_claim",
                       "skip": false,
+                      "type": "PIECE",
+                      "valid": true,
                       "settings": {
-                        "items": "{{step_retry_plan['items']}}",
-                        "sampleData": {}
-                      },
-                      "firstLoopAction": {
-                        "name": "step_retry_whatsapp",
-                        "skip": false,
-                        "type": "PIECE",
-                        "valid": true,
-                        "settings": {
-                          "input": {
-                            "account_id": "{{step_constants['whatsapp_account_id']}}",
-                            "to": "{{step_retry_loop['item']['to']}}",
-                            "template_id": "{{step_retry_loop['item']['template_id']}}",
-                            "template_variables": "{{step_retry_loop['item']['template_variables']}}"
+                        "input": {
+                          "method": "PATCH",
+                          "url": "{{step_constants['app_url']}}/api/data/deliveries",
+                          "headers": {
+                            "Content-Type": "application/json",
+                            "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                            "X-Flow": "{{step_constants['flow']}}"
                           },
-                          "pieceName": "@puchoaistudio/tool-pucho-whatsapp",
-                          "actionName": "send_template_message",
-                          "sampleData": {},
-                          "pieceVersion": "^2.1.6",
-                          "propertySettings": {
-                            "account_id": {
-                              "type": "MANUAL"
-                            },
-                            "to": {
-                              "type": "MANUAL"
-                            },
-                            "template_id": {
-                              "type": "MANUAL"
-                            },
-                            "template_variables": {
-                              "type": "MANUAL"
-                            }
+                          "queryParams": {
+                            "Delivery_ID": "eq.{{step_retry_plan['claim']['Delivery_ID']}}",
+                            "Attempts": "{{step_retry_plan['claim']['expect']}}"
                           },
-                          "errorHandlingOptions": {
-                            "retryOnFailure": {
-                              "value": false
-                            },
-                            "continueOnFailure": {
-                              "value": true
+                          "authType": "NONE",
+                          "body_type": "json",
+                          "body": {
+                            "data": {
+                              "Attempts": "{{step_retry_plan['claim']['Attempts']}}"
                             }
                           }
                         },
-                        "nextAction": {
-                          "name": "step_retry_result",
+                        "pieceName": "@puchoaistudio/tool-http",
+                        "actionName": "send_request",
+                        "sampleData": {},
+                        "pieceVersion": "^2.0.0",
+                        "propertySettings": {
+                          "method": {
+                            "type": "MANUAL"
+                          },
+                          "url": {
+                            "type": "MANUAL"
+                          },
+                          "headers": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          },
+                          "queryParams": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          },
+                          "authType": {
+                            "type": "MANUAL"
+                          },
+                          "body_type": {
+                            "type": "MANUAL"
+                          },
+                          "body": {
+                            "type": "MANUAL",
+                            "schema": {}
+                          }
+                        },
+                        "errorHandlingOptions": {
+                          "retryOnFailure": {
+                            "value": false
+                          },
+                          "continueOnFailure": {
+                            "value": true
+                          }
+                        }
+                      },
+                      "nextAction": {
+                        "name": "step_retry_claimed",
+                        "type": "LOOP_ON_ITEMS",
+                        "displayName": "Only if claimed (0 or 1)",
+                        "valid": true,
+                        "skip": false,
+                        "settings": {
+                          "items": "{{step_retry_claim['body']}}",
+                          "sampleData": {}
+                        },
+                        "firstLoopAction": {
+                          "name": "step_retry_whatsapp",
                           "skip": false,
-                          "type": "CODE",
+                          "type": "PIECE",
                           "valid": true,
                           "settings": {
                             "input": {
-                              "gate": "{{step_retry_loop['item']}}",
-                              "sent": "{{step_retry_whatsapp}}"
+                              "account_id": "{{step_constants['whatsapp_account_id']}}",
+                              "to": "{{step_retry_plan['send']['to']}}",
+                              "template_id": "{{step_retry_plan['send']['template_id']}}",
+                              "template_variables": "{{step_retry_plan['send']['template_variables']}}"
                             },
+                            "pieceName": "@puchoaistudio/tool-pucho-whatsapp",
+                            "actionName": "send_template_message",
                             "sampleData": {},
-                            "sourceCode": {
-                              "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendResult() reaches (tools/build_market_flows.py)\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction sendResult(inp) {\n  const gate = (inp && inp.gate) || {}; const out = inp && inp.sent; const now = nowOf(inp).toISOString();\n  if (!gate.go) return { Delivery_ID: '', Status: '', Message_ID: '', Error_Message: '', Sent_At: '', sent: false, note: gate.note || 'skipped' };\n  const o = out && typeof out === 'object' ? out : {};\n  const pick = (...vals) => vals.find((v) => typeof v === 'string' && v.trim()) || '';\n  const msgId = pick(o.messageId, o.message_id, o.id, o.wamid, o.messages && o.messages[0] && o.messages[0].id, o.data && o.data.messages && o.data.messages[0] && o.data.messages[0].id,\n    o.body && o.body.messages && o.body.messages[0] && o.body.messages[0].id, o.data && o.data.id);\n  const err = pick(o.error && (o.error.message || o.error), o.errorMessage, o.success === false ? o.message : '', o.status === 'failed' ? o.message : '');\n  const failed = !!err || !out || (typeof out === 'object' && !Object.keys(o).length);\n  return { Delivery_ID: gate.Delivery_ID, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),\n    Error_Message: failed ? (err || 'WhatsApp step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed, note: '' };\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendResult(inputs);\n};",
-                              "packageJson": "{}"
+                            "pieceVersion": "^2.1.6",
+                            "propertySettings": {
+                              "account_id": {
+                                "type": "MANUAL"
+                              },
+                              "to": {
+                                "type": "MANUAL"
+                              },
+                              "template_id": {
+                                "type": "MANUAL"
+                              },
+                              "template_variables": {
+                                "type": "MANUAL"
+                              }
                             },
                             "errorHandlingOptions": {
                               "retryOnFailure": {
                                 "value": false
                               },
                               "continueOnFailure": {
-                                "value": false
+                                "value": true
                               }
                             }
                           },
                           "nextAction": {
-                            "name": "step_retry_update",
+                            "name": "step_retry_result",
                             "skip": false,
-                            "type": "PIECE",
+                            "type": "CODE",
                             "valid": true,
                             "settings": {
                               "input": {
-                                "method": "PATCH",
-                                "url": "{{step_constants['app_url']}}/api/data/deliveries",
-                                "headers": {
-                                  "Content-Type": "application/json",
-                                  "Authorization": "Bearer {{step_constants['inbound_token']}}",
-                                  "X-Flow": "{{step_constants['flow']}}"
-                                },
-                                "queryParams": {
-                                  "Delivery_ID": "eq.{{step_retry_result['Delivery_ID']}}"
-                                },
-                                "authType": "NONE",
-                                "body_type": "json",
-                                "body": {
-                                  "data": {
-                                    "Status": "{{step_retry_result['Status']}}",
-                                    "Message_ID": "{{step_retry_result['Message_ID']}}",
-                                    "Error_Message": "{{step_retry_result['Error_Message']}}",
-                                    "Sent_At": "{{step_retry_result['Sent_At']}}"
-                                  }
-                                }
+                                "Delivery_ID": "{{step_retry_claimed['item']['Delivery_ID']}}",
+                                "sent": "{{step_retry_whatsapp}}"
                               },
-                              "pieceName": "@puchoaistudio/tool-http",
-                              "actionName": "send_request",
                               "sampleData": {},
-                              "pieceVersion": "^2.0.0",
-                              "propertySettings": {
-                                "method": {
-                                  "type": "MANUAL"
-                                },
-                                "url": {
-                                  "type": "MANUAL"
-                                },
-                                "headers": {
-                                  "type": "MANUAL",
-                                  "schema": {}
-                                },
-                                "queryParams": {
-                                  "type": "MANUAL",
-                                  "schema": {}
-                                },
-                                "authType": {
-                                  "type": "MANUAL"
-                                },
-                                "body_type": {
-                                  "type": "MANUAL"
-                                },
-                                "body": {
-                                  "type": "MANUAL",
-                                  "schema": {}
-                                }
+                              "sourceCode": {
+                                "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendResult() reaches (tools/build_market_flows.py)\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction sendResult(inp) {\n  const id = String((inp && inp.Delivery_ID) || ''); const out = inp && inp.sent; const now = nowOf(inp).toISOString();\n  const o = out && typeof out === 'object' ? out : {};\n  const pick = (...vals) => vals.find((v) => typeof v === 'string' && v.trim()) || '';\n  const msgId = pick(o.messageId, o.message_id, o.id, o.wamid, o.messages && o.messages[0] && o.messages[0].id, o.data && o.data.messages && o.data.messages[0] && o.data.messages[0].id,\n    o.body && o.body.messages && o.body.messages[0] && o.body.messages[0].id, o.data && o.data.id);\n  const err = pick(o.error && (o.error.message || o.error), o.errorMessage, o.success === false ? o.message : '', o.status === 'failed' ? o.message : '');\n  const failed = !!err || !out || (typeof out === 'object' && !Object.keys(o).length);\n  return { Delivery_ID: id, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),\n    Error_Message: failed ? (err || 'WhatsApp step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed };\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendResult(inputs);\n};",
+                                "packageJson": "{}"
                               },
                               "errorHandlingOptions": {
                                 "retryOnFailure": {
-                                  "value": true
+                                  "value": false
                                 },
                                 "continueOnFailure": {
-                                  "value": true
+                                  "value": false
                                 }
                               }
                             },
                             "nextAction": {
-                              "name": "step_retry_publish",
+                              "name": "step_retry_update",
                               "skip": false,
                               "type": "PIECE",
                               "valid": true,
                               "settings": {
                                 "input": {
-                                  "method": "POST",
-                                  "url": "{{step_constants['publish_webhook']}}",
+                                  "method": "PATCH",
+                                  "url": "{{step_constants['app_url']}}/api/data/deliveries",
                                   "headers": {
-                                    "Content-Type": "application/json"
+                                    "Content-Type": "application/json",
+                                    "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                                    "X-Flow": "{{step_constants['flow']}}"
                                   },
-                                  "queryParams": {},
+                                  "queryParams": {
+                                    "Delivery_ID": "eq.{{step_retry_result['Delivery_ID']}}"
+                                  },
                                   "authType": "NONE",
                                   "body_type": "json",
                                   "body": {
                                     "data": {
-                                      "action": "publish",
-                                      "Report_ID": "{{step_retry_plan['publish']['Report_ID']}}",
-                                      "_job": "",
-                                      "_who": "flow:BROADCAST"
+                                      "Status": "{{step_retry_result['Status']}}",
+                                      "Message_ID": "{{step_retry_result['Message_ID']}}",
+                                      "Error_Message": "{{step_retry_result['Error_Message']}}",
+                                      "Sent_At": "{{step_retry_result['Sent_At']}}"
                                     }
                                   }
                                 },
@@ -963,143 +1018,210 @@
                                 }
                               },
                               "nextAction": {
-                                "name": "step_retry_sent",
+                                "name": "step_retry_publish",
                                 "skip": false,
                                 "type": "PIECE",
                                 "valid": true,
                                 "settings": {
                                   "input": {
-                                    "fields": {
-                                      "body": {
-                                        "ok": true,
-                                        "sent": "{{step_retry_result['sent']}}",
-                                        "Delivery_ID": "{{step_retry_result['Delivery_ID']}}",
-                                        "error": "{{step_retry_result['Error_Message']}}"
-                                      },
-                                      "status": 200,
-                                      "headers": {}
+                                    "method": "POST",
+                                    "url": "{{step_constants['market_publish_webhook']}}",
+                                    "headers": {
+                                      "Content-Type": "application/json"
                                     },
-                                    "respond": "stop",
-                                    "responseType": "json"
-                                  },
-                                  "pieceName": "@puchoaistudio/tool-webhook",
-                                  "actionName": "return_response",
-                                  "sampleData": {},
-                                  "pieceVersion": "^2.0.4",
-                                  "propertySettings": {
-                                    "fields": {
-                                      "type": "MANUAL",
-                                      "schema": {
-                                        "body": {
-                                          "type": "JSON",
-                                          "required": true,
-                                          "displayName": "JSON Body"
-                                        },
-                                        "status": {
-                                          "type": "NUMBER",
-                                          "required": false,
-                                          "displayName": "Status",
-                                          "defaultValue": 200
-                                        },
-                                        "headers": {
-                                          "type": "OBJECT",
-                                          "required": false,
-                                          "displayName": "Headers"
-                                        }
+                                    "queryParams": {
+                                      "k": "{{step_constants['market_publish_secret']}}"
+                                    },
+                                    "authType": "NONE",
+                                    "body_type": "json",
+                                    "body": {
+                                      "data": {
+                                        "action": "publish",
+                                        "Report_ID": "{{step_retry_plan['publish']['Report_ID']}}",
+                                        "_job": "",
+                                        "_who": "flow:BROADCAST"
                                       }
-                                    },
-                                    "respond": {
+                                    }
+                                  },
+                                  "pieceName": "@puchoaistudio/tool-http",
+                                  "actionName": "send_request",
+                                  "sampleData": {},
+                                  "pieceVersion": "^2.0.0",
+                                  "propertySettings": {
+                                    "method": {
                                       "type": "MANUAL"
                                     },
-                                    "responseType": {
+                                    "url": {
                                       "type": "MANUAL"
+                                    },
+                                    "headers": {
+                                      "type": "MANUAL",
+                                      "schema": {}
+                                    },
+                                    "queryParams": {
+                                      "type": "MANUAL",
+                                      "schema": {}
+                                    },
+                                    "authType": {
+                                      "type": "MANUAL"
+                                    },
+                                    "body_type": {
+                                      "type": "MANUAL"
+                                    },
+                                    "body": {
+                                      "type": "MANUAL",
+                                      "schema": {}
                                     }
                                   },
                                   "errorHandlingOptions": {
                                     "retryOnFailure": {
-                                      "value": false
+                                      "value": true
                                     },
                                     "continueOnFailure": {
-                                      "value": false
+                                      "value": true
                                     }
                                   }
                                 },
-                                "displayName": "Return: the retry's outcome"
+                                "nextAction": {
+                                  "name": "step_retry_sent",
+                                  "skip": false,
+                                  "type": "PIECE",
+                                  "valid": true,
+                                  "settings": {
+                                    "input": {
+                                      "fields": {
+                                        "body": {
+                                          "ok": true,
+                                          "sent": "{{step_retry_result['sent']}}",
+                                          "Delivery_ID": "{{step_retry_result['Delivery_ID']}}",
+                                          "error": "{{step_retry_result['Error_Message']}}"
+                                        },
+                                        "status": 200,
+                                        "headers": {}
+                                      },
+                                      "respond": "stop",
+                                      "responseType": "json"
+                                    },
+                                    "pieceName": "@puchoaistudio/tool-webhook",
+                                    "actionName": "return_response",
+                                    "sampleData": {},
+                                    "pieceVersion": "^2.0.4",
+                                    "propertySettings": {
+                                      "fields": {
+                                        "type": "MANUAL",
+                                        "schema": {
+                                          "body": {
+                                            "type": "JSON",
+                                            "required": true,
+                                            "displayName": "JSON Body"
+                                          },
+                                          "status": {
+                                            "type": "NUMBER",
+                                            "required": false,
+                                            "displayName": "Status",
+                                            "defaultValue": 200
+                                          },
+                                          "headers": {
+                                            "type": "OBJECT",
+                                            "required": false,
+                                            "displayName": "Headers"
+                                          }
+                                        }
+                                      },
+                                      "respond": {
+                                        "type": "MANUAL"
+                                      },
+                                      "responseType": {
+                                        "type": "MANUAL"
+                                      }
+                                    },
+                                    "errorHandlingOptions": {
+                                      "retryOnFailure": {
+                                        "value": false
+                                      },
+                                      "continueOnFailure": {
+                                        "value": false
+                                      }
+                                    }
+                                  },
+                                  "displayName": "Return: the retry's outcome"
+                                },
+                                "displayName": "POST MARKET_PUBLISH ?k= — refresh the report's counts"
                               },
-                              "displayName": "POST MARKET_PUBLISH — refresh the report's counts"
+                              "displayName": "PATCH the same delivery Sent or Failed"
                             },
-                            "displayName": "PATCH the same delivery Sent or Failed"
+                            "displayName": "Sent or Failed? (CODE)"
                           },
-                          "displayName": "Sent or Failed? (CODE)"
+                          "displayName": "Send WhatsApp template mi_daily_report to the number on the subscriber record"
                         },
-                        "displayName": "Send WhatsApp template mi_daily_report to the number on the subscriber record"
-                      },
-                      "nextAction": {
-                        "name": "step_retry_done",
-                        "skip": false,
-                        "type": "PIECE",
-                        "valid": true,
-                        "settings": {
-                          "input": {
-                            "fields": {
-                              "body": {
-                                "ok": false,
-                                "sent": false,
-                                "Delivery_ID": "{{step_retry_plan['Delivery_ID']}}",
-                                "error": "{{step_retry_plan['reason']}}"
-                              },
-                              "status": 200,
-                              "headers": {}
-                            },
-                            "respond": "stop",
-                            "responseType": "json"
-                          },
-                          "pieceName": "@puchoaistudio/tool-webhook",
-                          "actionName": "return_response",
-                          "sampleData": {},
-                          "pieceVersion": "^2.0.4",
-                          "propertySettings": {
-                            "fields": {
-                              "type": "MANUAL",
-                              "schema": {
+                        "nextAction": {
+                          "name": "step_retry_done",
+                          "skip": false,
+                          "type": "PIECE",
+                          "valid": true,
+                          "settings": {
+                            "input": {
+                              "fields": {
                                 "body": {
-                                  "type": "JSON",
-                                  "required": true,
-                                  "displayName": "JSON Body"
+                                  "ok": false,
+                                  "sent": false,
+                                  "Delivery_ID": "{{step_retry_plan['Delivery_ID']}}",
+                                  "error": "{{step_retry_plan['reason']}}"
                                 },
-                                "status": {
-                                  "type": "NUMBER",
-                                  "required": false,
-                                  "displayName": "Status",
-                                  "defaultValue": 200
-                                },
-                                "headers": {
-                                  "type": "OBJECT",
-                                  "required": false,
-                                  "displayName": "Headers"
+                                "status": 200,
+                                "headers": {}
+                              },
+                              "respond": "stop",
+                              "responseType": "json"
+                            },
+                            "pieceName": "@puchoaistudio/tool-webhook",
+                            "actionName": "return_response",
+                            "sampleData": {},
+                            "pieceVersion": "^2.0.4",
+                            "propertySettings": {
+                              "fields": {
+                                "type": "MANUAL",
+                                "schema": {
+                                  "body": {
+                                    "type": "JSON",
+                                    "required": true,
+                                    "displayName": "JSON Body"
+                                  },
+                                  "status": {
+                                    "type": "NUMBER",
+                                    "required": false,
+                                    "displayName": "Status",
+                                    "defaultValue": 200
+                                  },
+                                  "headers": {
+                                    "type": "OBJECT",
+                                    "required": false,
+                                    "displayName": "Headers"
+                                  }
                                 }
+                              },
+                              "respond": {
+                                "type": "MANUAL"
+                              },
+                              "responseType": {
+                                "type": "MANUAL"
                               }
                             },
-                            "respond": {
-                              "type": "MANUAL"
-                            },
-                            "responseType": {
-                              "type": "MANUAL"
+                            "errorHandlingOptions": {
+                              "retryOnFailure": {
+                                "value": false
+                              },
+                              "continueOnFailure": {
+                                "value": false
+                              }
                             }
                           },
-                          "errorHandlingOptions": {
-                            "retryOnFailure": {
-                              "value": false
-                            },
-                            "continueOnFailure": {
-                              "value": false
-                            }
-                          }
-                        },
-                        "displayName": "Return: refused (nothing sent)"
-                      }
+                          "displayName": "Return: refused (nothing sent)"
+                        }
+                      },
+                      "displayName": "PATCH Attempts + 1, only where Attempts = the value read (a refusal has no id → the app refuses)"
                     },
-                    "displayName": "Failed report delivery + Active, opted-in subscriber? (CODE)"
+                    "displayName": "Failed report delivery, < 3 attempts, Active + opted-in? (CODE)"
                   },
                   "displayName": "GET reports"
                 },
@@ -1108,7 +1230,7 @@
               "displayName": "GET deliveries"
             },
             {
-              "name": "step_unknown_done",
+              "name": "step_bad_action_done",
               "skip": false,
               "type": "PIECE",
               "valid": true,
@@ -1173,10 +1295,30 @@
           "settings": {
             "branches": [
               {
+                "branchName": "Unauthorized → 401",
+                "branchType": "CONDITION",
+                "conditions": [
+                  [
+                    {
+                      "operator": "TEXT_EXACTLY_MATCHES",
+                      "firstValue": "{{step_constants['gate']}}",
+                      "secondValue": "denied",
+                      "caseSensitive": false
+                    }
+                  ]
+                ]
+              },
+              {
                 "branchName": "send",
                 "branchType": "CONDITION",
                 "conditions": [
                   [
+                    {
+                      "operator": "TEXT_EXACTLY_MATCHES",
+                      "firstValue": "{{step_constants['gate']}}",
+                      "secondValue": "ok",
+                      "caseSensitive": false
+                    },
                     {
                       "operator": "TEXT_EXACTLY_MATCHES",
                       "firstValue": "{{trigger['body']['action']}}",
@@ -1191,6 +1333,12 @@
                 "branchType": "CONDITION",
                 "conditions": [
                   [
+                    {
+                      "operator": "TEXT_EXACTLY_MATCHES",
+                      "firstValue": "{{step_constants['gate']}}",
+                      "secondValue": "ok",
+                      "caseSensitive": false
+                    },
                     {
                       "operator": "TEXT_EXACTLY_MATCHES",
                       "firstValue": "{{trigger['body']['action']}}",
@@ -1208,9 +1356,9 @@
             "sampleData": {},
             "executionType": "EXECUTE_FIRST_MATCH"
           },
-          "displayName": "send · retry"
+          "displayName": "Webhook secret · send · retry"
         },
-        "displayName": "Constants — app_url, inbound_token and the flow's settings (set in Studio)"
+        "displayName": "Constants + webhook secret check (first step)"
       }
     },
     "valid": true,

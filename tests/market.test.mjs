@@ -225,27 +225,22 @@ test('sendPlan: Ready → eligible subscribers only; Failed or Kind=Alert → th
   assert.equal(FL.sendPlan({ body: { Kind: 'Alert' }, C: { ...C, alert_to: 'SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS' } }).items.length, 0);
 });
 
-test('queueGate + sendResult: 201 → send and record; 409 → skip; unconfirmed WhatsApp → Failed', () => {
-  const item = { to: '+919876543210', template_id: 'TPL-R', template_variables: { a: 1 } };
-  const go = FL.queueGate({ queued: { status: 201, body: [{ Delivery_ID: 'DLV-2026-0001' }] }, item });
-  assert.equal(go.go, true); assert.equal(go.to, '+919876543210');
-  const skip = FL.queueGate({ queued: { error: 'HTTP 409: {"errors":{"Report_Date+Subscriber_ID+Kind":"already in use (DLV-1)"}}' }, item });
-  assert.equal(skip.go, false); assert.equal(skip.to, ''); assert.match(skip.note, /already sent/);
-  assert.equal(FL.sendResult({ gate: go, sent: { success: true, messageId: 'wamid.X' } }).Status, 'Sent');
-  assert.equal(FL.sendResult({ gate: go, sent: { error: 'HTTP 400: 131047' } }).Status, 'Failed');
-  assert.equal(FL.sendResult({ gate: go, sent: {} }).Status, 'Failed');
-  assert.equal(FL.sendResult({ gate: skip, sent: { error: 'to is required' } }).Delivery_ID, '');
+test('sendResult: what WhatsApp answered → Sent with the message id, or Failed with the error; unconfirmed is Failed', () => {
+  assert.equal(FL.sendResult({ Delivery_ID: 'DLV-1', sent: { success: true, messageId: 'wamid.X' } }).Status, 'Sent');
+  assert.equal(FL.sendResult({ Delivery_ID: 'DLV-1', sent: { success: true, messageId: 'wamid.X' } }).Message_ID, 'wamid.X');
+  assert.equal(FL.sendResult({ Delivery_ID: 'DLV-1', sent: { error: 'HTTP 400: 131047' } }).Status, 'Failed');
+  assert.equal(FL.sendResult({ Delivery_ID: 'DLV-1', sent: {} }).Status, 'Failed');
 });
 
 test('retryPlan: only a Failed report delivery, to the number on the subscriber record — never the payload', () => {
   const rep = { Report_ID: 'MIR-1', Report_Date: today, Status: 'Sent', Sentiment: 'BULLISH', Confidence_Level: 'HIGH', Confidence_Pct: 70, Driver_1: 'd' };
   const d = { Delivery_ID: 'DLV-9', Kind: 'Report', Status: 'Failed', Subscriber_ID: 'SUB-2', Report_ID: 'MIR-1' };
   const go = FL.retryPlan({ body: { Delivery_ID: 'DLV-9', To: '+910000000000', WhatsApp: '+910000000000' }, C, deliveries: reportsOut([d]), subscribers: reportsOut(SUBS), reports: reportsOut([rep]) });
-  assert.equal(go.items.length, 1); assert.equal(go.items[0].to, '+919820011223');
+  assert.equal(go.claim.Delivery_ID, 'DLV-9'); assert.equal(go.send.to, '+919820011223');
   const no = (dd, subs = SUBS) => FL.retryPlan({ body: { Delivery_ID: 'DLV-9' }, C, deliveries: reportsOut([dd]), subscribers: reportsOut(subs), reports: reportsOut([rep]) });
-  assert.equal(no({ ...d, Status: 'Sent' }).items.length, 0);
-  assert.equal(no({ ...d, Kind: 'Alert' }).items.length, 0);
-  assert.equal(no({ ...d, Subscriber_ID: 'SUB-3' }).items.length, 0, 'a Paused subscriber is not retried');
+  assert.equal(no({ ...d, Status: 'Sent' }).claim.Delivery_ID, '');
+  assert.equal(no({ ...d, Kind: 'Alert' }).claim.Delivery_ID, '');
+  assert.equal(no({ ...d, Subscriber_ID: 'SUB-3' }).claim.Delivery_ID, '', 'a Paused subscriber is not retried');
 });
 
 test('publishPlan: counts from the deliveries and the reader copy; nothing for a Failed or unknown report', () => {
@@ -267,5 +262,5 @@ test('scheduleGate / watchdogCheck: weekends and NSE holidays skip; no row at 06
   assert.equal(FL.scheduleGate({ C: { holidays: [] }, now: NOW }).route, 'run');
   assert.equal(FL.watchdogCheck({ C: {}, reports: reportsOut([]), now: NOW }).route, 'alert');
   assert.equal(FL.watchdogCheck({ C: {}, reports: reportsOut([{ Report_ID: 'MIR-1', Report_Date: '2026-10-15', Status: 'Failed' }]), now: NOW }).route, 'ok');
-  assert.match(FL.watchdogCheck({ C: {}, reports: { error: 'HTTP 403' }, now: NOW }).Error_Message, /APP_CLOSED/);
+  assert.equal(FL.watchdogCheck({ C: {}, reports: { error: 'HTTP 403' }, now: NOW }).route, 'alert');
 });

@@ -13,6 +13,10 @@
   ],
   "require_capabilities": [
     "webhook=trigger:webhook:trigger",
+    "auth_gate=step_constants:code:transform",
+    "answer_unauthorized=step_denied_done:webhook:respond",
+    "answer_bad_action=step_bad_action_done:webhook:respond",
+    "auth_route=step_auth:router:route",
     "read_reports=step_read_reports:http:read",
     "read_deliveries=step_read_deliveries:http:read",
     "plan=step_plan:code:transform",
