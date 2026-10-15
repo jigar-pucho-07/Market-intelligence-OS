@@ -3,11 +3,11 @@
   "stage": "production",
   "tier": "v4",
   "files_scanned": 135,
-  "flows_scanned": 6,
+  "flows_scanned": 7,
   "counts": {
     "Critical": 1,
     "High": 4,
-    "Medium": 10,
+    "Medium": 12,
     "Low": 0
   },
   "findings": [
@@ -64,6 +64,13 @@
       "id": "F16",
       "severity": "Medium",
       "where": "app/.env",
+      "what": "flow MARKET_ANALYSE is not wired (WEBHOOK_\u2026 unset) \u2014 its actions are SIMULATED by the app",
+      "fix": "Import the flow (step 6) and set its URL (step 7); a pilot with simulated AI steps must say so to the client."
+    },
+    {
+      "id": "F16",
+      "severity": "Medium",
+      "where": "app/.env",
       "what": "flow MARKET_STORE is not wired (WEBHOOK_\u2026 unset) \u2014 its actions are SIMULATED by the app",
       "fix": "Import the flow (step 6) and set its URL (step 7); a pilot with simulated AI steps must say so to the client."
     },
@@ -98,6 +105,13 @@
     {
       "id": "W1",
       "severity": "Medium",
+      "where": "workflows\\MARKET_ANALYSE\\MARKET_ANALYSE.json \u00b7 trigger (Catch Webhook \u2014 MARKET_ANALYSE (from MARKET_REPORT))",
+      "what": "`MARKET_ANALYSE.json` webhook has no authentication \u2014 anyone who learns the URL can run it (the URL itself is the secret: it lives only in the app's server environment)",
+      "fix": "Header Auth on the trigger with a secret the app sends from the environment; reject a missing/wrong secret in the first CODE node."
+    },
+    {
+      "id": "W1",
+      "severity": "Medium",
       "where": "workflows\\MARKET_PUBLISH\\MARKET_PUBLISH.json \u00b7 trigger (Catch Webhook \u2014 MARKET_PUBLISH (from BROADCAST))",
       "what": "`MARKET_PUBLISH.json` webhook has no authentication \u2014 anyone who learns the URL can run it (the URL itself is the secret: it lives only in the app's server environment)",
       "fix": "Header Auth on the trigger with a secret the app sends from the environment; reject a missing/wrong secret in the first CODE node."
@@ -112,7 +126,7 @@
     {
       "id": "W1",
       "severity": "Medium",
-      "where": "workflows\\MARKET_STORE\\MARKET_STORE.json \u00b7 trigger (Catch Webhook \u2014 MARKET_STORE (from MARKET_REPORT))",
+      "where": "workflows\\MARKET_STORE\\MARKET_STORE.json \u00b7 trigger (Catch Webhook \u2014 MARKET_STORE (from MARKET_ANALYSE))",
       "what": "`MARKET_STORE.json` webhook has no authentication \u2014 anyone who learns the URL can run it (the URL itself is the secret: it lives only in the app's server environment)",
       "fix": "Header Auth on the trigger with a secret the app sends from the environment; reject a missing/wrong secret in the first CODE node."
     }
