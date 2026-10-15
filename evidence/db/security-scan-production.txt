@@ -1,0 +1,21 @@
+Critical F4b  app\src\module\Fields.jsx
+         a secret-shaped NEXT_PUBLIC_ variable — compiled into the bundle
+High     F14  app/.env
+         INBOUND_TOKEN is unset — flows cannot write to the app (closed), so a wired flow's writes fail
+High     F3b  app/.env
+         DEMO_LOGINS on a pilot/production environment — the login page lists the demo personas and signs them in without a password
+High     F5   app\src\lib\validate.ts:117
+         dynamic code execution in kernel code
+High     F5   app\src\lib\validate.ts:132
+         dynamic code execution in kernel code
+Medium   F16  app/.env
+         flow MARKET_REPORT is not wired (WEBHOOK_… unset) — its actions are SIMULATED by the app
+Medium   F16  app/.env
+         flow BROADCAST is not wired (WEBHOOK_… unset) — its actions are SIMULATED by the app
+Medium   F5   app\src\app\layout.tsx:51
+         raw HTML injection point in kernel code
+Medium   F5   app\src\app\layout.tsx:53
+         raw HTML injection point in kernel code
+
+security_scan (production): 1 critical · 4 high · 4 medium · 0 low — 134 files, 0 flows → docs\security-scan.json
+git: committed
