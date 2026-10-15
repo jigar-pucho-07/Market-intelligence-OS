@@ -15,7 +15,7 @@ named in docs/flows-complexity.md with the os.yaml entries the owner adds):
   MARKET_REPORT   webhook run | rerun: 5 RSS GETs → CODE → router (no news / run / rerun / unknown) → ONE llm-ai → CODE → POST MARKET_STORE → Return
   MARKET_STORE    webhook store: GET reports → CODE decide → router (refuse / new POST / re-run PATCH) → CODE → POST news → [BROADCAST] → [job] → Return
   BROADCAST       webhook send | retry: Queued delivery per recipient (409 → skip) → pucho-whatsapp template → PATCH → MARKET_PUBLISH → Return
-  MARKET_PUBLISH  webhook publish: GET reports + deliveries → CODE → [report Sent + counts, reader copy] → [Last_Delivered_At] → [job] → Return
+  MARKET_PUBLISH  webhook publish: GET reports + deliveries → CODE → [report Sent + counts, reader copy] → [job] → Return
 A loop over a 0-or-1 list stands in for "only if" where a second router would sit inside the first (no router in a router).
 Connections and Studio ids are never invented: SET_IN_STUDIO_* placeholders, listed by each CHECKLIST.
 """
@@ -32,12 +32,16 @@ LIB_DIR = os.path.join(ROOT, "app", "src", "custom", "lib")
 WF = os.path.join(ROOT, "workflows")
 C = "step_constants"
 APP = "{{step_constants['app_url']}}"
-FEEDS = {  # the n8n source's five URLs (S4: Reuters retired the feed in 2020 — kept so Source_Status shows the gap; ⚑ G4)
-    "et": "https://economictimes.indiatimes.com/markets/rss.cms",
-    "mc": "https://www.moneycontrol.com/rss/MCtopnews.xml",
-    "reuters": "https://feeds.reuters.com/reuters/INbusinessNews",
-    "gfn": "https://news.google.com/rss/search?q=India+stock+market+Nifty+Sensex&hl=en-IN&gl=IN&ceid=IN:en",
-    "global": "https://news.google.com/rss/search?q=SGX+Nifty+US+markets+Dow+Jones+NASDAQ&hl=en&gl=US&ceid=US:en",
+# Owner decision 15 Oct 2026: the five source names stay; the three dead publisher feeds (ET's URL serves an HTML page,
+# Moneycontrol's top-news feed is frozen in 2016, feeds.reuters.com no longer resolves — S4) are read through Google News
+# RSS search scoped to the publisher, the same shape as the two Google feeds that work. Each URL is one constant (feeds.*).
+GN = "https://news.google.com/rss/search?q="
+FEEDS = {
+    "et": GN + "site:economictimes.indiatimes.com+markets+when:1d&hl=en-IN&gl=IN&ceid=IN:en",
+    "mc": GN + "site:moneycontrol.com+markets+when:1d&hl=en-IN&gl=IN&ceid=IN:en",
+    "reuters": GN + "site:reuters.com+India+markets+when:1d&hl=en-IN&gl=IN&ceid=IN:en",
+    "gfn": GN + "India+stock+market+Nifty+Sensex&hl=en-IN&gl=IN&ceid=IN:en",
+    "global": GN + "SGX+Nifty+US+markets+Dow+Jones+NASDAQ+when:1d&hl=en&gl=US&ceid=US:en",
 }
 FEED_NAMES = {"et": "Economic Times Markets", "mc": "Moneycontrol", "reuters": "Reuters India", "gfn": "Google Finance News", "global": "Global Market Cues"}
 
@@ -205,8 +209,8 @@ def broadcast():
              lib("step_send_result", "sendResult", {"gate": "{{step_send_gate}}", "sent": "{{step_send_whatsapp}}"}, "Sent or Failed? (CODE)"),
              http("step_send_update", "PATCH", f"{APP}/api/data/deliveries", "PATCH the delivery Sent (message id) or Failed (error)",
                   body=named("step_send_result", ["Status", "Message_ID", "Error_Message", "Sent_At"]), query={"Delivery_ID": "eq.{{step_send_result['Delivery_ID']}}"}, retry=True, cont=True)),
-        hook("step_send_publish", "publish_webhook", {"action": "publish", "Report_ID": "{{step_send_plan['publish']['Report_ID']}}", "Since": "{{step_send_plan['publish']['Since']}}",
-                                                   "_job": "{{step_send_plan['publish']['_job']}}", "_who": "flow:BROADCAST"}, "POST MARKET_PUBLISH — counts, reader copy, Last_Delivered_At, job", cont=True),
+        hook("step_send_publish", "publish_webhook", {"action": "publish", "Report_ID": "{{step_send_plan['publish']['Report_ID']}}",
+                                                   "_job": "{{step_send_plan['publish']['_job']}}", "_who": "flow:BROADCAST"}, "POST MARKET_PUBLISH — counts, reader copy, job", cont=True),
         ret("step_send_done", {"ok": True, "kind": "{{step_send_plan['kind']}}", "Report_ID": "{{step_send_plan['Report_ID']}}", "queued": "{{step_send_plan['queued']}}",
                                "reason": "{{step_send_plan['reason']}}"}, "Return: handed to WhatsApp"))
     rl = "step_retry_loop"
@@ -221,7 +225,7 @@ def broadcast():
              lib("step_retry_result", "sendResult", {"gate": "{{" + rl + "['item']}}", "sent": "{{step_retry_whatsapp}}"}, "Sent or Failed? (CODE)"),
              http("step_retry_update", "PATCH", f"{APP}/api/data/deliveries", "PATCH the same delivery Sent or Failed",
                   body=named("step_retry_result", ["Status", "Message_ID", "Error_Message", "Sent_At"]), query={"Delivery_ID": "eq.{{step_retry_result['Delivery_ID']}}"}, retry=True, cont=True),
-             hook("step_retry_publish", "publish_webhook", {"action": "publish", "Report_ID": "{{step_retry_plan['publish']['Report_ID']}}", "Since": "{{step_retry_plan['publish']['Since']}}",
+             hook("step_retry_publish", "publish_webhook", {"action": "publish", "Report_ID": "{{step_retry_plan['publish']['Report_ID']}}",
                                                          "_job": "", "_who": "flow:BROADCAST"}, "POST MARKET_PUBLISH — refresh the report's counts", cont=True),
              ret("step_retry_sent", {"ok": True, "sent": "{{step_retry_result['sent']}}", "Delivery_ID": "{{step_retry_result['Delivery_ID']}}",
                                      "error": "{{step_retry_result['Error_Message']}}"}, "Return: the retry's outcome")),
@@ -236,12 +240,12 @@ def broadcast():
 def market_publish():
     t = webhook_trigger("Catch Webhook — MARKET_PUBLISH (from BROADCAST)")
     k = app_consts("MARKET_PUBLISH", {})
-    pl, tl, jl = "step_pub_loop", "step_touch_loop", "step_job_loop"
+    pl, jl = "step_pub_loop", "step_job_loop"
     chain(t, k,
           read("step_read_reports", "reports", "GET reports"),
           read("step_read_deliveries", "deliveries", "GET deliveries"),
           lib("step_plan", "publishPlan", {"body": "{{trigger['body']}}", "reports": "{{step_read_reports}}", "deliveries": "{{step_read_deliveries}}"},
-              "Counts · reader copy · who received it (CODE)"),
+              "Counts · reader copy (CODE)"),
           loop(pl, "{{step_plan['pub']}}", "Publish (0 or 1 — only a Ready / Sent report with deliveries)",
                http("step_report_update", "PATCH", f"{APP}/api/data/reports", "PATCH the report Sent · Sent_At · Sent_Count · Failed_Count",
                     body=named(pl + "['item']['patch']", ["Status", "Sent_At", "Sent_Count", "Failed_Count"]), query={"Report_ID": "eq.{{" + pl + "['item']['Report_ID']}}"}, retry=True, cont=True),
@@ -249,13 +253,10 @@ def market_publish():
                     body=named(pl + "['item']['published']", ["Report_ID", "Published_At"] + PUBLISHED_COLS), cont=True),
                http("step_published_update", "PATCH", f"{APP}/api/data/published_reports", "UPSERT published_reports, 2 of 2: PATCH (the corrected copy after an edit)",
                     body=named(pl + "['item']['published']", ["Published_At"] + PUBLISHED_COLS), query={"Report_ID": "eq.{{" + pl + "['item']['Report_ID']}}"}, retry=True, cont=True)),
-          loop(tl, "{{step_plan['touch']}}", "For each subscriber who received it",
-               http("step_subscriber_update", "PATCH", f"{APP}/api/data/subscribers", "PATCH subscriber Last_Delivered_At",
-                    body={"Last_Delivered_At": "{{" + tl + "['item']['Last_Delivered_At']}}"}, query={"Subscriber_ID": "eq.{{" + tl + "['item']['Subscriber_ID']}}"}, retry=True, cont=True)),
           loop(jl, "{{step_plan['jobs']}}", "Report the app's job (0 or 1)", job_post("step_job", jl, "POST /api/jobs/<id> done")),
           ret("step_done", {"ok": "{{step_plan['ok']}}", "Report_ID": "{{step_plan['Report_ID']}}", "sent": "{{step_plan['Sent_Count']}}", "failed": "{{step_plan['Failed_Count']}}",
                             "note": "{{step_plan['reason']}}"}, "Return: published"))
-    return flow("MARKET_PUBLISH", "Market Intelligence — after a broadcast: report Sent with its counts, the subscriber copy, Last_Delivered_At, the app's job", t, ["webhook", "http"])
+    return flow("MARKET_PUBLISH", "Market Intelligence — after a broadcast: report Sent with its counts, the subscriber copy, the app's job", t, ["webhook", "http"])
 
 WIRING = """
 ## Wiring the six Market Intelligence flows (all of them — do this once)
@@ -299,7 +300,7 @@ CONTRACTS = {
                   "answer_retry_refused=step_retry_done:webhook:respond", "answer_unknown=step_unknown_done:webhook:respond"],
     "MARKET_PUBLISH": ["webhook=trigger:webhook:trigger", "read_reports=step_read_reports:http:read", "read_deliveries=step_read_deliveries:http:read", "plan=step_plan:code:transform",
                        "report_sent=step_report_update:http:write", "published_insert=step_published_insert:http:write", "published_update=step_published_update:http:write",
-                       "last_delivered=step_subscriber_update:http:write", "job=step_job:http:write", "answer=step_done:webhook:respond"],
+                       "job=step_job:http:write", "answer=step_done:webhook:respond"],
 }
 # One test payload per action — the CHECKLIST shows them, tests/flow_sim.test.mjs runs them.
 SAMPLES = {
@@ -312,7 +313,7 @@ SAMPLES = {
     "BROADCAST": [("send — a Ready report to every Active, opted-in subscriber", {"action": "send", "Report_ID": "MIR-2026-0101"}),
                   ("send — admin alert (what the watchdog sends)", {"action": "send", "Kind": "Alert", "Report_ID": "", "Error_Message": "Studio test alert"}),
                   ("retry — one Failed delivery", {"action": "retry", "Delivery_ID": "DLV-2026-2402"})],
-    "MARKET_PUBLISH": [("publish — sent by BROADCAST after a send", {"action": "publish", "Report_ID": "MIR-2026-0101", "Since": "2026-10-15T00:30:00.000Z", "_job": ""})],
+    "MARKET_PUBLISH": [("publish — sent by BROADCAST after a send", {"action": "publish", "Report_ID": "MIR-2026-0101", "_job": ""})],
 }
 
 # ── the library in each CODE node: flowkit.inline_lib when rolldown is there, else the same reachability shake done here ──
@@ -443,9 +444,9 @@ OS_YAML_ADDITIONS = """
 Why the split: one Studio flow has one trigger, so the 06:20 watchdog cannot live in DAILY_SCHEDULE; and the old one-flow
 MARKET_REPORT (trigger, constants, 5 fetches, parse, router, AI, parse, write report, stamp the news with the app's Report_ID,
 write news, BROADCAST, job, Return) is 16–17 steps on its longest path, the old one-flow BROADCAST.send 16 (reads, plan, queue,
-send, record, then counts / reader copy / Last_Delivered_At / job). The budget is 14 and a second decision inside a branch
+send, record, then counts / reader copy / job). The budget is 14 and a second decision inside a branch
 would be a router in a router. So MARKET_REPORT ends by handing the finished row to MARKET_STORE (the writer), and
-BROADCAST ends by handing to MARKET_PUBLISH (the bookkeeping after a send). No app page calls the three new flows.
+BROADCAST ends by handing to MARKET_PUBLISH (counts, reader copy and job after a send). No app page calls the three new flows.
 
 ```yaml
   - name: DAILY_WATCHDOG
@@ -481,20 +482,20 @@ BROADCAST ends by handing to MARKET_PUBLISH (the bookkeeping after a send). No a
   - name: MARKET_PUBLISH
     covers: [R9, R10]
     trigger: { tool: webhook, name: catch_webhook, auth: none }
-    writes: [reports, published_reports, subscribers]
+    writes: [reports, published_reports]
     actions:
       - name: publish
         model: none
         via: custom
-        payload: { Report_ID: string, Since: string }
+        payload: { Report_ID: string }
         result: { sent: number, failed: number }
-        rules: ["Called only by BROADCAST (after send and after retry). From the app's rows: report Sent + Sent_At + Sent_Count + Failed_Count; UPSERT published_reports (POST, then PATCH); Last_Delivered_At of each subscriber sent since `Since`; POST /api/jobs/<_job> done. A Failed or unknown report writes nothing"]
+        rules: ["Called only by BROADCAST (after send and after retry). From the app's rows: report Sent + Sent_At + Sent_Count + Failed_Count; UPSERT published_reports (POST, then PATCH); POST /api/jobs/<_job> done. A Failed or unknown report writes nothing"]
         typical_seconds: 6
-        credits: 62
+        credits: 12
         runs_per_month: 46
 ```
-Also: `MARKET_REPORT.constants` gains `max_age_hours: 48` (stale items dropped — the Moneycontrol top-news feed still serves
-2016 items, the Global Cues search returns months-old ones); the BROADCAST.send / retry rules gain "then POST MARKET_PUBLISH";
+Also: `MARKET_REPORT.constants` gains `max_age_hours: 48` and `feeds` (five URLs, one constant each: ET, Moneycontrol and
+Reuters through Google News `site:` search; Global Cues with `when:1d`); the BROADCAST.send / retry rules gain "then POST MARKET_PUBLISH";
 DAILY_SCHEDULE's second rule (the watchdog) moves to DAILY_WATCHDOG. Webhook URLs between flows are constants
 (`SET_IN_STUDIO_*_WEBHOOK_URL`), not app env vars — the app calls only WEBHOOK_MARKET_REPORT and WEBHOOK_BROADCAST.
 """

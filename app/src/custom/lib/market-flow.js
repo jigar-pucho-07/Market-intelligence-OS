@@ -4,7 +4,7 @@
 // reaches; tests/market.test.mjs and tests/flow_sim.test.mjs run them. Plain JS, no app imports.
 import {
   SOURCES, ENUMS, PUBLISHED_COLUMNS, selectArticles, buildPrompt, parseModel, buildReportRow, sanitizeReportRow, newsRows, istDate,
-  istWeekday, rowsOf, statusOf, doorError, jobItems, isEligible, alreadyDelivered, normaliseWhatsApp, adminNumbers, reportTemplateVars,
+  istWeekday, rowsOf, statusOf, doorError, jobItems, isEligible, normaliseWhatsApp, adminNumbers, reportTemplateVars,
   alertTemplateVars, toIso,
 } from './market.js';
 
@@ -94,14 +94,14 @@ export function afterWrite(inp) {
 /**
  * step_send_plan — who gets what. A Failed report, or Kind=Alert (the run or the 06:20 watchdog), → mi_run_failed to
  * constants.alert_to, one Kind=Alert delivery per admin, nothing to subscribers. A Ready or Sent report → mi_daily_report to
- * every Active, opted-in subscriber who does not have it yet. Each item becomes a Queued delivery first (409 → skip).
+ * every Active, opted-in subscriber. Each item becomes a Queued delivery first; one who already has it answers 409 → skip.
  */
 export function sendPlan(inp) {
   const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp);
   const reports = rowsOf(inp && inp.reports); const subs = rowsOf(inp && inp.subscribers);
   const report = reports && body.Report_ID ? reports.find((r) => r.Report_ID === String(body.Report_ID)) || null : null;
   const tpl = C.whatsapp_templates || {};
-  const publish = { Report_ID: report ? report.Report_ID : '', Since: now.toISOString(), _job: String(body._job || '') };
+  const publish = { Report_ID: report ? report.Report_ID : '', _job: String(body._job || '') };
   const done = (kind, items, reason) => ({ kind, items, reason, Report_ID: publish.Report_ID, publish, queued: items.length });
   if (body.Kind === 'Alert' || (report && report.Status === 'Failed')) {
     const date = report ? report.Report_Date : istDate(now);
@@ -116,7 +116,7 @@ export function sendPlan(inp) {
   if (!['Ready', 'Sent'].includes(report.Status)) return done('Report', [], `${report.Report_ID} is ${report.Status} — not sent`);
   if (!subs) return done('Report', [], doorError(inp.subscribers, 'subscribers'));
   const vars = reportTemplateVars(report);
-  const items = subs.filter((s) => isEligible(s) && !alreadyDelivered(s, report)).map((s) => ({ to: normaliseWhatsApp(s.WhatsApp), template_id: tpl.report || '', template_variables: vars,
+  const items = subs.filter(isEligible).map((s) => ({ to: normaliseWhatsApp(s.WhatsApp), template_id: tpl.report || '', template_variables: vars,
     delivery: { Kind: 'Report', Report_ID: report.Report_ID, Report_Date: report.Report_Date, Subscriber_ID: s.Subscriber_ID, Subscriber_Name: s.Name || '', Sentiment: report.Sentiment || '', Status: 'Queued' } }));
   return done('Report', items, items.length ? '' : 'No Active, opted-in subscriber is waiting for this report');
 }
@@ -147,7 +147,7 @@ export function sendResult(inp) {
 export function retryPlan(inp) {
   const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp);
   const dels = rowsOf(inp && inp.deliveries); const subs = rowsOf(inp && inp.subscribers); const reports = rowsOf(inp && inp.reports);
-  const none = (reason, d) => ({ items: [], reason, Delivery_ID: d ? d.Delivery_ID : '', publish: { Report_ID: d ? d.Report_ID : '', Since: now.toISOString(), _job: '' } });
+  const none = (reason, d) => ({ items: [], reason, Delivery_ID: d ? d.Delivery_ID : '', publish: { Report_ID: d ? d.Report_ID : '', _job: '' } });
   if (!dels || !subs || !reports) return none(doorError(!dels ? inp.deliveries : !subs ? inp.subscribers : inp.reports, !dels ? 'deliveries' : !subs ? 'subscribers' : 'reports'));
   const d = dels.find((x) => x.Delivery_ID === String(body.Delivery_ID || ''));
   if (!d) return none(`No delivery ${String(body.Delivery_ID || '').slice(0, 30)}`);
@@ -158,14 +158,14 @@ export function retryPlan(inp) {
   if (!r || !['Ready', 'Sent'].includes(r.Status)) return none(`Report ${d.Report_ID} is not Ready or Sent — not sent`, d);
   const tpl = C.whatsapp_templates || {};
   return { items: [{ go: true, to: normaliseWhatsApp(s.WhatsApp), Delivery_ID: d.Delivery_ID, template_id: tpl.report || '', template_variables: reportTemplateVars(r) }],
-    reason: '', Delivery_ID: d.Delivery_ID, publish: { Report_ID: r.Report_ID, Since: now.toISOString(), _job: '' } };
+    reason: '', Delivery_ID: d.Delivery_ID, publish: { Report_ID: r.Report_ID, _job: '' } };
 }
 
 // ─────────────────────────────── MARKET_PUBLISH ───────────────────────────────
 
 /**
  * step_plan — after a send or a retry, from the app's own rows: the report's Sent / Failed counts and Status Sent, the reader-safe
- * copy (published_reports), each subscriber's Last_Delivered_At, and the app's job. Publishes only a Ready / Sent report that has
+ * copy (published_reports) and the app's job. When a subscriber last got a report is in the delivery log. Publishes only a Ready / Sent report that has
  * report deliveries — a Failed report or an unknown id writes nothing.
  */
 export function publishPlan(inp) {
@@ -181,11 +181,8 @@ export function publishPlan(inp) {
     : !report ? `No report ${String(body.Report_ID || '').slice(0, 30)}` : !ok ? `${report.Report_ID} is ${report.Status} with ${mine.length} report deliveries — nothing published` : '';
   const published = ok ? { Report_ID: report.Report_ID, Published_At: sentAt, ...Object.fromEntries(PUBLISHED_COLUMNS.map((c) => [c, report[c] ?? ''])) } : {};
   const pub = ok ? [{ Report_ID: report.Report_ID, patch: { Status: 'Sent', Sent_At: sentAt, Sent_Count: sent.length, Failed_Count: failedN }, published }] : [];
-  const since = (Date.parse(body.Since || '') || 0) - 5 * 60e3; const last = {};
-  for (const d of sent) { const t = Date.parse(d.Sent_At || ''); if (Number.isFinite(t) && t >= since && (!last[d.Subscriber_ID] || t > last[d.Subscriber_ID])) last[d.Subscriber_ID] = t; }
-  const touch = ok ? Object.entries(last).filter(([id]) => id && !id.startsWith('ADMIN-')).map(([Subscriber_ID, t]) => ({ Subscriber_ID, Last_Delivered_At: new Date(t).toISOString() })) : [];
   const result = { sent: sent.length, failed: failedN, skipped: 0, published: ok, ...(reason ? { note: reason } : {}) };
-  return { ok, reason, Report_ID: report ? report.Report_ID : '', pub, touch, jobs: jobItems(body._job, 'done', result), Sent_Count: sent.length, Failed_Count: failedN };
+  return { ok, reason, Report_ID: report ? report.Report_ID : '', pub, jobs: jobItems(body._job, 'done', result), Sent_Count: sent.length, Failed_Count: failedN };
 }
 
 // ─────────────────────────────── DAILY_SCHEDULE · DAILY_WATCHDOG ───────────────────────────────

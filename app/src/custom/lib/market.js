@@ -67,7 +67,8 @@ export function formatWhatsApp(r, generatedAt) {
 // (inlined by tools/build_market_flows.py) and tested in tests/market.test.mjs on real RSS samples (tests/fixtures/rss/).
 // ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 
-/** The five feeds of the n8n source, by the key each fetch step carries. The URLs live in the flow's constants step. */
+/** The five sources, by the key each fetch step carries. The URLs are the flow's constants (feeds.*); three are Google News searches
+ *  scoped to the publisher (owner decision 15 Oct 2026). Source is always the configured name, never the item's <source>. */
 export const SOURCES = [
   { key: 'et', name: 'Economic Times Markets' },
   { key: 'mc', name: 'Moneycontrol' },
@@ -349,11 +350,6 @@ export function normaliseWhatsApp(n) {
 export function adminNumbers(alertTo) { return /SET_IN_STUDIO/.test(String(alertTo || '')) ? [] : [...new Set(String(alertTo || '').split(/[,;\s]+/).map(normaliseWhatsApp).filter(Boolean))]; }
 /** Who may receive the report: Active, with an opt-in date and an allowed opt-in source, and a usable number. */
 export function isEligible(s) { return !!s && s.Status === 'Active' && !!String(s.Opt_In_At || '').trim() && ENUMS.Opt_In_Source.includes(s.Opt_In_Source) && !!normaliseWhatsApp(s.WhatsApp); }
-/** Already has this report (stamped by MARKET_PUBLISH): the last delivery is on the report's day, after the report was written. */
-export function alreadyDelivered(s, report) {
-  const at = Date.parse((s && s.Last_Delivered_At) || ''); if (!Number.isFinite(at) || !report) return false;
-  return istDate(at) === report.Report_Date && at >= (Date.parse(report.Created_At || '') || 0);
-}
 /** mi_daily_report's variables: date, sentiment, confidence, the first driver (the portal link is the template's URL button). */
 export function reportTemplateVars(r) {
   const pct = r.Confidence_Pct !== '' && r.Confidence_Pct != null ? ` (${r.Confidence_Pct}%)` : '';

@@ -24,11 +24,11 @@ Budget per action path: ≤ 14 steps · ≤ 1 AI call (2 with a code check betwe
 | No report row — alert the admins | 7 | 0 | 1 | — |
 | Report row present | 6 | 0 | 1 | — |
 
-## MARKET_PUBLISH — 0 action(s), longest path 9 steps, within budget
+## MARKET_PUBLISH — 0 action(s), longest path 8 steps, within budget
 
 | action path | steps | AI calls | router depth | longest CODE |
 |---|---:|---:|---:|---:|
-| (single path) | 9 | 0 | 0 | — |
+| (single path) | 8 | 0 | 0 | — |
 
 ## MARKET_REPORT — 4 action(s), longest path 13 steps, within budget
 
@@ -73,7 +73,7 @@ its path (the budget question) and its credits once per item; a router is a step
 | BROADCAST | retry › inner Return | 13 | 12 |
 | BROADCAST | retry | 14 | 8 + step_retry_loop×5 |
 | BROADCAST | Unknown action | 4 | 3 |
-| MARKET_PUBLISH | (single path) | 14 | 9 + step_pub_loop×3 + step_touch_loop×1 + step_job_loop×1 |
+| MARKET_PUBLISH | (single path) | 12 | 8 + step_pub_loop×3 + step_job_loop×1 |
 
 Longest path with loop bodies counted: **14 steps** (budget 14).
 
@@ -82,9 +82,9 @@ Longest path with loop bodies counted: **14 steps** (budget 14).
 Why the split: one Studio flow has one trigger, so the 06:20 watchdog cannot live in DAILY_SCHEDULE; and the old one-flow
 MARKET_REPORT (trigger, constants, 5 fetches, parse, router, AI, parse, write report, stamp the news with the app's Report_ID,
 write news, BROADCAST, job, Return) is 16–17 steps on its longest path, the old one-flow BROADCAST.send 16 (reads, plan, queue,
-send, record, then counts / reader copy / Last_Delivered_At / job). The budget is 14 and a second decision inside a branch
+send, record, then counts / reader copy / job). The budget is 14 and a second decision inside a branch
 would be a router in a router. So MARKET_REPORT ends by handing the finished row to MARKET_STORE (the writer), and
-BROADCAST ends by handing to MARKET_PUBLISH (the bookkeeping after a send). No app page calls the three new flows.
+BROADCAST ends by handing to MARKET_PUBLISH (counts, reader copy and job after a send). No app page calls the three new flows.
 
 ```yaml
   - name: DAILY_WATCHDOG
@@ -120,20 +120,20 @@ BROADCAST ends by handing to MARKET_PUBLISH (the bookkeeping after a send). No a
   - name: MARKET_PUBLISH
     covers: [R9, R10]
     trigger: { tool: webhook, name: catch_webhook, auth: none }
-    writes: [reports, published_reports, subscribers]
+    writes: [reports, published_reports]
     actions:
       - name: publish
         model: none
         via: custom
-        payload: { Report_ID: string, Since: string }
+        payload: { Report_ID: string }
         result: { sent: number, failed: number }
-        rules: ["Called only by BROADCAST (after send and after retry). From the app's rows: report Sent + Sent_At + Sent_Count + Failed_Count; UPSERT published_reports (POST, then PATCH); Last_Delivered_At of each subscriber sent since `Since`; POST /api/jobs/<_job> done. A Failed or unknown report writes nothing"]
+        rules: ["Called only by BROADCAST (after send and after retry). From the app's rows: report Sent + Sent_At + Sent_Count + Failed_Count; UPSERT published_reports (POST, then PATCH); POST /api/jobs/<_job> done. A Failed or unknown report writes nothing"]
         typical_seconds: 6
-        credits: 62
+        credits: 12
         runs_per_month: 46
 ```
-Also: `MARKET_REPORT.constants` gains `max_age_hours: 48` (stale items dropped — the Moneycontrol top-news feed still serves
-2016 items, the Global Cues search returns months-old ones); the BROADCAST.send / retry rules gain "then POST MARKET_PUBLISH";
+Also: `MARKET_REPORT.constants` gains `max_age_hours: 48` and `feeds` (five URLs, one constant each: ET, Moneycontrol and
+Reuters through Google News `site:` search; Global Cues with `when:1d`); the BROADCAST.send / retry rules gain "then POST MARKET_PUBLISH";
 DAILY_SCHEDULE's second rule (the watchdog) moves to DAILY_WATCHDOG. Webhook URLs between flows are constants
 (`SET_IN_STUDIO_*_WEBHOOK_URL`), not app env vars — the app calls only WEBHOOK_MARKET_REPORT and WEBHOOK_BROADCAST.
 

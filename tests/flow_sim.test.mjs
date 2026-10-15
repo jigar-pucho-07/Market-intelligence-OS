@@ -21,6 +21,8 @@ const ADMINS = '+919800000001,+919800000002';
 /** The flow as Studio would run it once the human has filled the constants: app door reached through the fake, admins set. */
 function load(name, consts = {}) {
   let text = fs.readFileSync(path.join(ROOT, 'workflows', name, `${name}.json`), 'utf8');
+  // the RSS samples are from 15 Oct 2026: switch the freshness cut off here (tests/market.test.mjs checks it with a fixed clock)
+  text = text.replaceAll('\\"max_age_hours\\": 48', '\\"max_age_hours\\": 0');
   text = text.replaceAll('/api/data/', '/api/appdata/').replaceAll('SET_IN_STUDIO_APP_URL', 'https://app.test').replaceAll('SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS', ADMINS);
   for (const [k, v] of Object.entries(consts)) text = text.replace(new RegExp(`(\\\\"${k}\\\\": )[^,\\n]+`), `$1${JSON.stringify(v).replace(/"/g, '\\"')}`);
   return JSON.parse(text);
@@ -105,7 +107,8 @@ test('MARKET_REPORT.run, end to end: report Ready → news with deterministic id
   const [rep] = w.app.db.reports;
   assert.equal(rep.Report_Date, T); assert.equal(rep.Trigger, 'Manual'); assert.equal(rep.Sentiment, 'CAUTIOUSLY BULLISH'); assert.equal(rep.Confidence_Pct, 100);
   assert.equal(rep.Status, 'Sent'); assert.equal(rep.Sent_Count, 2); assert.equal(rep.Failed_Count, 0);
-  assert.ok(rep.WhatsApp_Message.length <= 4000); assert.match(rep.Source_Status, /Reuters India 0 \(failed/);
+  assert.ok(rep.WhatsApp_Message.length <= 4000);
+  for (const n of ['Economic Times Markets', 'Moneycontrol', 'Reuters India', 'Google Finance News', 'Global Market Cues']) assert.match(rep.Source_Status, new RegExp(n + ' [1-9]'));
   assert.equal(rep.View_Intraday, '', 'the stop-loss sentence never reached the row');
   assert.ok(w.app.db.news_articles.length > 0 && w.app.db.news_articles.every((a) => a.Article_ID.startsWith(`NWS-${rep.Report_ID}-`) && a.Report_ID === rep.Report_ID));
   const s = sends(w); assert.deepEqual(s.map((c) => c.inputs.to).sort(), ['+919820011223', '+919876543210'], 'Paused Rohit gets nothing');
@@ -113,7 +116,7 @@ test('MARKET_REPORT.run, end to end: report Ready → news with deterministic id
   assert.ok(w.app.db.deliveries.every((d) => d.Status === 'Sent' && d.Message_ID.startsWith('wamid.') && d.Kind === 'Report'));
   assert.equal(w.app.db.published_reports.length, 1); assert.equal(w.app.db.published_reports[0].Report_ID, rep.Report_ID);
   assert.ok(!('Error_Message' in w.app.db.published_reports[0]));
-  assert.ok(w.app.db.subscribers.filter((x) => x.Status === 'Active').every((x) => x.Last_Delivered_At));
+  assert.ok(w.log.flatMap((l) => l.calls).every((c) => !/\/api\/appdata\/subscribers/.test(c.inputs.url) || c.inputs.method === 'GET'), 'no flow writes subscribers');
   assert.equal(w.app.jobs[JOB].status, 'done'); assert.equal(w.app.jobs[JOB].result.Status, 'Ready');
 });
 
@@ -165,7 +168,6 @@ test('BROADCAST.send twice: the second finds every delivery already there (409) 
   const w = newWorld({ reports: [rep], subscribers: SUBS });
   await run(w, 'BROADCAST', { action: 'send', Report_ID: 'MIR-2026-0101', _job: JOB });
   assert.equal(sends(w).length, 2); assert.equal(w.app.db.reports[0].Status, 'Sent'); assert.equal(w.app.jobs[JOB].status, 'done');
-  for (const s of w.app.db.subscribers) delete s.Last_Delivered_At;                  // force the 409 path, not the pre-filter
   const before = sends(w).length;
   await run(w, 'BROADCAST', { action: 'send', Report_ID: 'MIR-2026-0101' });
   assert.equal(sends(w).length, before, '409 → skip: no second message'); assert.equal(w.app.db.deliveries.length, 2);

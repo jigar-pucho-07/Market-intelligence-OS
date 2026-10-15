@@ -52,7 +52,7 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **body_type**: `json`
   - **body**: `{"data": {"Status": "{{step_send_result['Status']}}", "Message_ID": "{{step_send_result['Message_ID']}}", "Error_Message": "{{step_send_result['Error_Message']}}", "Sent_At": "{{step_send_result['Sent_At']}}"}}`
 
-## 7. POST MARKET_PUBLISH — counts, reader copy, Last_Delivered_At, job (`step_send_publish`, http)
+## 7. POST MARKET_PUBLISH — counts, reader copy, job (`step_send_publish`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
 - [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
   - **method**: `POST`
@@ -60,7 +60,7 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **headers**: `application/json`
   - **authType**: `NONE`
   - **body_type**: `json`
-  - **body**: `{"data": {"action": "publish", "Report_ID": "{{step_send_plan['publish']['Report_ID']}}", "Since": "{{step_send_plan['publish']['Since']}}", "_job": "{{step_send_plan['publish']['_job']}}", "_who": "flow:BROADCAST"}}`
+  - **body**: `{"data": {"action": "publish", "Report_ID": "{{step_send_plan['publish']['Report_ID']}}", "_job": "{{step_send_plan['publish']['_job']}}", "_who": "flow:BROADCAST"}}`
 
 ## 8. GET deliveries (`step_retry_deliveries`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
@@ -116,7 +116,7 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **headers**: `application/json`
   - **authType**: `NONE`
   - **body_type**: `json`
-  - **body**: `{"data": {"action": "publish", "Report_ID": "{{step_retry_plan['publish']['Report_ID']}}", "Since": "{{step_retry_plan['publish']['Since']}}", "_job": "", "_who": "flow:BROADCAST"}}`
+  - **body**: `{"data": {"action": "publish", "Report_ID": "{{step_retry_plan['publish']['Report_ID']}}", "_job": "", "_who": "flow:BROADCAST"}}`
 
 ## 14. Constants — app_url, inbound_token and the flow's settings (set in Studio) (`step_constants`, code)
 - [ ] Open the step's code and replace each placeholder with the real value, then save:

@@ -19,7 +19,6 @@
     "report_sent=step_report_update:http:write",
     "published_insert=step_published_insert:http:write",
     "published_update=step_published_update:http:write",
-    "last_delivered=step_subscriber_update:http:write",
     "job=step_job:http:write",
     "answer=step_done:webhook:respond"
   ],

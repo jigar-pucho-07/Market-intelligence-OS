@@ -2,7 +2,7 @@
   "created": "1700000000000",
   "updated": "1700000000000",
   "name": "MARKET_PUBLISH",
-  "description": "Market Intelligence — after a broadcast: report Sent with its counts, the subscriber copy, Last_Delivered_At, the app's job",
+  "description": "Market Intelligence — after a broadcast: report Sent with its counts, the subscriber copy, the app's job",
   "tags": [],
   "pieces": [
     "@puchoaistudio/tool-webhook",
@@ -179,7 +179,7 @@
                 },
                 "sampleData": {},
                 "sourceCode": {
-                  "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what publishPlan() reaches (tools/build_market_flows.py)\nconst PUBLISHED_COLUMNS = ['Report_Date', 'Sentiment', 'Confidence_Level', 'Confidence_Pct', 'Driver_1', 'Driver_2', 'Driver_3',\n  'Sensex_Outlook', 'Sensex_Range', 'Sensex_Reason', 'Nifty_Outlook', 'Nifty_Range', 'Nifty_Reason', 'BankNifty_Outlook', 'BankNifty_Range',\n  'BankNifty_Reason', 'FnO_View', 'VIX_Expectation', 'FnO_Reason', 'MidSmall_Outlook', 'MidSmall_Focus', 'MidSmall_Reason', 'Commodity_Outlook',\n  'Commodity_Reason', 'Sectors', 'Risks', 'View_Positional', 'View_Intraday', 'View_LongTerm', 'View_FnO', 'Articles_Analyzed', 'WhatsApp_Message'];\nfunction toIso(dateText) { const t = Date.parse(String(dateText || '').trim()); return Number.isFinite(t) ? new Date(t).toISOString() : ''; }\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst JOB = /^JOB-[0-9A-F]{12}$/;\nfunction jobItems(job, status, result) { return JOB.test(String(job || '')) ? [{ id: String(job), status, result }] : []; }\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction publishPlan(inp) {\n  const body = (inp && inp.body) || {}; const now = nowOf(inp);\n  const reports = rowsOf(inp && inp.reports); const dels = rowsOf(inp && inp.deliveries);\n  const report = reports ? reports.find((r) => r.Report_ID === String(body.Report_ID || '')) || null : null;\n  const mine = report && dels ? dels.filter((d) => d.Kind === 'Report' && (d.Report_ID === report.Report_ID || (!d.Report_ID && d.Report_Date === report.Report_Date))) : [];\n  const sent = mine.filter((d) => d.Status === 'Sent'); const failedN = mine.filter((d) => d.Status === 'Failed').length;\n  const ok = !!report && ['Ready', 'Sent'].includes(report.Status) && mine.length > 0;\n  const firstSent = sent.map((d) => toIso(d.Sent_At)).filter(Boolean).sort()[0];\n  const sentAt = toIso(report && report.Sent_At) || firstSent || now.toISOString();\n  const reason = !reports || !dels ? doorError(!reports ? inp.reports : inp.deliveries, !reports ? 'reports' : 'deliveries')\n    : !report ? `No report ${String(body.Report_ID || '').slice(0, 30)}` : !ok ? `${report.Report_ID} is ${report.Status} with ${mine.length} report deliveries — nothing published` : '';\n  const published = ok ? { Report_ID: report.Report_ID, Published_At: sentAt, ...Object.fromEntries(PUBLISHED_COLUMNS.map((c) => [c, report[c] ?? ''])) } : {};\n  const pub = ok ? [{ Report_ID: report.Report_ID, patch: { Status: 'Sent', Sent_At: sentAt, Sent_Count: sent.length, Failed_Count: failedN }, published }] : [];\n  const since = (Date.parse(body.Since || '') || 0) - 5 * 60e3; const last = {};\n  for (const d of sent) { const t = Date.parse(d.Sent_At || ''); if (Number.isFinite(t) && t >= since && (!last[d.Subscriber_ID] || t > last[d.Subscriber_ID])) last[d.Subscriber_ID] = t; }\n  const touch = ok ? Object.entries(last).filter(([id]) => id && !id.startsWith('ADMIN-')).map(([Subscriber_ID, t]) => ({ Subscriber_ID, Last_Delivered_At: new Date(t).toISOString() })) : [];\n  const result = { sent: sent.length, failed: failedN, skipped: 0, published: ok, ...(reason ? { note: reason } : {}) };\n  return { ok, reason, Report_ID: report ? report.Report_ID : '', pub, touch, jobs: jobItems(body._job, 'done', result), Sent_Count: sent.length, Failed_Count: failedN };\n}\n// end lib\nexport const code = async (inputs) => {\n  return publishPlan(inputs);\n};",
+                  "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what publishPlan() reaches (tools/build_market_flows.py)\nconst PUBLISHED_COLUMNS = ['Report_Date', 'Sentiment', 'Confidence_Level', 'Confidence_Pct', 'Driver_1', 'Driver_2', 'Driver_3',\n  'Sensex_Outlook', 'Sensex_Range', 'Sensex_Reason', 'Nifty_Outlook', 'Nifty_Range', 'Nifty_Reason', 'BankNifty_Outlook', 'BankNifty_Range',\n  'BankNifty_Reason', 'FnO_View', 'VIX_Expectation', 'FnO_Reason', 'MidSmall_Outlook', 'MidSmall_Focus', 'MidSmall_Reason', 'Commodity_Outlook',\n  'Commodity_Reason', 'Sectors', 'Risks', 'View_Positional', 'View_Intraday', 'View_LongTerm', 'View_FnO', 'Articles_Analyzed', 'WhatsApp_Message'];\nfunction toIso(dateText) { const t = Date.parse(String(dateText || '').trim()); return Number.isFinite(t) ? new Date(t).toISOString() : ''; }\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst JOB = /^JOB-[0-9A-F]{12}$/;\nfunction jobItems(job, status, result) { return JOB.test(String(job || '')) ? [{ id: String(job), status, result }] : []; }\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction publishPlan(inp) {\n  const body = (inp && inp.body) || {}; const now = nowOf(inp);\n  const reports = rowsOf(inp && inp.reports); const dels = rowsOf(inp && inp.deliveries);\n  const report = reports ? reports.find((r) => r.Report_ID === String(body.Report_ID || '')) || null : null;\n  const mine = report && dels ? dels.filter((d) => d.Kind === 'Report' && (d.Report_ID === report.Report_ID || (!d.Report_ID && d.Report_Date === report.Report_Date))) : [];\n  const sent = mine.filter((d) => d.Status === 'Sent'); const failedN = mine.filter((d) => d.Status === 'Failed').length;\n  const ok = !!report && ['Ready', 'Sent'].includes(report.Status) && mine.length > 0;\n  const firstSent = sent.map((d) => toIso(d.Sent_At)).filter(Boolean).sort()[0];\n  const sentAt = toIso(report && report.Sent_At) || firstSent || now.toISOString();\n  const reason = !reports || !dels ? doorError(!reports ? inp.reports : inp.deliveries, !reports ? 'reports' : 'deliveries')\n    : !report ? `No report ${String(body.Report_ID || '').slice(0, 30)}` : !ok ? `${report.Report_ID} is ${report.Status} with ${mine.length} report deliveries — nothing published` : '';\n  const published = ok ? { Report_ID: report.Report_ID, Published_At: sentAt, ...Object.fromEntries(PUBLISHED_COLUMNS.map((c) => [c, report[c] ?? ''])) } : {};\n  const pub = ok ? [{ Report_ID: report.Report_ID, patch: { Status: 'Sent', Sent_At: sentAt, Sent_Count: sent.length, Failed_Count: failedN }, published }] : [];\n  const result = { sent: sent.length, failed: failedN, skipped: 0, published: ok, ...(reason ? { note: reason } : {}) };\n  return { ok, reason, Report_ID: report ? report.Report_ID : '', pub, jobs: jobItems(body._job, 'done', result), Sent_Count: sent.length, Failed_Count: failedN };\n}\n// end lib\nexport const code = async (inputs) => {\n  return publishPlan(inputs);\n};",
                   "packageJson": "{}"
                 },
                 "errorHandlingOptions": {
@@ -466,37 +466,36 @@
                   "displayName": "PATCH the report Sent · Sent_At · Sent_Count · Failed_Count"
                 },
                 "nextAction": {
-                  "name": "step_touch_loop",
+                  "name": "step_job_loop",
                   "type": "LOOP_ON_ITEMS",
-                  "displayName": "For each subscriber who received it",
+                  "displayName": "Report the app's job (0 or 1)",
                   "valid": true,
                   "skip": false,
                   "settings": {
-                    "items": "{{step_plan['touch']}}",
+                    "items": "{{step_plan['jobs']}}",
                     "sampleData": {}
                   },
                   "firstLoopAction": {
-                    "name": "step_subscriber_update",
+                    "name": "step_job",
                     "skip": false,
                     "type": "PIECE",
                     "valid": true,
                     "settings": {
                       "input": {
-                        "method": "PATCH",
-                        "url": "{{step_constants['app_url']}}/api/data/subscribers",
+                        "method": "POST",
+                        "url": "{{step_constants['app_url']}}/api/jobs/{{step_job_loop['item']['id']}}",
                         "headers": {
                           "Content-Type": "application/json",
                           "Authorization": "Bearer {{step_constants['inbound_token']}}",
                           "X-Flow": "{{step_constants['flow']}}"
                         },
-                        "queryParams": {
-                          "Subscriber_ID": "eq.{{step_touch_loop['item']['Subscriber_ID']}}"
-                        },
+                        "queryParams": {},
                         "authType": "NONE",
                         "body_type": "json",
                         "body": {
                           "data": {
-                            "Last_Delivered_At": "{{step_touch_loop['item']['Last_Delivered_At']}}"
+                            "status": "{{step_job_loop['item']['status']}}",
+                            "result": "{{step_job_loop['item']['result']}}"
                           }
                         }
                       },
@@ -539,152 +538,76 @@
                         }
                       }
                     },
-                    "displayName": "PATCH subscriber Last_Delivered_At"
+                    "displayName": "POST /api/jobs/<id> done"
                   },
                   "nextAction": {
-                    "name": "step_job_loop",
-                    "type": "LOOP_ON_ITEMS",
-                    "displayName": "Report the app's job (0 or 1)",
-                    "valid": true,
+                    "name": "step_done",
                     "skip": false,
+                    "type": "PIECE",
+                    "valid": true,
                     "settings": {
-                      "items": "{{step_plan['jobs']}}",
-                      "sampleData": {}
-                    },
-                    "firstLoopAction": {
-                      "name": "step_job",
-                      "skip": false,
-                      "type": "PIECE",
-                      "valid": true,
-                      "settings": {
-                        "input": {
-                          "method": "POST",
-                          "url": "{{step_constants['app_url']}}/api/jobs/{{step_job_loop['item']['id']}}",
-                          "headers": {
-                            "Content-Type": "application/json",
-                            "Authorization": "Bearer {{step_constants['inbound_token']}}",
-                            "X-Flow": "{{step_constants['flow']}}"
-                          },
-                          "queryParams": {},
-                          "authType": "NONE",
-                          "body_type": "json",
+                      "input": {
+                        "fields": {
                           "body": {
-                            "data": {
-                              "status": "{{step_job_loop['item']['status']}}",
-                              "result": "{{step_job_loop['item']['result']}}"
-                            }
-                          }
+                            "ok": "{{step_plan['ok']}}",
+                            "Report_ID": "{{step_plan['Report_ID']}}",
+                            "sent": "{{step_plan['Sent_Count']}}",
+                            "failed": "{{step_plan['Failed_Count']}}",
+                            "note": "{{step_plan['reason']}}"
+                          },
+                          "status": 200,
+                          "headers": {}
                         },
-                        "pieceName": "@puchoaistudio/tool-http",
-                        "actionName": "send_request",
-                        "sampleData": {},
-                        "pieceVersion": "^2.0.0",
-                        "propertySettings": {
-                          "method": {
-                            "type": "MANUAL"
-                          },
-                          "url": {
-                            "type": "MANUAL"
-                          },
-                          "headers": {
-                            "type": "MANUAL",
-                            "schema": {}
-                          },
-                          "queryParams": {
-                            "type": "MANUAL",
-                            "schema": {}
-                          },
-                          "authType": {
-                            "type": "MANUAL"
-                          },
-                          "body_type": {
-                            "type": "MANUAL"
-                          },
-                          "body": {
-                            "type": "MANUAL",
-                            "schema": {}
-                          }
-                        },
-                        "errorHandlingOptions": {
-                          "retryOnFailure": {
-                            "value": true
-                          },
-                          "continueOnFailure": {
-                            "value": true
-                          }
-                        }
+                        "respond": "stop",
+                        "responseType": "json"
                       },
-                      "displayName": "POST /api/jobs/<id> done"
-                    },
-                    "nextAction": {
-                      "name": "step_done",
-                      "skip": false,
-                      "type": "PIECE",
-                      "valid": true,
-                      "settings": {
-                        "input": {
-                          "fields": {
+                      "pieceName": "@puchoaistudio/tool-webhook",
+                      "actionName": "return_response",
+                      "sampleData": {},
+                      "pieceVersion": "^2.0.4",
+                      "propertySettings": {
+                        "fields": {
+                          "type": "MANUAL",
+                          "schema": {
                             "body": {
-                              "ok": "{{step_plan['ok']}}",
-                              "Report_ID": "{{step_plan['Report_ID']}}",
-                              "sent": "{{step_plan['Sent_Count']}}",
-                              "failed": "{{step_plan['Failed_Count']}}",
-                              "note": "{{step_plan['reason']}}"
+                              "type": "JSON",
+                              "required": true,
+                              "displayName": "JSON Body"
                             },
-                            "status": 200,
-                            "headers": {}
-                          },
-                          "respond": "stop",
-                          "responseType": "json"
-                        },
-                        "pieceName": "@puchoaistudio/tool-webhook",
-                        "actionName": "return_response",
-                        "sampleData": {},
-                        "pieceVersion": "^2.0.4",
-                        "propertySettings": {
-                          "fields": {
-                            "type": "MANUAL",
-                            "schema": {
-                              "body": {
-                                "type": "JSON",
-                                "required": true,
-                                "displayName": "JSON Body"
-                              },
-                              "status": {
-                                "type": "NUMBER",
-                                "required": false,
-                                "displayName": "Status",
-                                "defaultValue": 200
-                              },
-                              "headers": {
-                                "type": "OBJECT",
-                                "required": false,
-                                "displayName": "Headers"
-                              }
+                            "status": {
+                              "type": "NUMBER",
+                              "required": false,
+                              "displayName": "Status",
+                              "defaultValue": 200
+                            },
+                            "headers": {
+                              "type": "OBJECT",
+                              "required": false,
+                              "displayName": "Headers"
                             }
-                          },
-                          "respond": {
-                            "type": "MANUAL"
-                          },
-                          "responseType": {
-                            "type": "MANUAL"
                           }
                         },
-                        "errorHandlingOptions": {
-                          "retryOnFailure": {
-                            "value": false
-                          },
-                          "continueOnFailure": {
-                            "value": false
-                          }
+                        "respond": {
+                          "type": "MANUAL"
+                        },
+                        "responseType": {
+                          "type": "MANUAL"
                         }
                       },
-                      "displayName": "Return: published"
-                    }
+                      "errorHandlingOptions": {
+                        "retryOnFailure": {
+                          "value": false
+                        },
+                        "continueOnFailure": {
+                          "value": false
+                        }
+                      }
+                    },
+                    "displayName": "Return: published"
                   }
                 }
               },
-              "displayName": "Counts · reader copy · who received it (CODE)"
+              "displayName": "Counts · reader copy (CODE)"
             },
             "displayName": "GET deliveries"
           },

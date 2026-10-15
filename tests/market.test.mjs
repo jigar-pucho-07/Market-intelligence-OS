@@ -12,8 +12,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const rss = (f, enc = 'utf8') => fs.readFileSync(path.join(HERE, 'fixtures', 'rss', f), enc);
 const MODEL = JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures', 'model-answer.json'), 'utf8'));
 const NOW = '2026-10-15T08:30:00Z';                       // 14:00 IST, when the samples were captured
-const feeds = () => ({ et: { status: 200, body: rss('et-markets.xml') }, mc: { status: 200, body: rss('moneycontrol.xml', 'latin1') },
-  reuters: { error: 'getaddrinfo ENOTFOUND feeds.reuters.com' }, gfn: { status: 200, body: rss('google-finance.xml') }, global: { status: 200, body: rss('global-cues.xml') } });
+const feeds = () => ({ et: { status: 200, body: rss('et-markets.xml') }, mc: { status: 200, body: rss('moneycontrol.xml') },
+  reuters: { status: 200, body: rss('reuters-india.xml') }, gfn: { status: 200, body: rss('google-finance.xml') }, global: { status: 200, body: rss('global-cues.xml') } });
 
 test('frontend exports keep their names and signatures', () => {
   for (const k of ['formatWhatsApp', 'parseSectors', 'parseRisks']) assert.equal(typeof M[k], 'function');
@@ -22,14 +22,12 @@ test('frontend exports keep their names and signatures', () => {
 });
 
 test('parseRss reads the real feeds: RSS items, CDATA / entity-encoded HTML stripped, HTML pages give nothing', () => {
-  const mc = M.parseRss(rss('moneycontrol.xml', 'latin1'), 'Moneycontrol');
+  const mc = M.parseRss(rss('moneycontrol-2016.xml', 'latin1'), 'Moneycontrol');
   assert.equal(mc.length, 18);
   assert.ok(mc.every((a) => !/[<>]|&lt;|&quot;/.test(a.summary)), 'descriptions are plain text');
   assert.ok(mc.every((a) => a.summary.length <= 300 && a.title.length > 5));
   assert.match(mc[0].link, /^https?:\/\/www\.moneycontrol\.com\//);
-  assert.equal(M.parseRss(rss('google-finance.xml'), 'Google Finance News').length, 92);
-  assert.equal(M.parseRss(rss('global-cues.xml'), 'Global Market Cues').length, 41);
-  assert.deepEqual(M.parseRss(rss('et-markets.xml'), 'Economic Times Markets'), [], 'the ET URL now answers an HTML page');
+  assert.deepEqual(M.parseRss(rss('et-markets-html-page.xml'), 'Economic Times Markets'), [], 'the old ET URL answers an HTML page');
   assert.deepEqual(M.parseRss(undefined, 'x'), []);
   const evil = M.parseRss('<rss><item><title><![CDATA[Nifty <script>alert(1)</script> rallies &amp; more]]></title><description>&lt;b&gt;bold&lt;/b&gt; text</description></item></rss>', 'x');
   assert.equal(evil[0].title, 'Nifty alert(1) rallies & more'); assert.equal(evil[0].summary, 'bold text');
@@ -61,18 +59,27 @@ test('dedupe: first 60 lower-cased alphanumerics; a title with none (e.g. Hindi)
   assert.equal(M.dedupe(items).length, 3);
 });
 
+test('each of the five configured feeds (Google News, publisher-scoped for ET / Moneycontrol / Reuters) parses ≥ 1 item, Source = the configured name', () => {
+  for (const [key, file] of [['et', 'et-markets.xml'], ['mc', 'moneycontrol.xml'], ['reuters', 'reuters-india.xml'], ['gfn', 'google-finance.xml'], ['global', 'global-cues.xml']]) {
+    const name = M.SOURCES.find((s) => s.key === key).name;
+    const items = M.parseRss(rss(file), name);
+    assert.ok(items.length >= 1, `${name}: ${items.length} items`);
+    assert.ok(items.every((a) => a.source === name && a.title.length > 5 && /^https:\/\/news\.google\.com\//.test(a.link)), `${name}: Source is the configured name`);
+  }
+});
+
 test('selectArticles on the real feeds: 40 max, stale items dropped, every gap named in Source_Status (S2, S4)', () => {
   const s = M.selectArticles(feeds(), { limit: 40, maxAgeHours: 48, now: NOW });
   assert.equal(s.articles.length, 40);
-  assert.match(s.Source_Status, /Economic Times Markets 0 \(not an RSS feed\)/);
-  assert.match(s.Source_Status, /Moneycontrol 0 \(18 stale\)/, 'the Moneycontrol top-news feed is frozen in 2016');
-  assert.match(s.Source_Status, /Reuters India 0 \(failed: getaddrinfo/);
+  for (const n of ['Economic Times Markets', 'Moneycontrol', 'Reuters India', 'Google Finance News', 'Global Market Cues']) assert.match(s.Source_Status, new RegExp(n + ' \\d+'));
+  assert.ok(new Set(s.articles.map((a) => a.source)).size >= 4, 'sources are taken in turn');
+  const old = M.selectArticles({ et: { status: 200, body: rss('et-markets-html-page.xml') }, mc: { status: 200, body: rss('moneycontrol-2016.xml', 'latin1') }, reuters: { error: 'getaddrinfo ENOTFOUND feeds.reuters.com' } }, { maxAgeHours: 48, now: NOW });
+  assert.match(old.Source_Status, /Economic Times Markets 0 \(not an RSS feed\)/);
+  assert.match(old.Source_Status, /Moneycontrol 0 \(18 stale\)/, 'the old Moneycontrol top-news feed is frozen in 2016');
+  assert.match(old.Source_Status, /Reuters India 0 \(failed: getaddrinfo/);
   assert.equal(new Set(s.articles.map((a) => a.key)).size, 40, 'no duplicate key');
   assert.ok(s.articles.every((a) => a.category && ['HIGH', 'MED', 'LOW'].includes(a.impact)));
   assert.match(s.Category_Breakdown, /^[A-Z_]+ \d+/);
-  const all = M.selectArticles(feeds(), { limit: 40, maxAgeHours: 0, now: NOW });
-  const sources = new Set(all.articles.map((a) => a.source));
-  assert.ok(sources.size >= 3, 'sources are taken in turn, so the fifth feed reaches the model');
   assert.deepEqual(M.selectArticles({}, { now: NOW }).articles, []);
 });
 
@@ -138,9 +145,7 @@ test('broadcast helpers: eligibility, numbers, already delivered, template varia
   const s = { Status: 'Active', Opt_In_At: '2026-08-01', Opt_In_Source: 'Web form', WhatsApp: '+919876543210' };
   assert.equal(M.isEligible(s), true);
   assert.equal(M.isEligible({ ...s, Status: 'Paused' }), false); assert.equal(M.isEligible({ ...s, Opt_In_At: '' }), false); assert.equal(M.isEligible({ ...s, Opt_In_Source: 'Cold call' }), false);
-  const rep = { Report_Date: '2026-10-15', Created_At: '2026-10-15T00:31:00Z', Sentiment: 'BULLISH', Confidence_Level: 'HIGH', Confidence_Pct: 74, Driver_1: 'FII inflows strong' };
-  assert.equal(M.alreadyDelivered({ Last_Delivered_At: '2026-10-15T00:33:00Z' }, rep), true);
-  assert.equal(M.alreadyDelivered({ Last_Delivered_At: '2026-10-14T00:33:00Z' }, rep), false);
+  const rep = { Report_Date: '2026-10-15', Sentiment: 'BULLISH', Confidence_Level: 'HIGH', Confidence_Pct: 74, Driver_1: 'FII inflows strong' };
   assert.deepEqual(M.reportTemplateVars(rep), { date: '15 Oct 2026', sentiment: 'BULLISH', confidence: 'HIGH (74%)', driver: 'FII inflows strong' });
   assert.equal(M.alertTemplateVars({ error: 'boom', reportDate: '2026-10-15', now: NOW }).time, '02:00 PM IST');
   assert.equal(M.statusOf({ error: 'HTTP 403: {"error":"closed"}' }), 403);
@@ -218,8 +223,6 @@ test('sendPlan: Ready → eligible subscribers only; Failed or Kind=Alert → th
   const wd = FL.sendPlan({ body: { Kind: 'Alert', Error_Message: 'No report row by 06:20 <script>' }, C, reports: { error: 'HTTP 403' }, subscribers: { error: 'HTTP 403' } });
   assert.equal(wd.items.length, 2, 'the watchdog alert goes out even when the app is unreadable'); assert.doesNotMatch(wd.items[0].template_variables.error, /[<>]/);
   assert.equal(FL.sendPlan({ body: { Kind: 'Alert' }, C: { ...C, alert_to: 'SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS' } }).items.length, 0);
-  const again = FL.sendPlan({ body: { Report_ID: 'MIR-1' }, C, reports: reportsOut([{ ...rep, Created_At: '2026-01-01T00:00:00Z' }]), subscribers: reportsOut(SUBS.map((s) => ({ ...s, Last_Delivered_At: new Date().toISOString() }))) });
-  assert.equal(again.items.length, 0, 'subscribers who already have it today are not queued again');
 });
 
 test('queueGate + sendResult: 201 → send and record; 409 → skip; unconfirmed WhatsApp → Failed', () => {
@@ -245,15 +248,15 @@ test('retryPlan: only a Failed report delivery, to the number on the subscriber 
   assert.equal(no({ ...d, Subscriber_ID: 'SUB-3' }).items.length, 0, 'a Paused subscriber is not retried');
 });
 
-test('publishPlan: counts from the deliveries, reader copy, Last_Delivered_At; nothing for a Failed or unknown report', () => {
+test('publishPlan: counts from the deliveries and the reader copy; nothing for a Failed or unknown report', () => {
   const rep = { Report_ID: 'MIR-1', Report_Date: today, Status: 'Ready', Sentiment: 'BULLISH', WhatsApp_Message: 'w', Error_Message: 'secret' };
   const at = new Date().toISOString();
   const dels = [{ Kind: 'Report', Report_ID: 'MIR-1', Subscriber_ID: 'SUB-1', Status: 'Sent', Sent_At: at }, { Kind: 'Report', Report_ID: 'MIR-1', Subscriber_ID: 'SUB-2', Status: 'Failed', Sent_At: at },
     { Kind: 'Alert', Report_ID: 'MIR-1', Subscriber_ID: 'ADMIN-1', Status: 'Sent', Sent_At: at }];
-  const p = FL.publishPlan({ body: { Report_ID: 'MIR-1', Since: at, _job: 'JOB-3F9A1C22B7E0' }, reports: reportsOut([rep]), deliveries: reportsOut(dels) });
+  const p = FL.publishPlan({ body: { Report_ID: 'MIR-1', _job: 'JOB-3F9A1C22B7E0' }, reports: reportsOut([rep]), deliveries: reportsOut(dels) });
   assert.equal(p.pub.length, 1); assert.deepEqual([p.pub[0].patch.Sent_Count, p.pub[0].patch.Failed_Count, p.pub[0].patch.Status], [1, 1, 'Sent']);
   assert.ok(!('Error_Message' in p.pub[0].published), 'the reader copy carries reader-safe columns only');
-  assert.deepEqual(p.touch.map((t) => t.Subscriber_ID), ['SUB-1']); assert.equal(p.jobs[0].result.sent, 1);
+  assert.equal(p.jobs[0].result.sent, 1); assert.ok(!('touch' in p), 'no subscriber write');
   assert.equal(FL.publishPlan({ body: { Report_ID: 'MIR-1' }, reports: reportsOut([{ ...rep, Status: 'Failed' }]), deliveries: reportsOut(dels) }).pub.length, 0);
   assert.equal(FL.publishPlan({ body: { Report_ID: 'MIR-1' }, reports: reportsOut([rep]), deliveries: reportsOut([]) }).pub.length, 0);
 });
