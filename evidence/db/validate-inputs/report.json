@@ -1,0 +1,579 @@
+{
+  "gate": "validate_inputs",
+  "kit": "v4.9",
+  "status": "fail",
+  "url": "http://127.0.0.1:5055",
+  "when": "2026-10-15 13:52:29",
+  "passed": 55,
+  "failed": 1,
+  "not_run": 7,
+  "cases": [
+    {
+      "entity": "reports",
+      "kind": "baseline",
+      "case": "valid row accepted",
+      "expect": "2xx",
+      "got": 201,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "min",
+      "case": "Confidence_Pct: below min 0 refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "max",
+      "case": "Confidence_Pct: above max 100 refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "integer",
+      "case": "Confidence_Pct: non-integer (99.5) refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "min",
+      "case": "Articles_Analyzed: below min 0 refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "max",
+      "case": "Articles_Analyzed: above max 40 refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "integer",
+      "case": "Articles_Analyzed: non-integer (39.5) refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "min",
+      "case": "Message_Length: below min 0 refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "max",
+      "case": "Message_Length: above max 4096 refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "integer",
+      "case": "Message_Length: non-integer (100.5) refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "min",
+      "case": "Sent_Count: below min 0 refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "integer",
+      "case": "Sent_Count: non-integer (100.5) refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "min",
+      "case": "Failed_Count: below min 0 refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "integer",
+      "case": "Failed_Count: non-integer (100.5) refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "one_of",
+      "case": "Trigger: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "one_of",
+      "case": "Sentiment: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "one_of",
+      "case": "Confidence_Level: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "one_of",
+      "case": "Sensex_Outlook: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "one_of",
+      "case": "Nifty_Outlook: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "one_of",
+      "case": "BankNifty_Outlook: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "one_of",
+      "case": "MidSmall_Outlook: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "one_of",
+      "case": "Commodity_Outlook: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "one_of",
+      "case": "FnO_View: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "one_of",
+      "case": "VIX_Expectation: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "unique",
+      "case": "Report_Date: duplicate refused",
+      "expect": 409,
+      "got": "-",
+      "result": "NOT RUN",
+      "detail": "first insert failed"
+    },
+    {
+      "entity": "reports",
+      "kind": "transition_illegal",
+      "case": "Status: Failed -> Sent refused (not in transitions)",
+      "expect": 400,
+      "got": "-",
+      "result": "NOT RUN",
+      "detail": "could not create a row in Failed"
+    },
+    {
+      "entity": "reports",
+      "kind": "transition_illegal",
+      "case": "Status: Sent -> Ready refused (not in transitions)",
+      "expect": 400,
+      "got": "-",
+      "result": "NOT RUN",
+      "detail": "could not create a row in Sent"
+    },
+    {
+      "entity": "reports",
+      "kind": "transition_legal",
+      "case": "Status: Ready -> Sent accepted",
+      "expect": "2xx",
+      "got": "-",
+      "result": "NOT RUN",
+      "detail": "could not create a row in Ready"
+    },
+    {
+      "entity": "reports",
+      "kind": "requires_on",
+      "case": "Ready: insert without `Sentiment` refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "requires_on_patch",
+      "case": "Failed -> Ready without `Sentiment` refused",
+      "expect": 400,
+      "got": "-",
+      "result": "NOT RUN",
+      "detail": "could not create a row in Failed without `Sentiment`"
+    },
+    {
+      "entity": "reports",
+      "kind": "requires_on",
+      "case": "Sent: insert without `Sentiment` refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "requires_on",
+      "case": "Failed: insert without `Error_Message` refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "reports",
+      "kind": "requires_on_patch",
+      "case": "Ready -> Failed without `Error_Message` refused",
+      "expect": 400,
+      "got": "-",
+      "result": "NOT RUN",
+      "detail": "could not create a row in Ready without `Error_Message`"
+    },
+    {
+      "entity": "published_reports",
+      "kind": "baseline",
+      "case": "valid row accepted",
+      "expect": "2xx",
+      "got": 201,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "published_reports",
+      "kind": "min",
+      "case": "Confidence_Pct: below min 0 refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "published_reports",
+      "kind": "max",
+      "case": "Confidence_Pct: above max 100 refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "published_reports",
+      "kind": "integer",
+      "case": "Confidence_Pct: non-integer (99.5) refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "published_reports",
+      "kind": "min",
+      "case": "Articles_Analyzed: below min 0 refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "published_reports",
+      "kind": "max",
+      "case": "Articles_Analyzed: above max 40 refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "published_reports",
+      "kind": "integer",
+      "case": "Articles_Analyzed: non-integer (39.5) refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "published_reports",
+      "kind": "one_of",
+      "case": "Sentiment: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "published_reports",
+      "kind": "one_of",
+      "case": "Confidence_Level: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "published_reports",
+      "kind": "one_of",
+      "case": "FnO_View: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "published_reports",
+      "kind": "unique",
+      "case": "Report_Date: duplicate refused",
+      "expect": 409,
+      "got": "-",
+      "result": "NOT RUN",
+      "detail": "first insert failed"
+    },
+    {
+      "entity": "news_articles",
+      "kind": "baseline",
+      "case": "valid row accepted",
+      "expect": "2xx",
+      "got": 201,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "news_articles",
+      "kind": "one_of",
+      "case": "Category: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "news_articles",
+      "kind": "one_of",
+      "case": "Impact: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "news_articles",
+      "kind": "one_of",
+      "case": "Source: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "subscribers",
+      "kind": "baseline",
+      "case": "valid row accepted",
+      "expect": "2xx",
+      "got": 201,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "subscribers",
+      "kind": "phone",
+      "case": "WhatsApp: bad phone refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "subscribers",
+      "kind": "email",
+      "case": "Email: not an email refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "subscribers",
+      "kind": "one_of",
+      "case": "Opt_In_Source: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "subscribers",
+      "kind": "unique",
+      "case": "WhatsApp: duplicate refused",
+      "expect": "409",
+      "got": 409,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "subscribers",
+      "kind": "transition_illegal",
+      "case": "Status: Unsubscribed -> Active refused (not in transitions)",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "subscribers",
+      "kind": "transition_legal",
+      "case": "Status: Active -> Paused accepted",
+      "expect": "2xx",
+      "got": 200,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "subscribers",
+      "kind": "requires_on",
+      "case": "Active: insert without `Opt_In_At` refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "subscribers",
+      "kind": "requires_on_patch",
+      "case": "Paused -> Active without `Opt_In_At` refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "deliveries",
+      "kind": "baseline",
+      "case": "valid row accepted",
+      "expect": "2xx",
+      "got": 201,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "deliveries",
+      "kind": "one_of",
+      "case": "Kind: value outside the list refused",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "deliveries",
+      "kind": "unique_together",
+      "case": "(Report_Date, Subscriber_ID, Kind): duplicate refused",
+      "expect": "409",
+      "got": 409,
+      "result": "FAIL",
+      "detail": "409 but `errors` does not name ['Report_Date', 'Subscriber_ID', 'Kind'] \u2014 body: {\"ok\":false,\"errors\":{\"Report_Date+Subscriber_ID+Kind\":\"already in use (DLV-2026-2404)\"}}"
+    },
+    {
+      "entity": "deliveries",
+      "kind": "transition_illegal",
+      "case": "Status: Failed -> Queued refused (not in transitions)",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "deliveries",
+      "kind": "transition_illegal",
+      "case": "Status: Sent -> Queued refused (not in transitions)",
+      "expect": "400",
+      "got": 400,
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "entity": "deliveries",
+      "kind": "transition_legal",
+      "case": "Status: Queued -> Sent accepted",
+      "expect": "2xx",
+      "got": 200,
+      "result": "PASS",
+      "detail": ""
+    }
+  ]
+}

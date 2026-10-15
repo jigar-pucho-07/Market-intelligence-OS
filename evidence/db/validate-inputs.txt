@@ -1,0 +1,76 @@
+#   target             case                                                         want  got  result
+--  -----------------  -----------------------------------------------------------  ----  ---  -------
+1   reports            valid row accepted                                           2xx   201  PASS
+2   reports            Confidence_Pct: below min 0 refused                          400   400  PASS
+3   reports            Confidence_Pct: above max 100 refused                        400   400  PASS
+4   reports            Confidence_Pct: non-integer (99.5) refused                   400   400  PASS
+5   reports            Articles_Analyzed: below min 0 refused                       400   400  PASS
+6   reports            Articles_Analyzed: above max 40 refused                      400   400  PASS
+7   reports            Articles_Analyzed: non-integer (39.5) refused                400   400  PASS
+8   reports            Message_Length: below min 0 refused                          400   400  PASS
+9   reports            Message_Length: above max 4096 refused                       400   400  PASS
+10  reports            Message_Length: non-integer (100.5) refused                  400   400  PASS
+11  reports            Sent_Count: below min 0 refused                              400   400  PASS
+12  reports            Sent_Count: non-integer (100.5) refused                      400   400  PASS
+13  reports            Failed_Count: below min 0 refused                            400   400  PASS
+14  reports            Failed_Count: non-integer (100.5) refused                    400   400  PASS
+15  reports            Trigger: value outside the list refused                      400   400  PASS
+16  reports            Sentiment: value outside the list refused                    400   400  PASS
+17  reports            Confidence_Level: value outside the list refused             400   400  PASS
+18  reports            Sensex_Outlook: value outside the list refused               400   400  PASS
+19  reports            Nifty_Outlook: value outside the list refused                400   400  PASS
+20  reports            BankNifty_Outlook: value outside the list refused            400   400  PASS
+21  reports            MidSmall_Outlook: value outside the list refused             400   400  PASS
+22  reports            Commodity_Outlook: value outside the list refused            400   400  PASS
+23  reports            FnO_View: value outside the list refused                     400   400  PASS
+24  reports            VIX_Expectation: value outside the list refused              400   400  PASS
+25  reports            Report_Date: duplicate refused                               409   -    NOT RUN
+26  reports            Status: Failed -> Sent refused (not in transitions)          400   -    NOT RUN
+27  reports            Status: Sent -> Ready refused (not in transitions)           400   -    NOT RUN
+28  reports            Status: Ready -> Sent accepted                               2xx   -    NOT RUN
+29  reports            Ready: insert without `Sentiment` refused                    400   400  PASS
+30  reports            Failed -> Ready without `Sentiment` refused                  400   -    NOT RUN
+31  reports            Sent: insert without `Sentiment` refused                     400   400  PASS
+32  reports            Failed: insert without `Error_Message` refused               400   400  PASS
+33  reports            Ready -> Failed without `Error_Message` refused              400   -    NOT RUN
+34  published_reports  valid row accepted                                           2xx   201  PASS
+35  published_reports  Confidence_Pct: below min 0 refused                          400   400  PASS
+36  published_reports  Confidence_Pct: above max 100 refused                        400   400  PASS
+37  published_reports  Confidence_Pct: non-integer (99.5) refused                   400   400  PASS
+38  published_reports  Articles_Analyzed: below min 0 refused                       400   400  PASS
+39  published_reports  Articles_Analyzed: above max 40 refused                      400   400  PASS
+40  published_reports  Articles_Analyzed: non-integer (39.5) refused                400   400  PASS
+41  published_reports  Sentiment: value outside the list refused                    400   400  PASS
+42  published_reports  Confidence_Level: value outside the list refused             400   400  PASS
+43  published_reports  FnO_View: value outside the list refused                     400   400  PASS
+44  published_reports  Report_Date: duplicate refused                               409   -    NOT RUN
+45  news_articles      valid row accepted                                           2xx   201  PASS
+46  news_articles      Category: value outside the list refused                     400   400  PASS
+47  news_articles      Impact: value outside the list refused                       400   400  PASS
+48  news_articles      Source: value outside the list refused                       400   400  PASS
+49  subscribers        valid row accepted                                           2xx   201  PASS
+50  subscribers        WhatsApp: bad phone refused                                  400   400  PASS
+51  subscribers        Email: not an email refused                                  400   400  PASS
+52  subscribers        Opt_In_Source: value outside the list refused                400   400  PASS
+53  subscribers        WhatsApp: duplicate refused                                  409   409  PASS
+54  subscribers        Status: Unsubscribed -> Active refused (not in transitions)  400   400  PASS
+55  subscribers        Status: Active -> Paused accepted                            2xx   200  PASS
+56  subscribers        Active: insert without `Opt_In_At` refused                   400   400  PASS
+57  subscribers        Paused -> Active without `Opt_In_At` refused                 400   400  PASS
+58  deliveries         valid row accepted                                           2xx   201  PASS
+59  deliveries         Kind: value outside the list refused                         400   400  PASS
+60  deliveries         (Report_Date, Subscriber_ID, Kind): duplicate refused        409   409  FAIL
+61  deliveries         Status: Failed -> Queued refused (not in transitions)        400   400  PASS
+62  deliveries         Status: Sent -> Queued refused (not in transitions)          400   400  PASS
+63  deliveries         Status: Queued -> Sent accepted                              2xx   200  PASS
+
+  NOT RUN: reports · Report_Date: duplicate refused — first insert failed
+  NOT RUN: reports · Status: Failed -> Sent refused (not in transitions) — could not create a row in Failed
+  NOT RUN: reports · Status: Sent -> Ready refused (not in transitions) — could not create a row in Sent
+  NOT RUN: reports · Status: Ready -> Sent accepted — could not create a row in Ready
+  NOT RUN: reports · Failed -> Ready without `Sentiment` refused — could not create a row in Failed without `Sentiment`
+  NOT RUN: reports · Ready -> Failed without `Error_Message` refused — could not create a row in Ready without `Error_Message`
+  NOT RUN: published_reports · Report_Date: duplicate refused — first insert failed
+  FAIL: deliveries · (Report_Date, Subscriber_ID, Kind): duplicate refused — 409 but `errors` does not name ['Report_Date', 'Subscriber_ID', 'Kind'] — body: {"ok":false,"errors":{"Report_Date+Subscriber_ID+Kind":"already in use (DLV-2026-2404)"}}
+
+validate_inputs: 55/63 passed · 1 failed · 7 not run -> FAIL  (report: evidence/db/validate-inputs\report.json)

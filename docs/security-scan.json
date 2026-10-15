@@ -1,0 +1,79 @@
+{
+  "root": "J:\\claude project\\oct2026\\Market intelligense\\market-intel-os",
+  "stage": "production",
+  "tier": "v4",
+  "files_scanned": 134,
+  "flows_scanned": 0,
+  "counts": {
+    "Critical": 1,
+    "High": 4,
+    "Medium": 4,
+    "Low": 0
+  },
+  "findings": [
+    {
+      "id": "F4b",
+      "severity": "Critical",
+      "where": "app\\src\\module\\Fields.jsx",
+      "what": "a secret-shaped NEXT_PUBLIC_ variable \u2014 compiled into the bundle",
+      "fix": "Rename it without the prefix and read it on the server only (\u00a719.5)."
+    },
+    {
+      "id": "F14",
+      "severity": "High",
+      "where": "app/.env",
+      "what": "INBOUND_TOKEN is unset \u2014 flows cannot write to the app (closed), so a wired flow's writes fail",
+      "fix": "Set a 32-byte random INBOUND_TOKEN in the app's environment and in every flow's constants node (docs/import-sheet.md)."
+    },
+    {
+      "id": "F3b",
+      "severity": "High",
+      "where": "app/.env",
+      "what": "DEMO_LOGINS on a pilot/production environment \u2014 the login page lists the demo personas and signs them in without a password",
+      "fix": "Unset it; demo personas are for the step-5 click-through on a demo deployment only."
+    },
+    {
+      "id": "F5",
+      "severity": "High",
+      "where": "app\\src\\lib\\validate.ts:117",
+      "what": "dynamic code execution in kernel code",
+      "fix": "Render text, not HTML; sanitise (DOMPurify) and record the review in Decision.md if HTML is unavoidable."
+    },
+    {
+      "id": "F5",
+      "severity": "High",
+      "where": "app\\src\\lib\\validate.ts:132",
+      "what": "dynamic code execution in kernel code",
+      "fix": "Render text, not HTML; sanitise (DOMPurify) and record the review in Decision.md if HTML is unavoidable."
+    },
+    {
+      "id": "F16",
+      "severity": "Medium",
+      "where": "app/.env",
+      "what": "flow MARKET_REPORT is not wired (WEBHOOK_\u2026 unset) \u2014 its actions are SIMULATED by the app",
+      "fix": "Import the flow (step 6) and set its URL (step 7); a pilot with simulated AI steps must say so to the client."
+    },
+    {
+      "id": "F16",
+      "severity": "Medium",
+      "where": "app/.env",
+      "what": "flow BROADCAST is not wired (WEBHOOK_\u2026 unset) \u2014 its actions are SIMULATED by the app",
+      "fix": "Import the flow (step 6) and set its URL (step 7); a pilot with simulated AI steps must say so to the client."
+    },
+    {
+      "id": "F5",
+      "severity": "Medium",
+      "where": "app\\src\\app\\layout.tsx:51",
+      "what": "raw HTML injection point in kernel code",
+      "fix": "Render text, not HTML; sanitise (DOMPurify) and record the review in Decision.md if HTML is unavoidable."
+    },
+    {
+      "id": "F5",
+      "severity": "Medium",
+      "where": "app\\src\\app\\layout.tsx:53",
+      "what": "raw HTML injection point in kernel code",
+      "fix": "Render text, not HTML; sanitise (DOMPurify) and record the review in Decision.md if HTML is unavoidable."
+    }
+  ],
+  "limitation": "Pattern scan only. It cannot judge business logic, authorisation paths, data flows between steps, or Studio settings not in the JSON. The auditor agent covers those."
+}
