@@ -205,6 +205,7 @@ CREATE TABLE IF NOT EXISTS "deliveries" (
   "subscriber_name" text,
   "sentiment" text,
   "status" text,
+  "attempts" numeric,
   "message_id" text,
   "error_message" text,
   _seq bigserial
@@ -490,6 +491,7 @@ ALTER TABLE "deliveries" ADD COLUMN IF NOT EXISTS "subscriber_id" text;
 ALTER TABLE "deliveries" ADD COLUMN IF NOT EXISTS "subscriber_name" text;
 ALTER TABLE "deliveries" ADD COLUMN IF NOT EXISTS "sentiment" text;
 ALTER TABLE "deliveries" ADD COLUMN IF NOT EXISTS "status" text;
+ALTER TABLE "deliveries" ADD COLUMN IF NOT EXISTS "attempts" numeric;
 ALTER TABLE "deliveries" ADD COLUMN IF NOT EXISTS "message_id" text;
 ALTER TABLE "deliveries" ADD COLUMN IF NOT EXISTS "error_message" text;
 ALTER TABLE "deliveries" ADD COLUMN IF NOT EXISTS _seq bigserial;
@@ -504,6 +506,12 @@ DO $$ DECLARE r record; BEGIN
     EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', 'deliveries', r.conname); END LOOP;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = '"deliveries"'::regclass AND conname = 'deliveries_status_v49_c88f1a93') THEN
     ALTER TABLE "deliveries" ADD CONSTRAINT "deliveries_status_v49_c88f1a93" CHECK (("status" IN ('Queued', 'Sent', 'Failed') OR "status" = '')) NOT VALID; END IF;
+END $$;
+DO $$ DECLARE r record; BEGIN
+  FOR r IN SELECT conname FROM pg_constraint WHERE conrelid = '"deliveries"'::regclass AND conname LIKE 'deliveries_attempts_v49_%' AND conname <> 'deliveries_attempts_v49_e90b1ca9' LOOP
+    EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', 'deliveries', r.conname); END LOOP;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = '"deliveries"'::regclass AND conname = 'deliveries_attempts_v49_e90b1ca9') THEN
+    ALTER TABLE "deliveries" ADD CONSTRAINT "deliveries_attempts_v49_e90b1ca9" CHECK ("attempts" >= 0 AND "attempts" <= 3) NOT VALID; END IF;
 END $$;
 ALTER TABLE "audit_log" ADD COLUMN IF NOT EXISTS "at" timestamptz;
 ALTER TABLE "audit_log" ADD COLUMN IF NOT EXISTS "who" text;

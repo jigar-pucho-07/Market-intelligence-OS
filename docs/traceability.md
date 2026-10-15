@@ -4,13 +4,13 @@ Every client requirement and where the OS covers it. `scaffold_os.py` refuses to
 | id | requirement | covered by |
 |---|---|---|
 | R1 | Schedule Trigger runs the report Mon–Fri at 6:00 AM IST | flow DAILY_SCHEDULE; flow MARKET_REPORT |
-| R2 | Fetch ET Markets, Moneycontrol, Reuters India, Google Finance News and Global Market Cues RSS; a failed source does not stop the run | page pipeline; flow MARKET_REPORT |
-| R3 | Parse every RSS item into title, summary (HTML stripped, up to 300 characters), date and source | page news; flow MARKET_REPORT; rule 1 |
-| R4 | Deduplicate news by the first 60 characters of the normalised title | page news; flow MARKET_REPORT; rule 1 |
-| R5 | Categorize news as Macro Economic, Benchmark Index, Banking Sector, IT Sector, Pharma Sector, Auto Sector, Commodity, Global Cues, F&O or General Market | page news; flow MARKET_REPORT; rule 1 |
-| R6 | Keep the 40 most relevant articles and count them by category | page news; flow MARKET_REPORT; rule 1 |
-| R7 | AI analysis as a senior Indian stock market analyst: sentiment, confidence, drivers, segment-wise analysis, top sectors, key risks, trading strategy | flow MARKET_REPORT; rule 5 |
-| R8 | Format the WhatsApp message with the day, date and report time in IST, the analysis and the footer Market Opens: 9:15 AM IST, within the WhatsApp limit | flow MARKET_REPORT; rule 2 |
+| R2 | Fetch ET Markets, Moneycontrol, Reuters India, Google Finance News and Global Market Cues RSS; a failed source does not stop the run | page pipeline; flow MARKET_REPORT; flow MARKET_ANALYSE |
+| R3 | Parse every RSS item into title, summary (HTML stripped, up to 300 characters), date and source | page news; flow MARKET_REPORT; flow MARKET_ANALYSE; rule 1 |
+| R4 | Deduplicate news by the first 60 characters of the normalised title | page news; flow MARKET_REPORT; flow MARKET_ANALYSE; rule 1 |
+| R5 | Categorize news as Macro Economic, Benchmark Index, Banking Sector, IT Sector, Pharma Sector, Auto Sector, Commodity, Global Cues, F&O or General Market | page news; flow MARKET_REPORT; flow MARKET_ANALYSE; rule 1 |
+| R6 | Keep the 40 most relevant articles and count them by category | page news; flow MARKET_REPORT; flow MARKET_ANALYSE; rule 1 |
+| R7 | AI analysis as a senior Indian stock market analyst: sentiment, confidence, drivers, segment-wise analysis, top sectors, key risks, trading strategy | flow MARKET_REPORT; flow MARKET_ANALYSE; rule 5 |
+| R8 | Format the WhatsApp message with the day, date and report time in IST, the analysis and the footer Market Opens: 9:15 AM IST, within the WhatsApp limit | flow MARKET_REPORT; flow MARKET_ANALYSE; rule 2 |
 | R9 | Send the report on WhatsApp | page overview › modal send_now; page today › modal send_all; page reports › modal send_all; flow BROADCAST; flow MARKET_PUBLISH; rule 4 |
 | R10 | Log the result: status, WhatsApp message id, sent at, report date | page reports; page deliveries; flow MARKET_REPORT; flow BROADCAST; flow MARKET_STORE; flow MARKET_PUBLISH |
 | R11 | Send an error alert on WhatsApp when the report cannot be generated | page pipeline; flow DAILY_SCHEDULE; flow BROADCAST; flow DAILY_WATCHDOG; rule 3 |

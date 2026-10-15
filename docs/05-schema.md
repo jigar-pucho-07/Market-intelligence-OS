@@ -135,6 +135,7 @@ id: Subscriber_ID (SUB-…) · status: Status ['Active', 'Paused', 'Unsubscribed
 | Subscriber_Name | text |
 | Sentiment | text |
 | Status | text |
+| Attempts | numeric |
 | Message_ID | text |
 | Error_Message | text |
 

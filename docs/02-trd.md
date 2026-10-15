@@ -1,5 +1,5 @@
 # 02 — TRD · Market Intelligence
 Stack: Next.js (App Router — Server Components read, Server Actions write, Route Handlers for flows and health) + PostgreSQL (the system of record; one database per client, single-tenant) + Tailwind, the Pucho kernel · Automation: Pucho AI Studio workflows called server-side from the environment (`WEBHOOK_<FLOW>`), writing back through `/api/data/<entity>` with `INBOUND_TOKEN`; Studio reads reports through the read-only `studio_reader` role · Deploy: CP Portal, an uploaded `output: standalone` bundle (`npm run package`), one process on one port · Standard: `docs/fullstack-build-standard.md` (§19 security baseline ships with the first release: argon2id + `__Host-` sessions, authorization in every action, Zod, headers, no public DB port, verified DB TLS, field encryption where declared).
 Entities (tables): reports, published_reports, news_articles, subscribers, deliveries, audit_log
-Flows: DAILY_SCHEDULE, MARKET_REPORT, BROADCAST, DAILY_WATCHDOG, MARKET_STORE, MARKET_PUBLISH
+Flows: DAILY_SCHEDULE, MARKET_REPORT, BROADCAST, DAILY_WATCHDOG, MARKET_ANALYSE, MARKET_STORE, MARKET_PUBLISH
 Roles: admin, analyst, subscriber

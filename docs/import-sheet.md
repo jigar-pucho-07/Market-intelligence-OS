@@ -5,6 +5,7 @@
 | MARKET_REPORT | webhook.catch_webhook | run, rerun | | |
 | BROADCAST | webhook.catch_webhook | send, retry | | |
 | DAILY_WATCHDOG | schedule.cron_expression | check | | |
+| MARKET_ANALYSE | webhook.catch_webhook | run, rerun | | |
 | MARKET_STORE | webhook.catch_webhook | store | | |
 | MARKET_PUBLISH | webhook.catch_webhook | publish | | |
 
@@ -17,6 +18,7 @@ Never into the bundle. One environment variable per flow, on the server (`app/.e
 |---|---|
 | MARKET_REPORT | `WEBHOOK_MARKET_REPORT` |
 | BROADCAST | `WEBHOOK_BROADCAST` |
+| MARKET_ANALYSE | `WEBHOOK_MARKET_ANALYSE` |
 | MARKET_STORE | `WEBHOOK_MARKET_STORE` |
 | MARKET_PUBLISH | `WEBHOOK_MARKET_PUBLISH` |
 | codes by email | `WEBHOOK_AUTH_OTP` |

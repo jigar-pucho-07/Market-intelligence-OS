@@ -29,6 +29,7 @@ design:
   shell: sidebar
   direction: "Analysts read one dense report each morning; numbers in mono, status carries the colour, dark mode for the early start"
   sidebar: { footer: profile }
+  powered_by: false            # the floating badge covered row content on desktop and mobile (qaqc 15 Oct); kernel ticket K12
 
 requirements:
   - { id: R1,  text: "Schedule Trigger runs the report Mon–Fri at 6:00 AM IST" }
@@ -275,19 +276,20 @@ entities:
       Failed: [Sent, Failed]
       Sent:   [Sent]
     unique_together: [[Report_Date, Subscriber_ID, Kind]]
-    columns: [Delivery_ID, Sent_At, Kind, Report_ID, Report_Date, Subscriber_ID, Subscriber_Name, Sentiment, Status, Message_ID, Error_Message]
+    columns: [Delivery_ID, Sent_At, Kind, Report_ID, Report_Date, Subscriber_ID, Subscriber_Name, Sentiment, Status, Attempts, Message_ID, Error_Message]
     fields:
       Status:      { one_of: [Queued, Sent, Failed] }
       Kind:        { one_of: [Report, Alert] }
       Report_Date: { type: date }
+      Attempts:    { type: number, min: 0, max: 3, integer: true }
     seed: 0
     examples:
-      - { Delivery_ID: DLV-2026-2401, Sent_At: "2026-10-15T06:03:02+05:30", Kind: Report, Report_ID: MIR-2026-0101, Report_Date: "2026-10-15", Subscriber_ID: SUB-2026-0001, Subscriber_Name: Amit Shah, Sentiment: BULLISH, Status: Sent, Message_ID: "wamid.HBgMOTE5ODc2NTQzMjEwFQIAERgS", Error_Message: "" }
-      - { Delivery_ID: DLV-2026-2402, Sent_At: "2026-10-15T06:03:04+05:30", Kind: Report, Report_ID: MIR-2026-0101, Report_Date: "2026-10-15", Subscriber_ID: SUB-2026-0002, Subscriber_Name: Neha Iyer, Sentiment: BULLISH, Status: Failed, Message_ID: "", Error_Message: "131026 · Message undeliverable — number not on WhatsApp" }
-      - { Delivery_ID: DLV-2026-2403, Sent_At: "2026-10-15T06:03:05+05:30", Kind: Report, Report_ID: MIR-2026-0101, Report_Date: "2026-10-15", Subscriber_ID: SUB-2026-0003, Subscriber_Name: Rohit Verma, Sentiment: BULLISH, Status: Sent, Message_ID: "wamid.HBgMOTE5ODExMTIyMzM0FQIAERgS", Error_Message: "" }
-      - { Delivery_ID: DLV-2026-2391, Sent_At: "2026-10-14T06:02:50+05:30", Kind: Report, Report_ID: MIR-2026-0100, Report_Date: "2026-10-14", Subscriber_ID: SUB-2026-0001, Subscriber_Name: Amit Shah, Sentiment: CAUTIOUSLY BULLISH, Status: Sent, Message_ID: "wamid.HBgMOTE5ODc2NTQzMjEwFQIAERgQ", Error_Message: "" }
-      - { Delivery_ID: DLV-2026-2392, Sent_At: "2026-10-14T06:02:52+05:30", Kind: Report, Report_ID: MIR-2026-0100, Report_Date: "2026-10-14", Subscriber_ID: SUB-2026-0002, Subscriber_Name: Neha Iyer, Sentiment: CAUTIOUSLY BULLISH, Status: Sent, Message_ID: "wamid.HBgMOTE5ODIwMDExMjIzFQIAERgQ", Error_Message: "" }
-      - { Delivery_ID: DLV-2026-2381, Sent_At: "2026-10-13T06:00:45+05:30", Kind: Alert, Report_ID: MIR-2026-0099, Report_Date: "2026-10-13", Subscriber_ID: "", Subscriber_Name: Market desk admins, Sentiment: "", Status: Sent, Message_ID: "wamid.HBgMOTE5ODAwMDAwMDAwFQIAERgA", Error_Message: "" }
+      - { Delivery_ID: DLV-2026-2401, Sent_At: "2026-10-15T06:03:02+05:30", Kind: Report, Report_ID: MIR-2026-0101, Report_Date: "2026-10-15", Subscriber_ID: SUB-2026-0001, Subscriber_Name: Amit Shah, Sentiment: BULLISH, Status: Sent, Attempts: 1, Message_ID: "wamid.HBgMOTE5ODc2NTQzMjEwFQIAERgS", Error_Message: "" }
+      - { Delivery_ID: DLV-2026-2402, Sent_At: "2026-10-15T06:03:04+05:30", Kind: Report, Report_ID: MIR-2026-0101, Report_Date: "2026-10-15", Subscriber_ID: SUB-2026-0002, Subscriber_Name: Neha Iyer, Sentiment: BULLISH, Status: Failed, Attempts: 1, Message_ID: "", Error_Message: "131026 · Message undeliverable — number not on WhatsApp" }
+      - { Delivery_ID: DLV-2026-2403, Sent_At: "2026-10-15T06:03:05+05:30", Kind: Report, Report_ID: MIR-2026-0101, Report_Date: "2026-10-15", Subscriber_ID: SUB-2026-0003, Subscriber_Name: Rohit Verma, Sentiment: BULLISH, Status: Sent, Attempts: 1, Message_ID: "wamid.HBgMOTE5ODExMTIyMzM0FQIAERgS", Error_Message: "" }
+      - { Delivery_ID: DLV-2026-2391, Sent_At: "2026-10-14T06:02:50+05:30", Kind: Report, Report_ID: MIR-2026-0100, Report_Date: "2026-10-14", Subscriber_ID: SUB-2026-0001, Subscriber_Name: Amit Shah, Sentiment: CAUTIOUSLY BULLISH, Status: Sent, Attempts: 1, Message_ID: "wamid.HBgMOTE5ODc2NTQzMjEwFQIAERgQ", Error_Message: "" }
+      - { Delivery_ID: DLV-2026-2392, Sent_At: "2026-10-14T06:02:52+05:30", Kind: Report, Report_ID: MIR-2026-0100, Report_Date: "2026-10-14", Subscriber_ID: SUB-2026-0002, Subscriber_Name: Neha Iyer, Sentiment: CAUTIOUSLY BULLISH, Status: Sent, Attempts: 1, Message_ID: "wamid.HBgMOTE5ODIwMDExMjIzFQIAERgQ", Error_Message: "" }
+      - { Delivery_ID: DLV-2026-2381, Sent_At: "2026-10-13T06:00:45+05:30", Kind: Alert, Report_ID: MIR-2026-0099, Report_Date: "2026-10-13", Subscriber_ID: "", Subscriber_Name: Market desk admins, Sentiment: "", Status: Sent, Attempts: 1, Message_ID: "wamid.HBgMOTE5ODAwMDAwMDAwFQIAERgA", Error_Message: "" }
 
 metrics:
   ready_unsent:      { entity: reports,       label: Reports not sent,           where: "Status=Ready",                                             tone: warn, icon: Send }
@@ -396,6 +398,7 @@ flows:
         payload: { Trigger: string, Report_ID: string }
         result: { Report_ID: string, Status: string, Articles_Analyzed: number }
         rules:
+          - "The door (owner fix round 1, SA-01..03): ?k= secret checked first (401), action validated (400), today's report state read before any spend (run with today Ready/Sent → 409; rerun only when today is Failed) → POST MARKET_ANALYSE ?k=. Steps below run in MARKET_ANALYSE"
           - "Five RSS fetches run as separate steps; a failed or empty source yields 0 items and is reported in Source_Status, never stops the run (CODE)"
           - "Parse <item> title / description (CDATA or plain, HTML stripped, ≤300 chars) / pubDate / link; dedupe on the first 60 lower-cased alphanumeric title characters; categorise with word-bounded keyword rules in the source's order; keep 40 (CODE — fixes S2, S3)"
           - "Impact: HIGH when the title names RBI, repo, Fed, FII, GDP, CPI, inflation, SGX/GIFT Nifty or a ≥ $1 billion deal; MED for Banking, IT, F&O, Benchmark; else LOW (CODE)"
@@ -406,7 +409,7 @@ flows:
           - "One report per Report_Date (unique). A payload Report_ID re-runs that row (Failed → Ready, PATCH); a Sent report is never re-run (refused). The report is written first, then news_articles with deterministic ids (Report_ID + dedupe key) so a re-run never doubles them"
           - "Last step: POST BROADCAST — always for Failed (the admin alert), for Ready only when constants.auto_send is true; then POST /api/jobs/<id> done"
         typical_seconds: 45
-        credits: 19
+        credits: 6
         runs_per_month: 22
         effect:
           insert: reports
@@ -423,7 +426,7 @@ flows:
         rules:
           - "The same pipeline as run, on an existing Failed report: fetch → analyse → PATCH that Report_ID Failed → Ready (or Failed again with the new error); a Sent report is refused"
         typical_seconds: 45
-        credits: 19
+        credits: 6
         runs_per_month: 8
         effect:
           patch: reports
@@ -459,9 +462,9 @@ flows:
         payload: { Delivery_ID: string }
         result: { sent: boolean }
         rules:
-          - "Reads the delivery and its subscriber; refuses unless the subscriber is Active and opted in and the delivery is a Failed Report; sends the same template to the number on the subscriber record (never a number from the payload); PATCHes the same delivery row Sent or Failed"
+          - "Reads the delivery and its subscriber; refuses unless the subscriber is Active and opted in, the delivery is a Failed Report and Attempts < 3; increments Attempts; sends the same template to the number on the subscriber record (never a number from the payload); PATCHes the same delivery row Sent or Failed"
         typical_seconds: 6
-        credits: 12
+        credits: 13
         runs_per_month: 20
         effect: { patch: deliveries, fill: { Status: Sent, Sent_At: now, Error_Message: "" }, result: { sent: true } }
 
@@ -481,6 +484,32 @@ flows:
         typical_seconds: 4
         credits: 5
         runs_per_month: 22
+  - name: MARKET_ANALYSE
+    covers: [R2, R3, R4, R5, R6, R7, R8]
+    trigger: { tool: webhook, name: catch_webhook, auth: none }
+    constants: { news_limit: 40, summary_chars: 300, dedupe_chars: 60, max_age_hours: 48, webhook_secret: SET_IN_STUDIO_WEBHOOK_SECRET }
+    writes: [reports]
+    actions:
+      - name: run
+        model: none
+        async: true
+        via: custom
+        payload: { Trigger: string, Report_ID: string }
+        result: { Status: string, Articles_Analyzed: number }
+        rules: ["Called only by MARKET_REPORT (?k= secret checked first, 401 otherwise). Five RSS GETs (feeds.* constants, Google News per publisher) → parse / dedupe / categorise / impact → no news → Failed row; else ONE llm-ai call (model class standard) → parse + advice check → POST MARKET_STORE ?k="]
+        typical_seconds: 45
+        credits: 19
+        runs_per_month: 22
+      - name: rerun
+        model: none
+        async: true
+        via: custom
+        payload: { Report_ID: string }
+        result: { Status: string, Articles_Analyzed: number }
+        rules: ["As run, for today's Failed report"]
+        typical_seconds: 45
+        credits: 19
+        runs_per_month: 8
   - name: MARKET_STORE
     covers: [R10]
     trigger: { tool: webhook, name: catch_webhook, auth: none }
@@ -702,7 +731,7 @@ pages:
       - type: table
         segments: { column: Status, all: All deliveries }
         period: { column: Sent_At, presets: [today, 7d, 30d, all], default: 7d }
-        columns: [ { key: Subscriber_Name, header: Subscriber, type: text, sub: Subscriber_ID }, { key: Report_Date, header: Report, type: date }, { key: Kind, type: tag }, { key: Status, type: badge }, { key: Sent_At, header: Sent, type: date, time: true }, { key: Error_Message, header: Error, type: truncate }, { key: Message_ID, header: WhatsApp id, type: id, priority: low } ]
+        columns: [ { key: Subscriber_Name, header: Subscriber, type: text, sub: Subscriber_ID }, { key: Report_Date, header: Report, type: date }, { key: Kind, type: tag }, { key: Status, type: badge }, { key: Attempts, type: number, priority: low }, { key: Sent_At, header: Sent, type: date, time: true }, { key: Error_Message, header: Error, type: truncate }, { key: Message_ID, header: WhatsApp id, type: id, priority: low } ]
         search: [Subscriber_Name, Error_Message, Report_ID]
         filters: [Kind]
         actions: { row: [retry] }

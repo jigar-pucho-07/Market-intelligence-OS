@@ -1431,6 +1431,11 @@ export const PAGES = [
             "type": "badge"
           },
           {
+            "key": "Attempts",
+            "type": "number",
+            "priority": "low"
+          },
+          {
             "key": "Sent_At",
             "header": "Sent",
             "type": "date",

@@ -17,7 +17,7 @@ export const DESIGN = {
     "style": "blur",
     "show_name": true
   },
-  "powered_by": true,
+  "powered_by": false,
   "tone": "pucho",
   "radius": "pucho",
   "density": "comfortable",

@@ -7,27 +7,32 @@ come from your own numbers (listed under Assumptions) — change a volume and th
 | Workflow | Action | What triggers it | Runs / month | Credits / run | Credits / month |
 |---|---|---|---:|---:|---:|
 | DAILY_SCHEDULE | trigger | schedule | 22 | 5 | 110 |
-| MARKET_REPORT | run | run from the OS | 22 | 19 | 418 |
-|  | rerun | rerun from the OS | 8 | 19 | 152 |
-| | **MARKET_REPORT total** | | | | **570** |
+| MARKET_REPORT | run | run from the OS | 22 | 6 | 132 |
+|  | rerun | rerun from the OS | 8 | 6 | 48 |
+| | **MARKET_REPORT total** | | | | **180** |
 | BROADCAST | send | send from the OS | 26 | 258 | 6,708 |
-|  | retry | retry from the OS | 20 | 12 | 240 |
-| | **BROADCAST total** | | | | **6,948** |
+|  | retry | retry from the OS | 20 | 13 | 260 |
+| | **BROADCAST total** | | | | **6,968** |
 | DAILY_WATCHDOG | check | schedule | 22 | 5 | 110 |
+| MARKET_ANALYSE | run | run from the OS | 22 | 19 | 418 |
+|  | rerun | rerun from the OS | 8 | 19 | 152 |
+| | **MARKET_ANALYSE total** | | | | **570** |
 | MARKET_STORE | store | store from the OS | 30 | 12 | 360 |
 | MARKET_PUBLISH | publish | publish from the OS | 46 | 12 | 552 |
-| | **Total** | | | | **8,650 credits ≈ ₹2,595 / month** |
+| | **Total** | | | | **8,850 credits ≈ ₹2,655 / month** |
 
-**Range at ±30 % volume:** 6,055 – 11,245 credits (₹1,816 – ₹3,374 / month).
+**Range at ±30 % volume:** 6,195 – 11,505 credits (₹1,858 – ₹3,452 / month).
 
 ## Assumptions (correct these first)
 - 30 events/month (os.volume_per_month)
 - DAILY_SCHEDULE.trigger: 22 runs/month, 5 credits/run (declared, none model)
-- MARKET_REPORT.run: 22 runs/month, 19 credits/run (declared, none model)
-- MARKET_REPORT.rerun: 8 runs/month, 19 credits/run (declared, none model)
+- MARKET_REPORT.run: 22 runs/month, 6 credits/run (declared, none model)
+- MARKET_REPORT.rerun: 8 runs/month, 6 credits/run (declared, none model)
 - BROADCAST.send: 26 runs/month, 258 credits/run (declared, none model)
-- BROADCAST.retry: 20 runs/month, 12 credits/run (declared, none model)
+- BROADCAST.retry: 20 runs/month, 13 credits/run (declared, none model)
 - DAILY_WATCHDOG.check: 22 runs/month, 5 credits/run (declared, none model)
+- MARKET_ANALYSE.run: 22 runs/month, 19 credits/run (declared, none model)
+- MARKET_ANALYSE.rerun: 8 runs/month, 19 credits/run (declared, none model)
 - MARKET_STORE.store: 30 runs/month, 12 credits/run (declared, none model)
 - MARKET_PUBLISH.publish: 46 runs/month, 12 credits/run (declared, none model)
 

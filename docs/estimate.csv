@@ -1,9 +1,11 @@
 workflow,action,trigger,runs_per_month,credits_per_run,credits_per_month,model,sends,source
 DAILY_SCHEDULE,trigger,schedule,22,5,110,none,,declared
-MARKET_REPORT,run,run from the OS,22,19,418,none,,declared
-MARKET_REPORT,rerun,rerun from the OS,8,19,152,none,,declared
+MARKET_REPORT,run,run from the OS,22,6,132,none,,declared
+MARKET_REPORT,rerun,rerun from the OS,8,6,48,none,,declared
 BROADCAST,send,send from the OS,26,258,6708,none,,declared
-BROADCAST,retry,retry from the OS,20,12,240,none,,declared
+BROADCAST,retry,retry from the OS,20,13,260,none,,declared
 DAILY_WATCHDOG,check,schedule,22,5,110,none,,declared
+MARKET_ANALYSE,run,run from the OS,22,19,418,none,,declared
+MARKET_ANALYSE,rerun,rerun from the OS,8,19,152,none,,declared
 MARKET_STORE,store,store from the OS,30,12,360,none,,declared
 MARKET_PUBLISH,publish,publish from the OS,46,12,552,none,,declared

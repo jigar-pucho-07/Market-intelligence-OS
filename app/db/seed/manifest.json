@@ -236,6 +236,7 @@
         "Subscriber_Name",
         "Sentiment",
         "Status",
+        "Attempts",
         "Message_ID",
         "Error_Message"
       ],
@@ -249,6 +250,7 @@
         "Subscriber_Name": "text",
         "Sentiment": "text",
         "Status": "text",
+        "Attempts": "numeric",
         "Message_ID": "text",
         "Error_Message": "text"
       }
