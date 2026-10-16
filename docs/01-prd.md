@@ -1,5 +1,5 @@
 # 01 — PRD · Market Intelligence
-_Generated 2026-10-15 from os.yaml._
+_Generated 2026-10-16 from os.yaml._
 
 **Client:** Market Intelligence — Daily pre-market report for NSE/BSE traders  
 **Outcome:** A Daily Market Intelligence report reaches every subscriber on WhatsApp before the market opens at 9:15 AM IST, and the analyst sees and fixes anything that failed.  

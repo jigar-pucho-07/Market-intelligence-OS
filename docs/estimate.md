@@ -1,5 +1,5 @@
 # Operating cost estimate · Market Intelligence
-_Market Intelligence — Daily pre-market report for NSE/BSE traders · 2026-10-15 · step 2 · from os.yaml · 1 credit = ₹0.30_
+_Market Intelligence — Daily pre-market report for NSE/BSE traders · 2026-10-16 · step 2 · from os.yaml · 1 credit = ₹0.30_
 
 After the OS is live, this is what it consumes. Credits are the only unit; the rupee column is credits × rate. The volumes
 come from your own numbers (listed under Assumptions) — change a volume and the total moves with it.

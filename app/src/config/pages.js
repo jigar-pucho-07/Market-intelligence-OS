@@ -1137,6 +1137,7 @@ export const PAGES = [
           },
           {
             "key": "WhatsApp",
+            "header": "WhatsApp",
             "type": "phone"
           },
           {
