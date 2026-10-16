@@ -6,7 +6,7 @@
   "flows_scanned": 7,
   "counts": {
     "Critical": 1,
-    "High": 4,
+    "High": 3,
     "Medium": 12,
     "Low": 0
   },
@@ -17,13 +17,6 @@
       "where": "app\\src\\module\\Fields.jsx",
       "what": "a secret-shaped NEXT_PUBLIC_ variable \u2014 compiled into the bundle",
       "fix": "Rename it without the prefix and read it on the server only (\u00a719.5)."
-    },
-    {
-      "id": "F14",
-      "severity": "High",
-      "where": "app/.env",
-      "what": "INBOUND_TOKEN is unset \u2014 flows cannot write to the app (closed), so a wired flow's writes fail",
-      "fix": "Set a 32-byte random INBOUND_TOKEN in the app's environment and in every flow's constants node (docs/import-sheet.md)."
     },
     {
       "id": "F3b",
