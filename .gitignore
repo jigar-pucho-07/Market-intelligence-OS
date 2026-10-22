@@ -4,6 +4,7 @@ dist/
 .env
 .env.*
 !.env.example
+.secrets/
 evidence/**/server.log
 evidence/**/standalone/
 __pycache__/
