@@ -1172,7 +1172,8 @@ export const PAGES = [
           "Opt_In_Source"
         ],
         "bulk": [
-          "set_status"
+          "set_status",
+          "delete_subscriber"
         ],
         "actions": {
           "row": [
@@ -1362,7 +1363,7 @@ export const PAGES = [
           "Name",
           "Email"
         ],
-        "intro": "Deletes this subscriber from the database permanently. Their past delivery history stays. This cannot be undone.",
+        "intro": "Deletes from the database permanently. Past delivery history stays. This cannot be undone.",
         "submit": "Delete subscriber",
         "pending": "Deleting…",
         "success": "Subscriber deleted"

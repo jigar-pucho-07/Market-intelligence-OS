@@ -51,7 +51,7 @@ Data: **PostgreSQL** (one database per client, single-tenant) · security: **§1
 | Pipeline | custom | custom |
 | Pipeline | reports | table; drawer per row |
 | Subscribers | kpis | kpis (strip) |
-| Subscribers | subscribers | table; bulk set_status; drawer per row |
+| Subscribers | subscribers | table; bulk set_status, delete_subscriber; drawer per row |
 | Deliveries | kpis | kpis (strip) |
 | Deliveries | deliveries | table; drawer per row |
 | Activity | kpis | kpis (strip) |

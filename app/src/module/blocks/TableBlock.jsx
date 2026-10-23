@@ -108,7 +108,7 @@ export default function TableBlock({ block, page, rows, loading, data, openModal
         {bulkActions.length > 0 && selectedRows.length > 0 && view === 'table' && (
           <div className="sticky bottom-0 flex items-center gap-2 flex-wrap px-4 py-3 border-t border-[color:var(--hair-6)] bg-white" data-os-bulk-bar>
             <span className="text-[13px] font-medium text-ink mr-2">{selectedRows.length} {t('selected')}</span>
-            {bulkActions.map((m) => <Button key={m.id} size="small" data-os-bulk={m.id} onClick={() => openModal({ ...m, bulk: true, title: `${m.title} · ${selectedRows.length} ${selectedRows.length === 1 ? 'record' : 'records'}` }, selectedRows)}>{m.title}</Button>)}
+            {bulkActions.map((m) => <Button key={m.id} size="small" danger={m.direct === 'delete'} data-os-bulk={m.id} onClick={() => openModal({ ...m, bulk: true, title: `${m.title} · ${selectedRows.length} ${selectedRows.length === 1 ? 'record' : 'records'}` }, selectedRows)}>{m.title}</Button>)}
             <Button size="small" onClick={exportSelected} data-os-bulk="export">{t('Export selected')}</Button>
             <button type="button" className="no-pill ml-auto text-[12px] text-ink-3 hover:text-ink" onClick={() => setSelectedIds(new Set())}>{t('Clear')}</button>
           </div>
