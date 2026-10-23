@@ -252,7 +252,8 @@ test('retryPlan: only a Failed report delivery, to the address on the subscriber
   const go = FL.retryPlan({ body: { Delivery_ID: 'DLV-9', To: 'attacker@evil.com', Email: 'attacker@evil.com' }, C, deliveries: reportsOut([d]), subscribers: reportsOut(SUBS), reports: reportsOut([rep]) });
   assert.equal(go.claim.Delivery_ID, 'DLV-9'); assert.equal(go.send.to, 'neha@example.in'); assert.match(go.send.subject, /Daily Market Intelligence/);
   const no = (dd, subs = SUBS) => FL.retryPlan({ body: { Delivery_ID: 'DLV-9' }, C, deliveries: reportsOut([dd]), subscribers: reportsOut(subs), reports: reportsOut([rep]) });
-  assert.equal(no({ ...d, Status: 'Sent' }).claim.Delivery_ID, '');
+  assert.deepEqual(go.claims, [go.claim], 'a retryable delivery: exactly one claim for the flow loop');
+  assert.equal(no({ ...d, Status: 'Sent' }).claim.Delivery_ID, ''); assert.deepEqual(no({ ...d, Status: 'Sent' }).claims, [], 'a refusal: no claim, so the flow sends no request');
   assert.equal(no({ ...d, Kind: 'Alert' }).claim.Delivery_ID, '');
   assert.equal(no({ ...d, Subscriber_ID: 'SUB-3' }).claim.Delivery_ID, '', 'a Paused subscriber is not retried');
 });

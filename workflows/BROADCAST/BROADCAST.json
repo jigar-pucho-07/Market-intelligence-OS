@@ -765,7 +765,7 @@
                       },
                       "sampleData": {},
                       "sourceCode": {
-                        "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what retryPlan() reaches (tools/build_market_flows.py)\nconst DISCLAIMER =\n  'Market commentary generated with AI from public news. Not investment advice and not a research report by a SEBI-registered research analyst. ' +\n  'Trading involves risk — consult a SEBI-registered advisor before acting. Yeh AI-generated analysis hai; SEBI-registered investment advisory nahi hai.';\nconst WHATSAPP_LIMIT = 4000;\nconst OUTLOOK_DOT = { BULLISH: '🟢', 'CAUTIOUSLY BULLISH': '🟢', CAUTIOUS: '🟡', NEUTRAL: '🟡', 'CAUTIOUSLY BEARISH': '🔴', BEARISH: '🔴' };\nfunction parseSectors(text) {\n  return String(text || '').split('\\n').map((l) => l.split('|').map((s) => s.trim())).filter((p) => p.length >= 2 && p[0])\n    .map(([sector, call, ...rest]) => ({ sector, call: (call || '').toUpperCase(), reason: rest.join('|') }));\n}\nfunction parseRisks(text) {\n  return String(text || '').split('\\n').map((l) => l.split('|').map((s) => s.trim())).filter((p) => p.length >= 2 && p[1])\n    .map(([level, ...rest]) => ({ level: (level || '').toUpperCase(), text: rest.join('|') }));\n}\nfunction istParts(date) {\n  const d = date instanceof Date ? date : new Date(date || Date.now());\n  const fmt = (o) => new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', ...o }).format(d);\n  return { day: fmt({ weekday: 'long' }), date: fmt({ day: '2-digit', month: 'short', year: 'numeric' }), time: fmt({ hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() };\n}\nfunction formatWhatsApp(r, generatedAt) {\n  const t = istParts(generatedAt || r.Created_At || Date.now());\n  const line = (label, outlook, extra) => `${label}: ${OUTLOOK_DOT[outlook] || '⚪'} ${outlook || '—'}${extra ? ` | ${extra}` : ''}`;\n  const drivers = [r.Driver_1, r.Driver_2, r.Driver_3].filter(Boolean).map((x) => `• ${x}`).join('\\n');\n  const sectors = parseSectors(r.Sectors).map((s, i) => `${i + 1}. ${s.sector} — ${s.call}${s.reason ? ` — ${s.reason}` : ''}`).join('\\n');\n  const risks = parseRisks(r.Risks).map((x) => `• ${x.text}${x.level ? ` (${x.level})` : ''}`).join('\\n');\n  const views = [['Positional', r.View_Positional], ['Intraday', r.View_Intraday], ['Long-term', r.View_LongTerm], ['F&O', r.View_FnO]]\n    .filter(([, v]) => v).map(([k, v]) => `• ${k}: ${v}`).join('\\n');\n  const body = [\n    `📈 *DAILY MARKET INTELLIGENCE*`, `━━━━━━━━━━━━━━━━━━━━`, `📅 *${t.day}, ${t.date}*`, `⏰ Report Time: ${t.time} IST`, `━━━━━━━━━━━━━━━━━━━━`, '',\n    `🎯 OVERALL MARKET SENTIMENT: *${r.Sentiment || '—'}*`,\n    `CONFIDENCE LEVEL: ${r.Confidence_Level || '—'}${pctText(r.Confidence_Pct)}`, '',\n    drivers && `📌 KEY MARKET DRIVERS TODAY:\\n${drivers}\\n`,\n    `📊 SEGMENT-WISE ANALYSIS:`,\n    line('1️⃣ SENSEX', r.Sensex_Outlook, r.Sensex_Range),\n    line('2️⃣ NIFTY 50', r.Nifty_Outlook, r.Nifty_Range),\n    line('3️⃣ BANK NIFTY', r.BankNifty_Outlook, r.BankNifty_Range),\n    `4️⃣ NIFTY F&O: ${r.FnO_View || '—'}${r.VIX_Expectation ? ` | VIX: ${r.VIX_Expectation}` : ''}`,\n    line('5️⃣ MID/SMALL CAP', r.MidSmall_Outlook, r.MidSmall_Focus),\n    line('6️⃣ COMMODITIES', r.Commodity_Outlook), '',\n    sectors && `🔥 SECTORS TO WATCH:\\n${sectors}\\n`,\n    risks && `⚠️ KEY RISKS TODAY:\\n${risks}\\n`,\n    views && `💡 MARKET VIEW:\\n${views}\\n`,\n  ].filter((x) => x !== false && x !== undefined && x !== null && x !== '' || x === '').join('\\n');\n  const footer = `\\n━━━━━━━━━━━━━━━━━━━━\\n🤖 *Powered by AI Market Intelligence*\\n📊 *Market Opens: 9:15 AM IST*\\n━━━━━━━━━━━━━━━━━━━━\\n⚠️ ${DISCLAIMER}`;\n  const room = WHATSAPP_LIMIT - footer.length;\n  const main = body.length > room ? cut(body, Math.max(0, room - 60)) + '…\\n\\n[Full report in the Market Intelligence portal]' : body;\n  return main + footer;\n}\n\n// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════\n// The pipeline rules (workflow agent, 15 Oct 2026). Used by the Studio CODE steps through app/src/custom/lib/market-flow.js\n// (inlined by tools/build_market_flows.py) and tested in tests/market.test.mjs on real RSS samples (tests/fixtures/rss/).\n// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════\nconst ENUMS = {\n  Sentiment: ['BULLISH', 'CAUTIOUSLY BULLISH', 'NEUTRAL', 'CAUTIOUSLY BEARISH', 'BEARISH'],\n  Confidence_Level: ['HIGH', 'MEDIUM', 'LOW'],\n  Outlook: ['BULLISH', 'BEARISH', 'NEUTRAL', 'CAUTIOUS'],\n  FnO_View: ['BULLISH BIAS', 'BEARISH BIAS', 'RANGE-BOUND', 'VOLATILE'],\n  VIX_Expectation: ['LOW', 'MEDIUM', 'HIGH'],\n  SectorCall: ['POSITIVE', 'WATCH', 'NEGATIVE'],\n  RiskLevel: ['HIGH', 'MED'],\n  Trigger: ['Schedule', 'Manual'],\n  Opt_In_Source: ['WhatsApp reply', 'Web form', 'Signed form', 'Phone call'],\n};\nconst asDate = (at) => (at instanceof Date ? at : new Date(at || Date.now()));\nfunction istLabel(at) {\n  const f = (o) => new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', ...o }).format(asDate(at));\n  return { date: f({ day: '2-digit', month: 'short', year: 'numeric' }), time: f({ hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() + ' IST' };\n}\nfunction cut(s, n) { const a = Array.from(String(s ?? '')); return a.length <= n ? a.join('') : a.slice(0, Math.max(0, n)).join(''); }\nconst clean = (v, max) => cut(String(v ?? '').replace(/\\s+/g, ' ').trim(), max);\nfunction pctText(v) { return v === '' || v == null || !Number.isFinite(Number(v)) ? '' : ` (${Math.round(Number(v))}%)`; }\nfunction reportTemplateVars(r) {\n  const pct = pctText(r.Confidence_Pct);\n  return { date: istLabel(`${r.Report_Date}T09:00:00+05:30`).date, sentiment: r.Sentiment || '', confidence: `${r.Confidence_Level || ''}${pct}`.trim(), driver: clean(r.Driver_1, 120) };\n}\nconst EMAIL_RE = /^[^\\s@<>\"',;()[\\]\\\\]+@[^\\s@<>\"',;()[\\]\\\\]+\\.[a-z]{2,}$/i;\nfunction normaliseEmail(e) { const v = String(e || '').trim().toLowerCase(); return v.length <= 254 && EMAIL_RE.test(v) ? v : ''; }\nfunction isEmailEligible(s) { return !!s && s.Status === 'Active' && !!String(s.Opt_In_At || '').trim() && ENUMS.Opt_In_Source.includes(s.Opt_In_Source) && !!normaliseEmail(s.Email); }\nconst escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#39;');\nconst oneLine = (s, n) => clean(String(s ?? '').replace(/[\\r\\n]+/g, ' '), n);\nfunction textToHtml(text) {\n  const body = escHtml(text).replace(/\\*([^*\\n]+)\\*/g, '<b>$1</b>').replace(/\\r?\\n/g, '<br>');\n  return `<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5\">${body}</div>`;\n}\nfunction reportEmail(r) {\n  const v = reportTemplateVars(r);\n  const text = String(r.WhatsApp_Message || '').trim() || formatWhatsApp(r, r.Created_At || `${r.Report_Date}T00:30:00Z`);\n  return { subject: oneLine(`Daily Market Intelligence — ${v.date} · ${v.sentiment || 'Report'}${v.confidence ? ` (${v.confidence})` : ''}`, 180), body: textToHtml(text) };\n}\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nconst MAX_ATTEMPTS = 3;\nfunction retryPlan(inp) {\n  const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp);\n  const dels = rowsOf(inp && inp.deliveries); const subs = rowsOf(inp && inp.subscribers); const reports = rowsOf(inp && inp.reports);\n  const none = (reason, d) => ({ claim: { Delivery_ID: '', Attempts: 0, expect: '' }, send: { to: '', subject: '', body: '' }, reason,\n    Delivery_ID: d ? d.Delivery_ID : '', publish: { Report_ID: d ? d.Report_ID : '', _job: '' } });\n  if (!dels || !subs || !reports) return none(doorError(!dels ? inp.deliveries : !subs ? inp.subscribers : inp.reports, !dels ? 'deliveries' : !subs ? 'subscribers' : 'reports'));\n  const d = dels.find((x) => x.Delivery_ID === String(body.Delivery_ID || ''));\n  if (!d) return none(`No delivery ${String(body.Delivery_ID || '').slice(0, 30)}`);\n  if (d.Kind !== 'Report' || d.Status !== 'Failed') return none(`${d.Delivery_ID} is a ${d.Kind} delivery that is ${d.Status} — only a Failed report delivery is retried`, d);\n  const n = Math.max(0, Math.round(Number(d.Attempts) || 0));\n  if (n >= MAX_ATTEMPTS) return none(`${d.Delivery_ID} has had ${n} attempts — the cap is ${MAX_ATTEMPTS} attempts`, d);\n  const s = subs.find((x) => x.Subscriber_ID === d.Subscriber_ID);\n  if (!isEmailEligible(s)) return none(`${d.Subscriber_Name || d.Subscriber_ID} is not Active and opted in with an email address — not sent`, d);\n  const r = reports.find((x) => x.Report_ID === d.Report_ID);\n  if (!r || !['Ready', 'Sent'].includes(r.Status)) return none(`Report ${d.Report_ID} is not Ready or Sent — not sent`, d);\n  const mail = reportEmail(r);\n  return { claim: { Delivery_ID: d.Delivery_ID, Attempts: n + 1, expect: `eq.${n}` }, send: { to: normaliseEmail(s.Email), subject: mail.subject, body: mail.body },\n    reason: '', Delivery_ID: d.Delivery_ID, publish: { Report_ID: r.Report_ID, _job: '' } };\n}\n\n// ─────────────────────────────── MARKET_PUBLISH ───────────────────────────────\n// end lib\nexport const code = async (inputs) => {\n  return retryPlan(inputs);\n};",
+                        "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what retryPlan() reaches (tools/build_market_flows.py)\nconst DISCLAIMER =\n  'Market commentary generated with AI from public news. Not investment advice and not a research report by a SEBI-registered research analyst. ' +\n  'Trading involves risk — consult a SEBI-registered advisor before acting. Yeh AI-generated analysis hai; SEBI-registered investment advisory nahi hai.';\nconst WHATSAPP_LIMIT = 4000;\nconst OUTLOOK_DOT = { BULLISH: '🟢', 'CAUTIOUSLY BULLISH': '🟢', CAUTIOUS: '🟡', NEUTRAL: '🟡', 'CAUTIOUSLY BEARISH': '🔴', BEARISH: '🔴' };\nfunction parseSectors(text) {\n  return String(text || '').split('\\n').map((l) => l.split('|').map((s) => s.trim())).filter((p) => p.length >= 2 && p[0])\n    .map(([sector, call, ...rest]) => ({ sector, call: (call || '').toUpperCase(), reason: rest.join('|') }));\n}\nfunction parseRisks(text) {\n  return String(text || '').split('\\n').map((l) => l.split('|').map((s) => s.trim())).filter((p) => p.length >= 2 && p[1])\n    .map(([level, ...rest]) => ({ level: (level || '').toUpperCase(), text: rest.join('|') }));\n}\nfunction istParts(date) {\n  const d = date instanceof Date ? date : new Date(date || Date.now());\n  const fmt = (o) => new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', ...o }).format(d);\n  return { day: fmt({ weekday: 'long' }), date: fmt({ day: '2-digit', month: 'short', year: 'numeric' }), time: fmt({ hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() };\n}\nfunction formatWhatsApp(r, generatedAt) {\n  const t = istParts(generatedAt || r.Created_At || Date.now());\n  const line = (label, outlook, extra) => `${label}: ${OUTLOOK_DOT[outlook] || '⚪'} ${outlook || '—'}${extra ? ` | ${extra}` : ''}`;\n  const drivers = [r.Driver_1, r.Driver_2, r.Driver_3].filter(Boolean).map((x) => `• ${x}`).join('\\n');\n  const sectors = parseSectors(r.Sectors).map((s, i) => `${i + 1}. ${s.sector} — ${s.call}${s.reason ? ` — ${s.reason}` : ''}`).join('\\n');\n  const risks = parseRisks(r.Risks).map((x) => `• ${x.text}${x.level ? ` (${x.level})` : ''}`).join('\\n');\n  const views = [['Positional', r.View_Positional], ['Intraday', r.View_Intraday], ['Long-term', r.View_LongTerm], ['F&O', r.View_FnO]]\n    .filter(([, v]) => v).map(([k, v]) => `• ${k}: ${v}`).join('\\n');\n  const body = [\n    `📈 *DAILY MARKET INTELLIGENCE*`, `━━━━━━━━━━━━━━━━━━━━`, `📅 *${t.day}, ${t.date}*`, `⏰ Report Time: ${t.time} IST`, `━━━━━━━━━━━━━━━━━━━━`, '',\n    `🎯 OVERALL MARKET SENTIMENT: *${r.Sentiment || '—'}*`,\n    `CONFIDENCE LEVEL: ${r.Confidence_Level || '—'}${pctText(r.Confidence_Pct)}`, '',\n    drivers && `📌 KEY MARKET DRIVERS TODAY:\\n${drivers}\\n`,\n    `📊 SEGMENT-WISE ANALYSIS:`,\n    line('1️⃣ SENSEX', r.Sensex_Outlook, r.Sensex_Range),\n    line('2️⃣ NIFTY 50', r.Nifty_Outlook, r.Nifty_Range),\n    line('3️⃣ BANK NIFTY', r.BankNifty_Outlook, r.BankNifty_Range),\n    `4️⃣ NIFTY F&O: ${r.FnO_View || '—'}${r.VIX_Expectation ? ` | VIX: ${r.VIX_Expectation}` : ''}`,\n    line('5️⃣ MID/SMALL CAP', r.MidSmall_Outlook, r.MidSmall_Focus),\n    line('6️⃣ COMMODITIES', r.Commodity_Outlook), '',\n    sectors && `🔥 SECTORS TO WATCH:\\n${sectors}\\n`,\n    risks && `⚠️ KEY RISKS TODAY:\\n${risks}\\n`,\n    views && `💡 MARKET VIEW:\\n${views}\\n`,\n  ].filter((x) => x !== false && x !== undefined && x !== null && x !== '' || x === '').join('\\n');\n  const footer = `\\n━━━━━━━━━━━━━━━━━━━━\\n🤖 *Powered by AI Market Intelligence*\\n📊 *Market Opens: 9:15 AM IST*\\n━━━━━━━━━━━━━━━━━━━━\\n⚠️ ${DISCLAIMER}`;\n  const room = WHATSAPP_LIMIT - footer.length;\n  const main = body.length > room ? cut(body, Math.max(0, room - 60)) + '…\\n\\n[Full report in the Market Intelligence portal]' : body;\n  return main + footer;\n}\n\n// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════\n// The pipeline rules (workflow agent, 15 Oct 2026). Used by the Studio CODE steps through app/src/custom/lib/market-flow.js\n// (inlined by tools/build_market_flows.py) and tested in tests/market.test.mjs on real RSS samples (tests/fixtures/rss/).\n// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════\nconst ENUMS = {\n  Sentiment: ['BULLISH', 'CAUTIOUSLY BULLISH', 'NEUTRAL', 'CAUTIOUSLY BEARISH', 'BEARISH'],\n  Confidence_Level: ['HIGH', 'MEDIUM', 'LOW'],\n  Outlook: ['BULLISH', 'BEARISH', 'NEUTRAL', 'CAUTIOUS'],\n  FnO_View: ['BULLISH BIAS', 'BEARISH BIAS', 'RANGE-BOUND', 'VOLATILE'],\n  VIX_Expectation: ['LOW', 'MEDIUM', 'HIGH'],\n  SectorCall: ['POSITIVE', 'WATCH', 'NEGATIVE'],\n  RiskLevel: ['HIGH', 'MED'],\n  Trigger: ['Schedule', 'Manual'],\n  Opt_In_Source: ['WhatsApp reply', 'Web form', 'Signed form', 'Phone call'],\n};\nconst asDate = (at) => (at instanceof Date ? at : new Date(at || Date.now()));\nfunction istLabel(at) {\n  const f = (o) => new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', ...o }).format(asDate(at));\n  return { date: f({ day: '2-digit', month: 'short', year: 'numeric' }), time: f({ hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() + ' IST' };\n}\nfunction cut(s, n) { const a = Array.from(String(s ?? '')); return a.length <= n ? a.join('') : a.slice(0, Math.max(0, n)).join(''); }\nconst clean = (v, max) => cut(String(v ?? '').replace(/\\s+/g, ' ').trim(), max);\nfunction pctText(v) { return v === '' || v == null || !Number.isFinite(Number(v)) ? '' : ` (${Math.round(Number(v))}%)`; }\nfunction reportTemplateVars(r) {\n  const pct = pctText(r.Confidence_Pct);\n  return { date: istLabel(`${r.Report_Date}T09:00:00+05:30`).date, sentiment: r.Sentiment || '', confidence: `${r.Confidence_Level || ''}${pct}`.trim(), driver: clean(r.Driver_1, 120) };\n}\nconst EMAIL_RE = /^[^\\s@<>\"',;()[\\]\\\\]+@[^\\s@<>\"',;()[\\]\\\\]+\\.[a-z]{2,}$/i;\nfunction normaliseEmail(e) { const v = String(e || '').trim().toLowerCase(); return v.length <= 254 && EMAIL_RE.test(v) ? v : ''; }\nfunction isEmailEligible(s) { return !!s && s.Status === 'Active' && !!String(s.Opt_In_At || '').trim() && ENUMS.Opt_In_Source.includes(s.Opt_In_Source) && !!normaliseEmail(s.Email); }\nconst escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#39;');\nconst oneLine = (s, n) => clean(String(s ?? '').replace(/[\\r\\n]+/g, ' '), n);\nfunction textToHtml(text) {\n  const body = escHtml(text).replace(/\\*([^*\\n]+)\\*/g, '<b>$1</b>').replace(/\\r?\\n/g, '<br>');\n  return `<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5\">${body}</div>`;\n}\nfunction reportEmail(r) {\n  const v = reportTemplateVars(r);\n  const text = String(r.WhatsApp_Message || '').trim() || formatWhatsApp(r, r.Created_At || `${r.Report_Date}T00:30:00Z`);\n  return { subject: oneLine(`Daily Market Intelligence — ${v.date} · ${v.sentiment || 'Report'}${v.confidence ? ` (${v.confidence})` : ''}`, 180), body: textToHtml(text) };\n}\nfunction rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }\nfunction statusOf(out) {\n  if (out && (out.status ?? out.statusCode) != null) return Number(out.status ?? out.statusCode);\n  const m = out && out.error ? String(out.error.message || out.error).match(/(?:^|[^0-9])([1-5]\\d\\d)(?![0-9])/) : null;\n  return m ? Number(m[1]) : out && out.error ? 0 : 200;\n}\nfunction doorError(out, entity) {\n  const s = statusOf(out);\n  return s === 403 ? `APP_CLOSED: the app refused the ${entity} read (403) — set INBOUND_TOKEN on the app and the same token in this flow's constants`\n    : `APP_READ_FAILED: could not read ${entity} from the app (${s || (out && out.error) || 'no response'})`;\n}\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nconst MAX_ATTEMPTS = 3;\nfunction retryPlan(inp) {\n  const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp);\n  const dels = rowsOf(inp && inp.deliveries); const subs = rowsOf(inp && inp.subscribers); const reports = rowsOf(inp && inp.reports);\n  // `claims` is the 0-or-1 list the flow loops over: a refusal is [] so the flow sends no claim request at all (Studio stops a run on a\n  // failed HTTP step, so the old empty-id PATCH ended the run before its Return — the app's /sync timed out after 25 s).\n  const none = (reason, d) => ({ claim: { Delivery_ID: '', Attempts: 0, expect: '' }, claims: [], send: { to: '', subject: '', body: '' }, reason,\n    Delivery_ID: d ? d.Delivery_ID : '', publish: { Report_ID: d ? d.Report_ID : '', _job: '' } });\n  if (!dels || !subs || !reports) return none(doorError(!dels ? inp.deliveries : !subs ? inp.subscribers : inp.reports, !dels ? 'deliveries' : !subs ? 'subscribers' : 'reports'));\n  const d = dels.find((x) => x.Delivery_ID === String(body.Delivery_ID || ''));\n  if (!d) return none(`No delivery ${String(body.Delivery_ID || '').slice(0, 30)}`);\n  if (d.Kind !== 'Report' || d.Status !== 'Failed') return none(`${d.Delivery_ID} is a ${d.Kind} delivery that is ${d.Status} — only a Failed report delivery is retried`, d);\n  const n = Math.max(0, Math.round(Number(d.Attempts) || 0));\n  if (n >= MAX_ATTEMPTS) return none(`${d.Delivery_ID} has had ${n} attempts — the cap is ${MAX_ATTEMPTS} attempts`, d);\n  const s = subs.find((x) => x.Subscriber_ID === d.Subscriber_ID);\n  if (!isEmailEligible(s)) return none(`${d.Subscriber_Name || d.Subscriber_ID} is not Active and opted in with an email address — not sent`, d);\n  const r = reports.find((x) => x.Report_ID === d.Report_ID);\n  if (!r || !['Ready', 'Sent'].includes(r.Status)) return none(`Report ${d.Report_ID} is not Ready or Sent — not sent`, d);\n  const mail = reportEmail(r);\n  const claim = { Delivery_ID: d.Delivery_ID, Attempts: n + 1, expect: `eq.${n}` };\n  return { claim, claims: [claim], send: { to: normaliseEmail(s.Email), subject: mail.subject, body: mail.body },\n    reason: '', Delivery_ID: d.Delivery_ID, publish: { Report_ID: r.Report_ID, _job: '' } };\n}\n\n// ─────────────────────────────── MARKET_PUBLISH ───────────────────────────────\n// end lib\nexport const code = async (inputs) => {\n  return retryPlan(inputs);\n};",
                         "packageJson": "{}"
                       },
                       "errorHandlingOptions": {
@@ -778,81 +778,81 @@
                       }
                     },
                     "nextAction": {
-                      "name": "step_retry_claim",
-                      "skip": false,
-                      "type": "PIECE",
+                      "name": "step_retry_claim_loop",
+                      "type": "LOOP_ON_ITEMS",
+                      "displayName": "Only if the plan allows a retry (0 or 1) — a refusal sends no request",
                       "valid": true,
+                      "skip": false,
                       "settings": {
-                        "input": {
-                          "method": "PATCH",
-                          "url": "{{step_constants['app_url']}}/api/data/deliveries",
-                          "headers": {
-                            "Content-Type": "application/json",
-                            "Authorization": "Bearer {{step_constants['inbound_token']}}",
-                            "X-Flow": "{{step_constants['flow']}}"
+                        "items": "{{step_retry_plan['claims']}}",
+                        "sampleData": {}
+                      },
+                      "firstLoopAction": {
+                        "name": "step_retry_claim",
+                        "skip": false,
+                        "type": "PIECE",
+                        "valid": true,
+                        "settings": {
+                          "input": {
+                            "method": "PATCH",
+                            "url": "{{step_constants['app_url']}}/api/data/deliveries",
+                            "headers": {
+                              "Content-Type": "application/json",
+                              "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                              "X-Flow": "{{step_constants['flow']}}"
+                            },
+                            "queryParams": {
+                              "Delivery_ID": "eq.{{step_retry_claim_loop['item']['Delivery_ID']}}",
+                              "Attempts": "{{step_retry_claim_loop['item']['expect']}}"
+                            },
+                            "authType": "NONE",
+                            "body_type": "json",
+                            "body": {
+                              "data": {
+                                "Attempts": "{{step_retry_claim_loop['item']['Attempts']}}"
+                              }
+                            }
                           },
-                          "queryParams": {
-                            "Delivery_ID": "eq.{{step_retry_plan['claim']['Delivery_ID']}}",
-                            "Attempts": "{{step_retry_plan['claim']['expect']}}"
+                          "pieceName": "@puchoaistudio/tool-http",
+                          "actionName": "send_request",
+                          "sampleData": {},
+                          "pieceVersion": "^2.0.0",
+                          "propertySettings": {
+                            "method": {
+                              "type": "MANUAL"
+                            },
+                            "url": {
+                              "type": "MANUAL"
+                            },
+                            "headers": {
+                              "type": "MANUAL",
+                              "schema": {}
+                            },
+                            "queryParams": {
+                              "type": "MANUAL",
+                              "schema": {}
+                            },
+                            "authType": {
+                              "type": "MANUAL"
+                            },
+                            "body_type": {
+                              "type": "MANUAL"
+                            },
+                            "body": {
+                              "type": "MANUAL",
+                              "schema": {}
+                            }
                           },
-                          "authType": "NONE",
-                          "body_type": "json",
-                          "body": {
-                            "data": {
-                              "Attempts": "{{step_retry_plan['claim']['Attempts']}}"
+                          "errorHandlingOptions": {
+                            "retryOnFailure": {
+                              "value": false
+                            },
+                            "continueOnFailure": {
+                              "value": false
                             }
                           }
                         },
-                        "pieceName": "@puchoaistudio/tool-http",
-                        "actionName": "send_request",
-                        "sampleData": {},
-                        "pieceVersion": "^2.0.0",
-                        "propertySettings": {
-                          "method": {
-                            "type": "MANUAL"
-                          },
-                          "url": {
-                            "type": "MANUAL"
-                          },
-                          "headers": {
-                            "type": "MANUAL",
-                            "schema": {}
-                          },
-                          "queryParams": {
-                            "type": "MANUAL",
-                            "schema": {}
-                          },
-                          "authType": {
-                            "type": "MANUAL"
-                          },
-                          "body_type": {
-                            "type": "MANUAL"
-                          },
-                          "body": {
-                            "type": "MANUAL",
-                            "schema": {}
-                          }
-                        },
-                        "errorHandlingOptions": {
-                          "retryOnFailure": {
-                            "value": false
-                          },
-                          "continueOnFailure": {
-                            "value": true
-                          }
-                        }
-                      },
-                      "nextAction": {
-                        "name": "step_retry_claimed",
-                        "type": "LOOP_ON_ITEMS",
-                        "displayName": "Only if claimed (0 or 1)",
-                        "valid": true,
-                        "skip": false,
-                        "settings": {
-                          "items": "{{step_retry_claim['body']}}",
-                          "sampleData": {}
-                        },
-                        "firstLoopAction": {
+                        "nextAction": {
                           "name": "step_retry_email",
                           "skip": false,
                           "type": "PIECE",
@@ -928,7 +928,7 @@
                             "valid": true,
                             "settings": {
                               "input": {
-                                "Delivery_ID": "{{step_retry_claimed['item']['Delivery_ID']}}",
+                                "Delivery_ID": "{{step_retry_claim_loop['item']['Delivery_ID']}}",
                                 "sent": "{{step_retry_email}}"
                               },
                               "sampleData": {},
@@ -1147,72 +1147,72 @@
                           },
                           "displayName": "Send the report email again to the address on the subscriber record"
                         },
-                        "nextAction": {
-                          "name": "step_retry_done",
-                          "skip": false,
-                          "type": "PIECE",
-                          "valid": true,
-                          "settings": {
-                            "input": {
-                              "fields": {
+                        "displayName": "PATCH Attempts + 1, only where Attempts = the value read"
+                      },
+                      "nextAction": {
+                        "name": "step_retry_done",
+                        "skip": false,
+                        "type": "PIECE",
+                        "valid": true,
+                        "settings": {
+                          "input": {
+                            "fields": {
+                              "body": {
+                                "ok": false,
+                                "sent": false,
+                                "Delivery_ID": "{{step_retry_plan['Delivery_ID']}}",
+                                "error": "{{step_retry_plan['reason']}}"
+                              },
+                              "status": 200,
+                              "headers": {}
+                            },
+                            "respond": "stop",
+                            "responseType": "json"
+                          },
+                          "pieceName": "@puchoaistudio/tool-webhook",
+                          "actionName": "return_response",
+                          "sampleData": {},
+                          "pieceVersion": "^2.0.4",
+                          "propertySettings": {
+                            "fields": {
+                              "type": "MANUAL",
+                              "schema": {
                                 "body": {
-                                  "ok": false,
-                                  "sent": false,
-                                  "Delivery_ID": "{{step_retry_plan['Delivery_ID']}}",
-                                  "error": "{{step_retry_plan['reason']}}"
+                                  "type": "JSON",
+                                  "required": true,
+                                  "displayName": "JSON Body"
                                 },
-                                "status": 200,
-                                "headers": {}
-                              },
-                              "respond": "stop",
-                              "responseType": "json"
-                            },
-                            "pieceName": "@puchoaistudio/tool-webhook",
-                            "actionName": "return_response",
-                            "sampleData": {},
-                            "pieceVersion": "^2.0.4",
-                            "propertySettings": {
-                              "fields": {
-                                "type": "MANUAL",
-                                "schema": {
-                                  "body": {
-                                    "type": "JSON",
-                                    "required": true,
-                                    "displayName": "JSON Body"
-                                  },
-                                  "status": {
-                                    "type": "NUMBER",
-                                    "required": false,
-                                    "displayName": "Status",
-                                    "defaultValue": 200
-                                  },
-                                  "headers": {
-                                    "type": "OBJECT",
-                                    "required": false,
-                                    "displayName": "Headers"
-                                  }
+                                "status": {
+                                  "type": "NUMBER",
+                                  "required": false,
+                                  "displayName": "Status",
+                                  "defaultValue": 200
+                                },
+                                "headers": {
+                                  "type": "OBJECT",
+                                  "required": false,
+                                  "displayName": "Headers"
                                 }
-                              },
-                              "respond": {
-                                "type": "MANUAL"
-                              },
-                              "responseType": {
-                                "type": "MANUAL"
                               }
                             },
-                            "errorHandlingOptions": {
-                              "retryOnFailure": {
-                                "value": false
-                              },
-                              "continueOnFailure": {
-                                "value": false
-                              }
+                            "respond": {
+                              "type": "MANUAL"
+                            },
+                            "responseType": {
+                              "type": "MANUAL"
                             }
                           },
-                          "displayName": "Return: refused (nothing sent)"
-                        }
-                      },
-                      "displayName": "PATCH Attempts + 1, only where Attempts = the value read (a refusal has no id → the app refuses)"
+                          "errorHandlingOptions": {
+                            "retryOnFailure": {
+                              "value": false
+                            },
+                            "continueOnFailure": {
+                              "value": false
+                            }
+                          }
+                        },
+                        "displayName": "Return: refused (nothing sent)"
+                      }
                     },
                     "displayName": "Failed report delivery, < 3 attempts, Active + opted-in? (CODE)"
                   },

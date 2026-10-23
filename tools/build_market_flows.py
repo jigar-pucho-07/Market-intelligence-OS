@@ -252,18 +252,23 @@ def broadcast():
                                                           "_job": "{{step_send_plan['publish']['_job']}}", "_who": "flow:BROADCAST"}, "POST MARKET_PUBLISH — counts, reader copy, job", cont=True),
         ret("step_send_done", {"ok": True, "kind": "{{step_send_plan['kind']}}", "Report_ID": "{{step_send_plan['Report_ID']}}", "queued": "{{step_send_plan['queued']}}",
                                "reason": "{{step_send_plan['reason']}}"}, "Return: handed to Gmail"))
-    cl = "step_retry_claimed"
+    rl = "step_retry_claim_loop"
+    # 23 Oct 2026: Studio's HTTP step stops the whole run on a 4xx (its own On Failure default, failureMode continue_none), so a
+    # refused retry used to PATCH with an empty id, get 400, and end before any Return — the app's /sync waited 25 s and timed out.
+    # The claim now runs only inside a loop over the plan's 0-or-1 `claims`: a refusal sends no request and reaches step_retry_done.
+    # The claim itself stops the run when the app refuses it (cont=False, what Studio does anyway), so no email goes out on a lost
+    # race; the old inner "only if claimed" loop is gone — it guarded only that case and kept the path inside the 14-step budget.
     retry = chain(
         read("step_retry_deliveries", "deliveries", "GET deliveries"),
         read("step_retry_subscribers", "subscribers", "GET subscribers"),
         read("step_retry_reports", "reports", "GET reports"),
         lib("step_retry_plan", "retryPlan", {"body": "{{trigger['body']}}", "C": "{{step_constants}}", "deliveries": "{{step_retry_deliveries}}",
                                              "subscribers": "{{step_retry_subscribers}}", "reports": "{{step_retry_reports}}"}, "Failed report delivery, < 3 attempts, Active + opted-in? (CODE)"),
-        http("step_retry_claim", "PATCH", f"{APP}/api/data/deliveries", "PATCH Attempts + 1, only where Attempts = the value read (a refusal has no id → the app refuses)",
-             body={"Attempts": "{{step_retry_plan['claim']['Attempts']}}"}, query={"Delivery_ID": "eq.{{step_retry_plan['claim']['Delivery_ID']}}", "Attempts": "{{step_retry_plan['claim']['expect']}}"}, cont=True),
-        loop(cl, "{{step_retry_claim['body']}}", "Only if claimed (0 or 1)",
+        loop(rl, "{{step_retry_plan['claims']}}", "Only if the plan allows a retry (0 or 1) — a refusal sends no request",
+          http("step_retry_claim", "PATCH", f"{APP}/api/data/deliveries", "PATCH Attempts + 1, only where Attempts = the value read",
+               body={"Attempts": "{{" + rl + "['item']['Attempts']}}"}, query={"Delivery_ID": "eq.{{" + rl + "['item']['Delivery_ID']}}", "Attempts": "{{" + rl + "['item']['expect']}}"}, cont=False),
              gmail("step_retry_email", "step_retry_plan['send']", "Send the report email again to the address on the subscriber record"),
-             lib("step_retry_result", "sendResult", {"Delivery_ID": "{{" + cl + "['item']['Delivery_ID']}}", "sent": "{{step_retry_email}}"}, "Sent or Failed? (CODE)"),
+             lib("step_retry_result", "sendResult", {"Delivery_ID": "{{" + rl + "['item']['Delivery_ID']}}", "sent": "{{step_retry_email}}"}, "Sent or Failed? (CODE)"),
              http("step_retry_update", "PATCH", f"{APP}/api/data/deliveries", "PATCH the same delivery Sent or Failed",
                   body=named("step_retry_result", ["Status", "Message_ID", "Error_Message", "Sent_At"]), query={"Delivery_ID": "eq.{{step_retry_result['Delivery_ID']}}"}, retry=True, cont=True),
              hook("step_retry_publish", "market_publish_webhook", {"action": "publish", "Report_ID": "{{step_retry_plan['publish']['Report_ID']}}", "_job": "", "_who": "flow:BROADCAST"},

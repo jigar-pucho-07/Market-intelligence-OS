@@ -2,12 +2,12 @@
 
 Budget per action path: ≤ 14 steps · ≤ 1 AI call (2 with a code check between) · no nested router · no CODE node > 40 lines · no two CODE nodes in a row. Per flow: ≤ 12 actions.
 
-## BROADCAST — 4 action(s), longest path 10 steps, within budget
+## BROADCAST — 4 action(s), longest path 9 steps, within budget
 
 | action path | steps | AI calls | router depth | longest CODE |
 |---|---:|---:|---:|---:|
 | send | alert | 9 | 0 | 1 | — |
-| retry | 10 | 0 | 1 | — |
+| retry | 9 | 0 | 1 | — |
 | Unknown action → 400 | 4 | 0 | 1 | — |
 | Anything else → 401 | 4 | 0 | 1 | — |
 
@@ -93,7 +93,7 @@ its path (the budget question) and its credits once per item; a router is a step
 | MARKET_STORE | Anything else → 401 | 4 | 3 |
 | BROADCAST | send | alert | 14 | 8 + step_send_loop×5 |
 | BROADCAST | retry › inner Return | 14 | 13 |
-| BROADCAST | retry ›  (0 items) | 10 | 9 |
+| BROADCAST | retry ›  (0 items) | 9 | 8 |
 | BROADCAST | Unknown action → 400 | 4 | 3 |
 | BROADCAST | Anything else → 401 | 4 | 3 |
 | MARKET_PUBLISH | Authorised | 13 | 8 + step_pub_loop×3 + step_job_loop×1 |

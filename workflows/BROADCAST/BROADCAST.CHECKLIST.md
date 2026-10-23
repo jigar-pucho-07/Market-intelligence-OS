@@ -91,16 +91,16 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **queryParams**: `*`
   - **authType**: `NONE`
 
-## 11. PATCH Attempts + 1, only where Attempts = the value read (a refusal has no id → the app refuses) (`step_retry_claim`, http)
+## 11. PATCH Attempts + 1, only where Attempts = the value read (`step_retry_claim`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
 - [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
   - **method**: `PATCH`
   - **url**: `{{step_constants['app_url']}}/api/data/deliveries`
   - **headers**: `{"Content-Type": "application/json", "Authorization": "Bearer {{step_constants['inbound_token']}}", "X-Flow": "{{step_constants['flow']}}"}`
-  - **queryParams**: `{"Delivery_ID": "eq.{{step_retry_plan['claim']['Delivery_ID']}}", "Attempts": "{{step_retry_plan['claim']['expect']}}"}`
+  - **queryParams**: `{"Delivery_ID": "eq.{{step_retry_claim_loop['item']['Delivery_ID']}}", "Attempts": "{{step_retry_claim_loop['item']['expect']}}"}`
   - **authType**: `NONE`
   - **body_type**: `json`
-  - **body**: `{"data": {"Attempts": "{{step_retry_plan['claim']['Attempts']}}"}}`
+  - **body**: `{"data": {"Attempts": "{{step_retry_claim_loop['item']['Attempts']}}"}}`
 
 ## 12. Send the report email again to the address on the subscriber record (`step_retry_email`, gmail)
 - [ ] Pick your **gmail** connection.

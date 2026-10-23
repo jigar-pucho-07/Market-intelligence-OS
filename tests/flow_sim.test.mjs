@@ -238,10 +238,14 @@ test('retry: Attempts + 1 per retry, refused at 3, to the record\'s address; a c
   d.Status = 'Failed';
   const r3 = await run(w, 'BROADCAST', { action: 'retry', Delivery_ID: 'DLV-2026-0001' });
   assert.equal(r3.responses[0].sent, false); assert.match(r3.responses[0].error, /cap is 3/); assert.equal(sends(w).length, 2);
+  assert.equal(w.log.at(-1).calls.filter((c) => c.node === 'step_retry_claim').length, 0, 'a refused retry sends no claim request (Studio would stop the run on its 400)');
   const race = newWorld({ reports: [readyToday({ Status: 'Sent' })], subscribers: SUBS, deliveries: [{ ...d, Status: 'Failed', Attempts: 1 }] },
     { conditional: true, race: (e, cur) => { if (e === 'deliveries') cur.Attempts = 2; } });
-  const rr = await run(race, 'BROADCAST', { action: 'retry', Delivery_ID: 'DLV-2026-0001' });
-  assert.equal(rr.responses[0].sent, false); assert.equal(sends(race).length, 0, 'the claim found Attempts changed → no send');
+  // the claim stops the run when the app refuses it (as Studio does on a 4xx) — no email goes out on a lost race
+  const calls = []; const fakes = makeFakes({ app: race.app.app, calls });
+  const rr = await atClock(THU, () => simulate(load('BROADCAST'), { action: 'retry', Delivery_ID: 'DLV-2026-0001', __k: SECRET('BROADCAST') }, fakes));
+  assert.ok(rr.failures.some((f) => f.startsWith('step_retry_claim')), `the lost claim stops the run: ${rr.failures.join(' | ')}`);
+  assert.equal(calls.filter((c) => c.piece === 'gmail:send_email').length, 0, 'the claim found Attempts changed → no send');
 });
 
 test('publish: nothing actually sent → the report stays Ready and the app job fails', async () => {

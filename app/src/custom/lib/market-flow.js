@@ -172,7 +172,9 @@ export const MAX_ATTEMPTS = 3;
 export function retryPlan(inp) {
   const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp);
   const dels = rowsOf(inp && inp.deliveries); const subs = rowsOf(inp && inp.subscribers); const reports = rowsOf(inp && inp.reports);
-  const none = (reason, d) => ({ claim: { Delivery_ID: '', Attempts: 0, expect: '' }, send: { to: '', subject: '', body: '' }, reason,
+  // `claims` is the 0-or-1 list the flow loops over: a refusal is [] so the flow sends no claim request at all (Studio stops a run on a
+  // failed HTTP step, so the old empty-id PATCH ended the run before its Return — the app's /sync timed out after 25 s).
+  const none = (reason, d) => ({ claim: { Delivery_ID: '', Attempts: 0, expect: '' }, claims: [], send: { to: '', subject: '', body: '' }, reason,
     Delivery_ID: d ? d.Delivery_ID : '', publish: { Report_ID: d ? d.Report_ID : '', _job: '' } });
   if (!dels || !subs || !reports) return none(doorError(!dels ? inp.deliveries : !subs ? inp.subscribers : inp.reports, !dels ? 'deliveries' : !subs ? 'subscribers' : 'reports'));
   const d = dels.find((x) => x.Delivery_ID === String(body.Delivery_ID || ''));
@@ -185,7 +187,8 @@ export function retryPlan(inp) {
   const r = reports.find((x) => x.Report_ID === d.Report_ID);
   if (!r || !['Ready', 'Sent'].includes(r.Status)) return none(`Report ${d.Report_ID} is not Ready or Sent — not sent`, d);
   const mail = reportEmail(r);
-  return { claim: { Delivery_ID: d.Delivery_ID, Attempts: n + 1, expect: `eq.${n}` }, send: { to: normaliseEmail(s.Email), subject: mail.subject, body: mail.body },
+  const claim = { Delivery_ID: d.Delivery_ID, Attempts: n + 1, expect: `eq.${n}` };
+  return { claim, claims: [claim], send: { to: normaliseEmail(s.Email), subject: mail.subject, body: mail.body },
     reason: '', Delivery_ID: d.Delivery_ID, publish: { Report_ID: r.Report_ID, _job: '' } };
 }
 
