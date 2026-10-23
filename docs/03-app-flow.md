@@ -20,7 +20,7 @@ Shell per portal: desk=sidebar, reader=sidebar (`src/config/design.js`); nav fro
 - Reports `/reports` → direct patch (Review & edit report), `BROADCAST.send` (Send to subscribers), document report_pdf
 - News feed `/news` → no workflow
 - Pipeline `/pipeline` → `MARKET_REPORT.rerun` (Re-run report now)
-- Subscribers `/subscribers` → direct insert (Add subscriber), direct patch (Edit subscriber), direct patch (Pause)
+- Subscribers `/subscribers` → direct insert (Add subscriber), direct patch (Edit subscriber), direct patch (Pause), direct delete (Delete subscriber)
 - Deliveries `/deliveries` → `BROADCAST.retry` (Retry delivery)
 - Activity `/activity` → no workflow
 - Today's report `/me` → no workflow

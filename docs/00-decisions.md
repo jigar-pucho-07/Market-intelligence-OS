@@ -77,6 +77,7 @@ Data: **PostgreSQL** (one database per client, single-tenant) · security: **§1
 | Subscribers | Add subscriber | create: 7 fields · direct |
 | Subscribers | Edit subscriber | edit: 4 fields · direct |
 | Subscribers | Pause | status: 1 field · direct |
+| Subscribers | Delete subscriber | edit: 0 fields · direct |
 | Deliveries | Retry delivery | status: 0 fields · BROADCAST |
 | Past reports | Print report | document · direct |
 
@@ -106,7 +107,7 @@ Data: **PostgreSQL** (one database per client, single-tenant) · security: **§1
 - A 'Stop' quick-reply on the template that unsubscribes automatically — needs an inbound WhatsApp webhook; v1: the analyst sets Unsubscribed when a subscriber replies STOP _(covers R26)_
 
 ## Footprint (lean frontend, v4.3)
-- footprint: 10 pages in the nav (0 hidden) · 15 KPIs · 2 charts · 16 modals · 3 drawer tabs · for 28 requirements
+- footprint: 10 pages in the nav (0 hidden) · 15 KPIs · 2 charts · 17 modals · 3 drawer tabs · for 28 requirements
 - Budget: overview ≤ 4 KPIs · ≤ 2 charts · ≤ 3 queues; a page ≤ 4 KPIs · ≤ 6 modals · drawer ≤ 3 tabs; nav pages ≤ requirements. Pages marked `badge: Preview` stay off the nav until `os.show_preview: true`.
 - Within budget.
 

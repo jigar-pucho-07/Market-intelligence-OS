@@ -702,7 +702,7 @@ pages:
         search: [Name, WhatsApp, City, Email]
         filters: [City, Opt_In_Source]
         bulk: [set_status]
-        actions: { row: [edit_subscriber, set_status] }
+        actions: { row: [edit_subscriber, set_status, delete_subscriber] }
         drawer: { title_column: Name, sections: [ { type: fields, title: Contact, columns: [Email, WhatsApp, City, Status, Opt_In_At, Opt_In_Source, Notes] }, { type: related, entity: deliveries, by: Subscriber_ID, title: Deliveries, columns: [Report_Date, Kind, Status, Sent_At, Error_Message] } ] }
         empty: { title: No subscribers yet, reason: "Add the first person who opted in to the daily report email.", action: add_subscriber }
     modals:
@@ -716,7 +716,10 @@ pages:
           fields: [ { key: Email, label: Email, type: text, required: true }, { key: WhatsApp, label: WhatsApp number, type: text, help: "Optional" }, { key: City, label: City, type: text }, { key: Notes, label: Notes, type: textarea, rows: 2 } ] }
       - { id: set_status, kind: status, title: Pause, resume or remove, direct: patch, covers: [R26], summary: [Name, Email], intro: "Unsubscribed is final — the person must opt in again as a new subscriber.",
           fields: [ { key: Status, label: Status, type: select, options_status: true, required: true } ] }
-    actions: { header: [add_subscriber], row: [edit_subscriber, set_status] }
+      - { id: delete_subscriber, kind: edit, title: Delete subscriber, direct: delete, covers: [R26], summary: [Name, Email],
+          intro: "Deletes this subscriber from the database permanently. Their past delivery history stays. This cannot be undone.",
+          submit: Delete subscriber, pending: "Deleting…", success: "Subscriber deleted" }
+    actions: { header: [add_subscriber], row: [edit_subscriber, set_status, delete_subscriber] }
 
   - id: deliveries
     route: /deliveries

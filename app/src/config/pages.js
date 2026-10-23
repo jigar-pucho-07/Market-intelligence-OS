@@ -1177,7 +1177,8 @@ export const PAGES = [
         "actions": {
           "row": [
             "edit_subscriber",
-            "set_status"
+            "set_status",
+            "delete_subscriber"
           ]
         },
         "drawer": {
@@ -1348,6 +1349,23 @@ export const PAGES = [
             "required": true
           }
         ]
+      },
+      {
+        "id": "delete_subscriber",
+        "kind": "edit",
+        "title": "Delete subscriber",
+        "direct": "delete",
+        "covers": [
+          "R26"
+        ],
+        "summary": [
+          "Name",
+          "Email"
+        ],
+        "intro": "Deletes this subscriber from the database permanently. Their past delivery history stays. This cannot be undone.",
+        "submit": "Delete subscriber",
+        "pending": "Deleting…",
+        "success": "Subscriber deleted"
       }
     ],
     "actions": {
@@ -1356,7 +1374,8 @@ export const PAGES = [
       ],
       "row": [
         "edit_subscriber",
-        "set_status"
+        "set_status",
+        "delete_subscriber"
       ]
     },
     "portal": "desk"

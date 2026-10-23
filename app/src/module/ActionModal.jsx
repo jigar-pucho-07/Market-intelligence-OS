@@ -92,7 +92,7 @@ export default function ActionModal({ spec, row: rowProp, open, onClose, data, o
         <AnimatePresence>{busy && <WorkingState spec={spec} active={busy} />}</AnimatePresence>
         <div className="flex justify-end gap-3 pt-3 border-t border-[color:var(--hair-5)]">
           <Button onClick={onClose} disabled={busy}>{t('Cancel')}</Button>
-          <Button type="primary" loading={busy} onClick={submit}>{t(busy ? (spec.pending ?? 'Working…') : (spec.submit ?? 'Save'))}</Button>
+          <Button type="primary" danger={spec.direct === 'delete'} loading={busy} onClick={submit}>{t(busy ? (spec.pending ?? 'Working…') : (spec.submit ?? 'Save'))}</Button>
         </div>
       </div>
     </Modal>

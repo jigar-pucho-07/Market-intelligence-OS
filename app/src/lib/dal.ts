@@ -218,6 +218,30 @@ export async function patchRow(actor: Actor, entity: string, id: string, patch: 
   return row;
 }
 
+/** A record another row still points at (a FOREIGN KEY) cannot be deleted — said in words, not as a 500. */
+export class InUse extends Error { constructor() { super('Record is in use'); } }
+const isForeignKeyViolation = (err: unknown): boolean => !!err && typeof err === 'object' && (err as { code?: string }).code === '23503';
+
+/** Delete one record — os.yaml modal `direct: delete` (23 Oct 2026). Scoped like patchRow: a row outside the person's scope does
+ *  not exist to them, so it is not deleted and `false` comes back. The audit row keeps only the record's id, never its contents
+ *  (a deletion is often an erasure request — the audit trail must not keep the personal data it removed). */
+export async function deleteRow(actor: Actor, entity: string, id: string, opts: { flow?: string; action?: string; audit?: boolean } = {}): Promise<boolean> {
+  const e = entityOf(entity);
+  const scope = scopeOf(actor, entity);
+  let r;
+  try {
+    r = await inScope(actor, entity, (c) => c.query(
+      `DELETE FROM ${table(entity)} WHERE ${col(e.id.column)} = $1 ${scope ? `AND ${col(scope.column)} = $2` : ''} RETURNING ${col(e.id.column)} AS id`,
+      scope ? [id, scope.value] : [id]));
+  } catch (err) {
+    if (isForeignKeyViolation(err)) throw new InUse();
+    throw err;
+  }
+  if (!r.rows[0]) return false;
+  if (opts.audit !== false) await writeAudit(actor, opts.flow ?? 'direct', opts.action ?? 'delete', entity, id, { [e.id.column]: id });
+  return true;
+}
+
 /** A scheduled sync owns its whole table: clear and refill in one transaction (the Sheets `clear_sheet` + insert of v3). */
 export async function replaceRows(actor: Actor, entity: string, rows: Record<string, unknown>[], opts: { flow?: string } = {}): Promise<number> {
   const e = entityOf(entity); const client = await pool.connect();

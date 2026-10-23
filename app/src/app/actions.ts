@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { currentUser, signInWithPassword, signInAsSeededPersona, destroySession, issueCode, redeemCode, hashPassword, checkPassword, revokeSessions, newId, type SessionUser, demoLogins, rateLimited, recordFailure } from '@/lib/auth';
 import { query } from '@/lib/db';
-import { insertRows, patchRow, listRows, getRow, storeFile, writeAudit, type Actor, NotFound, Conflict, Invalid } from '@/lib/dal';
+import { insertRows, patchRow, deleteRow, listRows, getRow, storeFile, writeAudit, type Actor, NotFound, Conflict, Invalid, InUse } from '@/lib/dal';
 import { validateEntity, applyComputed, validateStage, needsCurrentRow } from '@/lib/validate';
 import { runFlowAction, deliverCode, otpAvailable } from '@/lib/flows';
 import { ENTITIES, OS, AUTH, FLOW_ACTIONS, LIMITS } from '@/config/os.config';
@@ -81,7 +81,7 @@ export async function changePassword(input: unknown): Promise<R> {
 }
 
 // ── the one write path for pages: a modal, stepper, card, approval, board move or public form ──
-const Spec = z.object({ flow: z.string().max(80).optional(), action: z.string().max(80).optional(), direct: z.enum(['insert', 'patch']).optional(), entity: z.string().max(80).optional() }).strict();
+const Spec = z.object({ flow: z.string().max(80).optional(), action: z.string().max(80).optional(), direct: z.enum(['insert', 'patch', 'delete']).optional(), entity: z.string().max(80).optional() }).strict();
 export async function runAction(input: unknown): Promise<Record<string, unknown>> {
   const p = z.object({ pageId: z.string().max(80), spec: Spec, payload: z.record(z.unknown()) }).strict().safeParse(input);
   if (!p.success) return { ok: false, error: 'Invalid request' };
@@ -114,6 +114,10 @@ export async function runAction(input: unknown): Promise<Record<string, unknown>
         return { ok: true, rows, [e.id.column]: rows[0]?.[e.id.column] };
       }
       const id = String(body[e.id.column] ?? ''); if (!id) return { ok: false, error: `${e.id.column} is required` };
+      if (spec.direct === 'delete') {                                            // 23 Oct 2026: a confirm modal deletes the one record (scoped, audited by id only)
+        const done = await deleteRow(actor, spec.entity!, id); revalidatePath('/', 'layout');
+        return done ? { ok: true, deleted: id } : { ok: false, error: 'Not found' };
+      }
       let merged: Record<string, unknown> = { ...clean };
       const sc = e.status?.column; let from = ''; let cur: Record<string, unknown> | null = null;
       if (needsCurrentRow(spec.entity!)) {                                       // stage move / recompute / no_past need the stored row
@@ -139,6 +143,7 @@ export async function runAction(input: unknown): Promise<Record<string, unknown>
     if (err instanceof Conflict) return { ok: false, error: 'This value already exists', code: 'DUPLICATE', errors: { [err.field]: `already in use (${err.existingId})` } };
     if (err instanceof Invalid) return { ok: false, error: 'Please check the values', errors: { [err.field]: 'is not an allowed value' } };
     if (err instanceof NotFound) return { ok: false, error: 'Not found' };
+    if (err instanceof InUse) return { ok: false, error: 'This record is still used by other records and cannot be deleted', code: 'IN_USE' };
     console.error('runAction', key, (err as Error).message);
     return { ok: false, error: 'The request could not be completed' };
   }
