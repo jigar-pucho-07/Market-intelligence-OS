@@ -147,11 +147,13 @@ async function serverActionValidation(c) {
 
   // subscribers (direct:insert / direct:patch)
   const S = (row) => run(c, 'subscribers', { direct: 'insert', entity: 'subscribers' }, row);
-  const base = { Name: 'ZZTEST Sub', Opt_In_At: '2099-01-01', Opt_In_Source: 'Web form', Status: 'Active' };
+  // 23 Oct 2026: the report goes by email — Email is required for an Active subscriber, WhatsApp is optional and no longer unique
+  const base = { Name: 'ZZTEST Sub', Email: 'zztest.sub@example.in', Opt_In_At: '2099-01-01', Opt_In_Source: 'Web form', Status: 'Active' };
   r = await S({ ...base, WhatsApp: '12345' });            check('3.8', r.ok === false && r.errors?.WhatsApp, 'WhatsApp "12345" refused (phone format)', JSON.stringify(r));
-  r = await S({ ...base, WhatsApp: '+919876543210' });    check('3.9', r.ok === false && r.code === 'DUPLICATE', 'WhatsApp of SUB-2026-0001 refused as duplicate', JSON.stringify(r));
-  r = await S({ ...base, Name: 'ZZTEST Dup spaced', WhatsApp: '+91 98765 43210' }); check('3.10', r.ok === false && r.code === 'DUPLICATE', 'the same number typed "+91 98765 43210" refused as duplicate', `ok=${r.ok} id=${r.Subscriber_ID ?? ''} (stored un-normalised; two rows → two WhatsApps to one person)`);
-  r = await S({ ...base, Name: 'ZZTEST Dup local', WhatsApp: '9876543210' });       check('3.10', r.ok === false && r.code === 'DUPLICATE', 'the same number without +91 refused as duplicate', `ok=${r.ok} id=${r.Subscriber_ID ?? ''}`);
+  r = await S({ ...base, Email: '' });                     check('3.9', r.ok === false && r.errors?.Email, 'Active subscriber without Email refused (requires_on)', JSON.stringify(r));
+  r = await S({ ...base, Name: 'ZZTEST No WhatsApp 1', Email: 'zztest.nowa1@example.in' }); const nw1 = r;
+  r = await S({ ...base, Name: 'ZZTEST No WhatsApp 2', Email: 'zztest.nowa2@example.in' });
+  check('3.10', nw1.ok === true && r.ok === true, 'two subscribers without a WhatsApp number are both accepted (blank numbers do not collide)', `first ok=${nw1.ok} second ok=${r.ok} ${r.code ?? ''}`);
   r = await S({ ...base, WhatsApp: '+919000099002', Opt_In_At: '' }); check('3.11', r.ok === false && r.errors?.Opt_In_At, 'Active without Opt_In_At refused (requires_on)', JSON.stringify(r));
   r = await S({ ...base, WhatsApp: '+919000099003', Opt_In_Source: 'Email' }); check('3.12', r.ok === false && r.errors?.Opt_In_Source, 'Opt_In_Source outside one_of refused', JSON.stringify(r));
   r = await S({ ...base, WhatsApp: '+919000099004', Opt_In_At: '2026-02-30' }); check('3.12', r.ok === false && r.errors?.Opt_In_At, 'Opt_In_At 2026-02-30 refused (not a date)', JSON.stringify(r));
@@ -159,7 +161,7 @@ async function serverActionValidation(c) {
   r = await S({ ...base, Name: 'ZZTEST Bogus status', WhatsApp: '+919000099006', Status: 'Deleted' }); check('3.13', r.ok === false, 'Status "Deleted" (not a declared status) refused on insert', `ok=${r.ok} id=${r.Subscriber_ID ?? ''} — the row is stuck: transitions["Deleted"] = []`);
   r = await run(c, 'subscribers', { direct: 'patch', entity: 'subscribers' }, { Subscriber_ID: FX.sub, Status: 'Active' }); check('3.14', r.ok === false && r.errors?.Status, 'Unsubscribed → Active refused (final)', JSON.stringify(r));
   r = await run(c, 'subscribers', { direct: 'patch', entity: 'subscribers' }, { Subscriber_ID: FX.sub, Status: 'Paused' }); check('3.14', r.ok === false && r.errors?.Status, 'Unsubscribed → Paused refused (final)', JSON.stringify(r));
-  r = await run(c, 'subscribers', { direct: 'patch', entity: 'subscribers' }, { Subscriber_ID: 'SUB-2026-0002', WhatsApp: '+919876543210' }); check('3.9', r.ok === false && r.code === 'DUPLICATE', 'edit_subscriber onto another subscriber’s number → DUPLICATE', JSON.stringify(r));
+  r = await run(c, 'subscribers', { direct: 'patch', entity: 'subscribers' }, { Subscriber_ID: 'SUB-2026-0002', Email: '' }); check('3.9', r.ok === false && r.errors?.Email, 'edit_subscriber clearing an Active subscriber’s Email → refused', JSON.stringify(r));
 
   // simulated flow effects (no WEBHOOK_* set): MARKET_REPORT.run, BROADCAST.send, BROADCAST.retry
   r = await run(c, 'today', { flow: 'MARKET_REPORT', action: 'run' }, { Trigger: 'Manual' });
@@ -212,7 +214,7 @@ async function door() {
   r = await D(`/api/data/reports?Report_ID=eq.${FX.failed}`, 'PATCH', { Status: 'Ready', ...{ Sentiment: 'NEUTRAL', Confidence_Level: 'LOW', Driver_1: 'ZZTEST re-run', WhatsApp_Message: 'ZZTEST' } }); check('4.10', r.status === 200, 'PATCH Failed → Ready with the required fields → 200 (the real re-run path)', String(r.status));
   r = await D(`/api/data/subscribers?Subscriber_ID=eq.${FX.sub}`, 'PATCH', { Status: 'Active' }); check('4.11', r.status === 400, 'PATCH subscriber Unsubscribed → Active → 400', String(r.status));
   r = await D('/api/data/subscribers', 'POST', [{ Name: 'ZZTEST door', WhatsApp: '98-765-432', Status: 'Paused' }]); check('4.12', r.status === 400, 'subscriber WhatsApp "98-765-432" → 400', String(r.status));
-  r = await D('/api/data/subscribers', 'POST', [{ Name: 'ZZTEST door', WhatsApp: '+919820011223', Status: 'Paused' }]); check('4.12', r.status === 409, 'subscriber duplicate WhatsApp → 409', String(r.status));
+  r = await D('/api/data/subscribers', 'POST', [{ Name: 'ZZTEST door', Opt_In_At: '2099-01-01', Opt_In_Source: 'Web form', Status: 'Active' }]); check('4.12', r.status === 400, 'Active subscriber without Email → 400 (requires_on)', String(r.status));
   r = await D('/api/data/subscribers', 'POST', [{ Name: 'ZZTEST door', WhatsApp: '+919000099010', Status: 'Active' }]); check('4.13', r.status === 400, 'Active subscriber without opt-in → 400', String(r.status));
   const dl = { Kind: 'Report', Report_ID: FX.sent, Report_Date: '2099-01-03', Subscriber_ID: 'SUB-2026-0001', Subscriber_Name: 'Amit Shah', Status: 'Queued' };
   r = await D('/api/data/deliveries', 'POST', [dl]); check('4.14', r.status === 409, 'delivery duplicate (Report_Date, Subscriber_ID, Kind) → 409', `${r.status} ${await r.text()}`);
@@ -231,7 +233,8 @@ async function database() {
   const who = await sql('SELECT current_user AS u, (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) AS su'); note('5.2', `dev app connects as ${who[0].u} (superuser=${who[0].su}) — RLS and the app role are bypassed locally`);
   const g = await sql(`SELECT table_name FROM information_schema.role_table_grants WHERE grantee = 'studio_reader' ORDER BY 1`); note('5.3', `studio_reader SELECT grants: ${[...new Set(g.map((x) => x.table_name))].join(', ')}`);
   const ug = await sql(`SELECT count(*)::int AS n FROM information_schema.role_table_grants WHERE grantee = 'studio_reader' AND table_name IN ('users','sessions','otp_codes','files','jobs','signin_attempts')`); check('5.3', ug[0].n === 0, 'studio_reader has no grant on users/sessions/otp_codes/files/jobs/signin_attempts');
-  const idx = await sql(`SELECT indexname FROM pg_indexes WHERE indexname IN ('reports_report_date_uq','published_reports_report_date_uq','subscribers_whatsapp_uq','deliveries_report_date_subscriber_id_kind_uq')`); check('5.4', idx.length === 4, `the four declared UNIQUE indexes exist (${idx.length}/4)`);
+  const idx = await sql(`SELECT indexname FROM pg_indexes WHERE indexname IN ('reports_report_date_uq','published_reports_report_date_uq','deliveries_report_date_subscriber_id_kind_uq')`); check('5.4', idx.length === 3, `the three declared UNIQUE indexes exist (${idx.length}/3)`);
+  const waIdx = await sql(`SELECT indexname FROM pg_indexes WHERE indexname = 'subscribers_whatsapp_uq'`); check('5.4', waIdx.length === 0, 'subscribers_whatsapp_uq is gone (WhatsApp is optional since 23 Oct 2026)');
   // the DB is the last line: a CHECK refuses what the app would refuse, inside a rolled-back transaction
   for (const [label, q] of [['Confidence_Pct 101', `UPDATE reports SET confidence_pct = 101 WHERE report_id = '${FX.sent}'`], ['Sentiment bogus', `UPDATE reports SET sentiment = 'MEGA' WHERE report_id = '${FX.sent}'`], ['Status bogus', `UPDATE reports SET status = 'Draft' WHERE report_id = '${FX.sent}'`]]) {
     let refused = false; try { await sql(`BEGIN; ${q}; ROLLBACK;`); } catch { refused = true; }
