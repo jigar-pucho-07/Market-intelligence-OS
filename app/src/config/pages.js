@@ -6,14 +6,19 @@ export const PAGES = [
     "route": "/",
     "label": "Overview",
     "icon": "LayoutDashboard",
-    "desc": "This morning's exceptions first, then the month's delivery numbers",
-    "subtitle": "What needs a person this morning, then how the reports are landing",
+    "desc": "The month's numbers and charts first, then this morning's exceptions",
+    "subtitle": "How the reports are landing, then what needs a person this morning",
     "greeting": "Here is the market desk this morning.",
     "covers": [
       "R27",
       "R13"
     ],
     "quick_links": false,
+    "order": [
+      "kpis",
+      "charts",
+      "queues"
+    ],
     "queues": [
       {
         "metric": "ready_unsent",

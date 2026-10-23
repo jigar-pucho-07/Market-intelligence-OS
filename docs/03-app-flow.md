@@ -1,6 +1,6 @@
 # 03 — App Flow · Market Intelligence
 ## Pages
-- **overview** `/` — This morning's exceptions first, then the month's delivery numbers
+- **overview** `/` — The month's numbers and charts first, then this morning's exceptions
 - **today** `/today` — The 6 AM report as subscribers will read it, with review, send and re-run
 - **reports** `/reports` — Every daily report, its views and who received it
 - **news** `/news` — Every article the runs analysed, by category, impact and source

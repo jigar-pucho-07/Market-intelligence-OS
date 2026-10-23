@@ -547,12 +547,13 @@ pages:
     route: /
     label: Overview
     icon: LayoutDashboard
-    desc: This morning's exceptions first, then the month's delivery numbers
-    subtitle: What needs a person this morning, then how the reports are landing
+    desc: The month's numbers and charts first, then this morning's exceptions
+    subtitle: How the reports are landing, then what needs a person this morning
     greeting: Here is the market desk this morning.
     roles: [admin, analyst]
     covers: [R27, R13]
     quick_links: false
+    order: [kpis, charts, queues]   # 23 Oct 2026: number tiles and charts at the top, Needs action below them
     queues:
       - { metric: ready_unsent,      action: send_now, action_label: Send,   link: /today }
       - { metric: failed_runs,       action: rerun,    action_label: Re-run, link: /pipeline }

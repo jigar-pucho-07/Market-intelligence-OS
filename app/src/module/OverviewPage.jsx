@@ -50,9 +50,17 @@ export default function OverviewPage({ config }) {
         <motion.div variants={itemVariants}><p className="text-[14px] text-ink-2">Welcome back, <span className="font-semibold text-ink">{user?.name}</span>. {config.greeting ?? ''}</p></motion.div>
         {charts.some((c) => c.type === 'trend') && <motion.div variants={itemVariants}><Segmented options={Object.keys(PERIODS)} value={period} onChange={setPeriod} aria-label="Trend period" /></motion.div>}
       </motion.div>
-      {config.queues?.length > 0 && <Queue block={{ type: 'needs_action', id: 'needs-action', groups: config.queues, title: config.queues_title ?? 'Needs action', limit: config.queues_limit ?? 3, empty: config.queues_empty }} page={page} data={data} user={user} openModal={openModal} reload={reload} />}
-      <Kpis kpis={config.kpis} data={data} loading={loading} user={user} layout={config.kpi_layout ?? 'strip'} />
-      <Charts charts={charts} data={data} loading={loading} user={user} />
+      {/* os.yaml `order: [kpis, charts, queues]` (23 Oct 2026) puts the numbers and charts above Needs action; default unchanged.
+          Unknown or repeated names are ignored, and a section the order leaves out is added after it, so nothing disappears. */}
+      {(() => {
+        const parts = {
+          queues: config.queues?.length > 0 ? <Queue key="queues" block={{ type: 'needs_action', id: 'needs-action', groups: config.queues, title: config.queues_title ?? 'Needs action', limit: config.queues_limit ?? 3, empty: config.queues_empty }} page={page} data={data} user={user} openModal={openModal} reload={reload} /> : null,
+          kpis: <Kpis key="kpis" kpis={config.kpis} data={data} loading={loading} user={user} layout={config.kpi_layout ?? 'strip'} />,
+          charts: <Charts key="charts" charts={charts} data={data} loading={loading} user={user} />,
+        };
+        const asked = (Array.isArray(config.order) ? config.order : []).filter((k, i, a) => k in parts && a.indexOf(k) === i);
+        return [...asked, ...['queues', 'kpis', 'charts'].filter((k) => !asked.includes(k))].map((k) => parts[k]);
+      })()}
       <div className={`grid grid-cols-1 ${config.quick_links ? 'lg:grid-cols-3' : ''} gap-5`}>
         {config.recent && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className={`${config.quick_links ? 'lg:col-span-2' : ''} ${CARD}`}>

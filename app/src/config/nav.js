@@ -7,9 +7,9 @@ export const NAV = [
     "path": "/",
     "label": "Overview",
     "icon": "LayoutDashboard",
-    "desc": "This morning's exceptions first, then the month's delivery numbers",
+    "desc": "The month's numbers and charts first, then this morning's exceptions",
     "kind": "overview",
-    "subtitle": "What needs a person this morning, then how the reports are landing"
+    "subtitle": "How the reports are landing, then what needs a person this morning"
   },
   {
     "id": "today",
