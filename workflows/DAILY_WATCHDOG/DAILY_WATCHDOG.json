@@ -43,7 +43,7 @@
           "input": {},
           "sampleData": {},
           "sourceCode": {
-            "code": "// @ts-nocheck\nexport const code = async (inputs) => {\n  return {\n    \"flow\": \"DAILY_WATCHDOG\",\n    \"app_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"inbound_token\": \"SET_IN_STUDIO_INBOUND_TOKEN\",\n    \"holidays\": [],\n    \"broadcast_webhook\": \"SET_IN_STUDIO_BROADCAST_WEBHOOK_URL\",\n    \"broadcast_secret\": \"SET_IN_STUDIO_BROADCAST_WEBHOOK_SECRET\"\n  };\n};",
+            "code": "// @ts-nocheck\nexport const code = async (inputs) => {\n  return {\n    \"flow\": \"DAILY_WATCHDOG\",\n    \"app_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"inbound_token\": \"SET_IN_STUDIO_INBOUND_TOKEN\",\n    \"holidays\": [],\n    \"broadcast_webhook\": \"SET_IN_STUDIO_BROADCAST_WEBHOOK_URL\"\n  };\n};",
             "packageJson": "{}"
           },
           "errorHandlingOptions": {
@@ -148,9 +148,7 @@
                       "headers": {
                         "Content-Type": "application/json"
                       },
-                      "queryParams": {
-                        "k": "{{step_constants['broadcast_secret']}}"
-                      },
+                      "queryParams": {},
                       "authType": "NONE",
                       "body_type": "json",
                       "body": {
@@ -264,7 +262,7 @@
                     },
                     "displayName": "Return: alerted"
                   },
-                  "displayName": "POST BROADCAST {action: alert} ?k= (BROADCAST writes the fixed watchdog text)"
+                  "displayName": "POST BROADCAST {action: alert} (BROADCAST writes the fixed watchdog text)"
                 },
                 {
                   "name": "step_ok_done",
@@ -361,7 +359,7 @@
           },
           "displayName": "GET reports (the app's door)"
         },
-        "displayName": "Constants — holidays (NSE trading holidays, ⚑ G3: the SAME list in DAILY_SCHEDULE and DAILY_WATCHDOG), app_url, inbound_token and BROADCAST's URL + secret"
+        "displayName": "Constants — holidays (NSE trading holidays, ⚑ G3: the SAME list in DAILY_SCHEDULE and DAILY_WATCHDOG), app_url, inbound_token and BROADCAST's URL"
       }
     },
     "valid": true,

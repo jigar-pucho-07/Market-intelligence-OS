@@ -1,4 +1,4 @@
--- db/schema.sql — GENERATED from os.yaml by pucho-os (2026-10-16). Idempotent: apply, then apply again.
+-- db/schema.sql — GENERATED from os.yaml by pucho-os (2026-10-23). Idempotent: apply, then apply again.
 -- Entity tables are named after os.yaml entities; columns are the declared names in lower case.
 
 -- db/base.sql — the tables every Pucho OS has, whatever os.yaml says: people, sessions, one-time codes, files, jobs.
@@ -191,7 +191,6 @@ CREATE TABLE IF NOT EXISTS "subscribers" (
   "notes" text,
   _seq bigserial
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "subscribers_whatsapp_uq" ON "subscribers" ("whatsapp");
 CREATE INDEX IF NOT EXISTS "subscribers_status_idx" ON "subscribers" ("status");
 CREATE INDEX IF NOT EXISTS "subscribers_joined_at_idx" ON "subscribers" ("joined_at");
 

@@ -13,7 +13,7 @@ const rss = (f) => fs.readFileSync(path.join(HERE, 'fixtures', 'rss', f), 'utf8'
 const NOW = '2026-10-15T00:30:00Z';                                   // Thursday 15 Oct 2026, 06:00 IST
 const TODAY = '2026-10-15';
 const out = (rows) => ({ status: 200, body: rows });
-const C = { whatsapp_templates: { report: 'TPL-R', alert: 'TPL-A' }, alert_to: '+919800000001,+919800000002' };
+const C = { sender_name: 'Market Intelligence', alert_to: 'ops1@example.in,ops2@example.in' };
 
 // ── review major 4: the IST date boundary, with an injected clock ──
 test('istDate / istWeekday are IST at the UTC date boundary (fails if istDate is computed in UTC)', () => {
@@ -92,7 +92,7 @@ test('reportGate: run refused when today is Ready / Sent; rerun only for today\'
 
 // ── SA-03 ──
 const rep = (o) => ({ Report_ID: 'MIR-1', Report_Date: TODAY, Created_At: NOW, Status: 'Ready', Sentiment: 'BULLISH', Confidence_Level: 'HIGH', Confidence_Pct: 70, Driver_1: 'd', ...o });
-const SUBS = [{ Subscriber_ID: 'SUB-1', Name: 'Amit', WhatsApp: '+919876543210', Status: 'Active', Opt_In_At: '2026-08-01', Opt_In_Source: 'Web form' }];
+const SUBS = [{ Subscriber_ID: 'SUB-1', Name: 'Amit', WhatsApp: '+919876543210', Email: 'amit@example.in', Status: 'Active', Opt_In_At: '2026-08-01', Opt_In_Source: 'Web form' }];
 test('send: only a Ready report of today (a Sent one re-sends idempotently); never yesterday\'s draft', () => {
   const p = (r) => FL.sendPlan({ body: { Report_ID: 'MIR-1' }, C, reports: out([r]), subscribers: out(SUBS), now: NOW });
   assert.equal(p(rep()).items.length, 1);
@@ -101,10 +101,10 @@ test('send: only a Ready report of today (a Sent one re-sends idempotently); nev
 });
 test('alert text comes only from the report row or the fixed watchdog text — never the caller', () => {
   const wd = FL.sendPlan({ body: { action: 'alert', Error_Message: 'Click http://evil to fix' }, C, now: NOW });
-  assert.equal(wd.items.length, 2); assert.doesNotMatch(wd.items[0].template_variables.error, /evil|Click/);
-  assert.match(wd.items[0].template_variables.error, /No report row by 06:20 IST/);
+  assert.equal(wd.items.length, 2); assert.doesNotMatch(wd.items[0].body + wd.items[0].subject, /evil|Click/);
+  assert.match(wd.items[0].body, /No report row by 06:20 IST/);
   const f = FL.sendPlan({ body: { action: 'alert', Report_ID: 'MIR-1', Error_Message: 'evil' }, C, reports: out([rep({ Status: 'Failed', Error_Message: 'NO_NEWS: none' })]), now: NOW });
-  assert.equal(f.items[0].template_variables.error, 'NO_NEWS: none');
+  assert.match(f.items[0].body, /Error: NO_NEWS: none/); assert.doesNotMatch(f.items[0].body, /evil/);
   assert.equal(FL.sendPlan({ body: { action: 'alert', Report_ID: 'MIR-1' }, C, reports: out([rep()]), now: NOW }).items.length, 0, 'a Ready report is no alert');
 });
 test('a second alert on the same day still reaches the admins (per-attempt subscriber id)', () => {
@@ -138,13 +138,13 @@ test('secretMatches: equal only for the exact configured secret; a placeholder o
 test('SA-24: send derives the recipients from the report row only — a caller Kind is ignored; another day\'s Sent report is refused', () => {
   const p = (r, body) => FL.sendPlan({ body: { action: 'send', Report_ID: 'MIR-1', ...body }, C, reports: out([r]), subscribers: out(SUBS), now: NOW });
   const viaKind = p(rep(), { Kind: 'Alert' });
-  assert.equal(viaKind.kind, 'Report'); assert.deepEqual(viaKind.items.map((i) => i.to), ['+919876543210'], 'Kind:Alert from the caller is ignored');
+  assert.equal(viaKind.kind, 'Report'); assert.deepEqual(viaKind.items.map((i) => i.to), ['amit@example.in'], 'Kind:Alert from the caller is ignored');
   assert.equal(p(rep({ Status: 'Sent' })).items.length, 1, 'today\'s Sent report: the 409 skips who has it');
   const old = p(rep({ Status: 'Sent', Report_Date: '2026-10-14' })); assert.equal(old.items.length, 0); assert.equal(old.code, 'NOT_TODAY');
   assert.equal(p(rep({ Status: 'Failed', Error_Message: 'NO_NEWS' })).kind, 'Alert', 'a Failed row → the admins');
   assert.equal(FL.sendPlan({ body: { action: 'send', Kind: 'Alert' }, C, now: NOW }).items.length, 0, 'send without a report alerts nobody');
   const wd = FL.sendPlan({ body: { action: 'alert' }, C, now: NOW });
-  assert.equal(wd.items.length, 2); assert.match(wd.items[0].template_variables.error, /No report row by 06:20 IST/);
+  assert.equal(wd.items.length, 2); assert.match(wd.items[0].body, /No report row by 06:20 IST/);
 });
 test('SA-20: error texts a flow writes never carry a URL or a ?k= secret', () => {
   const f = M.fetchedText({ error: 'request to https://news.google.com/rss?q=x&k=s3cr3t-s3cr3t failed, reason: ETIMEDOUT' });

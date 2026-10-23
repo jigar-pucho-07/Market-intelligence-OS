@@ -3,15 +3,15 @@
   "connections": "portable",
   "fire_and_forget": false,
   "allow_pieces": [
+    "@puchoaistudio/tool-gmail",
     "@puchoaistudio/tool-http",
-    "@puchoaistudio/tool-pucho-whatsapp",
     "@puchoaistudio/tool-webhook"
   ],
   "allow_names": [
     "catch_webhook",
     "return_response",
-    "send_request",
-    "send_template_message"
+    "send_email",
+    "send_request"
   ],
   "require_capabilities": [
     "webhook=trigger:webhook:trigger",
@@ -23,7 +23,7 @@
     "read_subscribers=step_send_subscribers:http:read",
     "plan=step_send_plan:code:transform",
     "queue=step_send_queue:http:write",
-    "send=step_send_whatsapp:pucho-whatsapp:write",
+    "send=step_send_email:gmail:write",
     "result=step_send_result:code:transform",
     "delivery_update=step_send_update:http:write",
     "publish=step_send_publish:http:write",
@@ -33,7 +33,7 @@
     "retry_read_reports=step_retry_reports:http:read",
     "retry_plan=step_retry_plan:code:transform",
     "retry_claim=step_retry_claim:http:write",
-    "retry_send=step_retry_whatsapp:pucho-whatsapp:write",
+    "retry_send=step_retry_email:gmail:write",
     "retry_result=step_retry_result:code:transform",
     "retry_update=step_retry_update:http:write",
     "retry_publish=step_retry_publish:http:write",

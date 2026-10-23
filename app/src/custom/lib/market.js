@@ -409,6 +409,33 @@ export function alertTemplateVars({ error, reportDate, now = Date.now() }) {
   const t = istLabel(now);
   return { error: clean(error, 160) || 'The report could not be generated', date: reportDate ? istLabel(`${reportDate}T09:00:00+05:30`).date : t.date, time: t.time };
 }
+// ── email (owner decision 23 Oct 2026: BROADCAST sends by Gmail, not WhatsApp; the WhatsApp helpers above stay for the app's preview) ──
+const EMAIL_RE = /^[^\s@<>"',;()[\]\\]+@[^\s@<>"',;()[\]\\]+\.[a-z]{2,}$/i;
+/** A usable address, lower-cased; anything else is ''. */
+export function normaliseEmail(e) { const v = String(e || '').trim().toLowerCase(); return v.length <= 254 && EMAIL_RE.test(v) ? v : ''; }
+/** constants.alert_to: comma / space separated addresses; a placeholder means "not set yet". */
+export function adminEmails(alertTo) { return /SET_IN_STUDIO/.test(String(alertTo || '')) ? [] : [...new Set(String(alertTo || '').split(/[,;\s]+/).map(normaliseEmail).filter(Boolean))]; }
+/** Who may receive the report by email: Active, with an opt-in date and an allowed opt-in source, and a usable address. */
+export function isEmailEligible(s) { return !!s && s.Status === 'Active' && !!String(s.Opt_In_At || '').trim() && ENUMS.Opt_In_Source.includes(s.Opt_In_Source) && !!normaliseEmail(s.Email); }
+const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+const oneLine = (s, n) => clean(String(s ?? '').replace(/[\r\n]+/g, ' '), n);
+/** The report text (already re-checked and rebuilt by sanitizeReportRow) as simple HTML: escaped, *bold* → <b>, line breaks kept. */
+export function textToHtml(text) {
+  const body = escHtml(text).replace(/\*([^*\n]+)\*/g, '<b>$1</b>').replace(/\r?\n/g, '<br>');
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5">${body}</div>`;
+}
+/** The report email: subject from the row's date, sentiment and confidence; body = the stored report text (rebuilt when empty). */
+export function reportEmail(r) {
+  const v = reportTemplateVars(r);
+  const text = String(r.WhatsApp_Message || '').trim() || formatWhatsApp(r, r.Created_At || `${r.Report_Date}T00:30:00Z`);
+  return { subject: oneLine(`Daily Market Intelligence — ${v.date} · ${v.sentiment || 'Report'}${v.confidence ? ` (${v.confidence})` : ''}`, 180), body: textToHtml(text) };
+}
+/** The admin alert email: the error, the report date and the IST time — text only from the row or the fixed watchdog text. */
+export function alertEmail({ error, reportDate, now = Date.now() }) {
+  const v = alertTemplateVars({ error, reportDate, now });
+  return { subject: oneLine(`Market Intelligence — report run failed (${v.date})`, 180),
+    body: textToHtml(`*Report run failed*\nDate: ${v.date}\nTime: ${v.time}\nError: ${v.error}\n\nOpen the app to re-run today's report.`) };
+}
 /** The rows of an /api/data GET, or null when the door refused (403 while INBOUND_TOKEN is unset, a 5xx, a failed step). */
 export function rowsOf(out) { const b = out && typeof out === 'object' ? out.body : undefined; return Array.isArray(b) ? b : Array.isArray(out) ? out : null; }
 export function statusOf(out) {

@@ -53,8 +53,8 @@ export const NAV = [
     "path": "/subscribers",
     "label": "Subscribers",
     "icon": "Users",
-    "desc": "Who receives the report on WhatsApp",
-    "subtitle": "Add, pause or remove WhatsApp subscribers — only people who opted in"
+    "desc": "Who receives the report by email",
+    "subtitle": "Add, pause or remove subscribers — only people who opted in"
   },
   {
     "id": "deliveries",

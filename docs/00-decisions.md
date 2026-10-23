@@ -12,7 +12,7 @@ _Generated from os.yaml. The step-2 summary: roles and homes, journeys, entities
 - **analyst** · Check the 6 AM report and send it — lands on `today` · 3 steps: Today's report opens on the sentiment and segments → Review & edit on the report row (only if a view needs changing) → Send to subscribers on the same row
 - **analyst** · Recover a failed run — lands on `pipeline` · 3 steps: Pipeline opens on the run log, Failed segment → Read the error and source counts on the row → Re-run report now on the row
 - **admin** · Clear this morning's exceptions — lands on `overview` · 2 steps: Overview opens on Needs action → Send / Retry delivery / Re-run on the row
-- **admin** · Add a WhatsApp subscriber — lands on `subscribers` · 2 steps: Subscribers → Add subscriber → Name, WhatsApp number, opt-in date and how they opted in → Add
+- **admin** · Add a subscriber — lands on `subscribers` · 2 steps: Subscribers → Add subscriber → Name, email, opt-in date and how they opted in → Add
 - **subscriber** · Read today's report before the open — lands on `me_today` · 2 steps: Today's report opens on sentiment, drivers and segments → Scroll to sectors, risks, the market view and news
 
 ## D3 · Entities

@@ -5,7 +5,7 @@
 - **reports** `/reports` — Every daily report, its views and who received it
 - **news** `/news` — Every article the runs analysed, by category, impact and source
 - **pipeline** `/pipeline` — The workflow steps, its configuration and every run with its source counts and errors
-- **subscribers** `/subscribers` — Who receives the report on WhatsApp
+- **subscribers** `/subscribers` — Who receives the report by email
 - **deliveries** `/deliveries` — Every WhatsApp sent, with its status — retry the failed ones
 - **activity** `/activity` — Every change by a person or a flow
 - **me_today** `/me` — This morning's report, as sent on WhatsApp, in full

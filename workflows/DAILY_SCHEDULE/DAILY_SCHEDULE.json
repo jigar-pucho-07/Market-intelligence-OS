@@ -47,7 +47,7 @@
           "input": {},
           "sampleData": {},
           "sourceCode": {
-            "code": "// @ts-nocheck\nexport const code = async (inputs) => {\n  return {\n    \"flow\": \"DAILY_SCHEDULE\",\n    \"holidays\": [],\n    \"market_report_webhook\": \"SET_IN_STUDIO_MARKET_REPORT_WEBHOOK_URL\",\n    \"market_report_secret\": \"SET_IN_STUDIO_MARKET_REPORT_WEBHOOK_SECRET\"\n  };\n};",
+            "code": "// @ts-nocheck\nexport const code = async (inputs) => {\n  return {\n    \"flow\": \"DAILY_SCHEDULE\",\n    \"holidays\": [],\n    \"market_report_webhook\": \"SET_IN_STUDIO_MARKET_REPORT_WEBHOOK_URL\"\n  };\n};",
             "packageJson": "{}"
           },
           "errorHandlingOptions": {
@@ -164,9 +164,7 @@
                     "headers": {
                       "Content-Type": "application/json"
                     },
-                    "queryParams": {
-                      "k": "{{step_constants['market_report_secret']}}"
-                    },
+                    "queryParams": {},
                     "authType": "NONE",
                     "body_type": "json",
                     "body": {
@@ -279,7 +277,7 @@
                   },
                   "displayName": "Return: queued"
                 },
-                "displayName": "POST MARKET_REPORT {action: run, Trigger: Schedule} ?k= — async, not /sync"
+                "displayName": "POST MARKET_REPORT {action: run, Trigger: Schedule} — async, not /sync"
               }
             ],
             "settings": {
@@ -310,7 +308,7 @@
           },
           "displayName": "Weekday and not an NSE holiday? (CODE)"
         },
-        "displayName": "Constants — holidays (NSE trading holidays, ⚑ G3: the SAME list in DAILY_SCHEDULE and DAILY_WATCHDOG) and MARKET_REPORT's URL + secret"
+        "displayName": "Constants — holidays (NSE trading holidays, ⚑ G3: the SAME list in DAILY_SCHEDULE and DAILY_WATCHDOG) and MARKET_REPORT's URL"
       }
     },
     "valid": true,

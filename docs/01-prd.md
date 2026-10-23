@@ -1,5 +1,5 @@
 # 01 — PRD · Market Intelligence
-_Generated 2026-10-16 from os.yaml._
+_Generated 2026-10-23 from os.yaml._
 
 **Client:** Market Intelligence — Daily pre-market report for NSE/BSE traders  
 **Outcome:** A Daily Market Intelligence report reaches every subscriber on WhatsApp before the market opens at 9:15 AM IST, and the analyst sees and fixes anything that failed.  
@@ -11,7 +11,7 @@ _Generated 2026-10-16 from os.yaml._
 - **reports** `/reports` — Every daily report, its views and who received it
 - **news** `/news` — Every article the runs analysed, by category, impact and source
 - **pipeline** `/pipeline` — The workflow steps, its configuration and every run with its source counts and errors
-- **subscribers** `/subscribers` — Who receives the report on WhatsApp
+- **subscribers** `/subscribers` — Who receives the report by email
 - **deliveries** `/deliveries` — Every WhatsApp sent, with its status — retry the failed ones
 - **activity** `/activity` — Every change by a person or a flow
 - **me_today** `/me` — This morning's report, as sent on WhatsApp, in full

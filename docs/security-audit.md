@@ -97,7 +97,7 @@ Findings marked **observed** were checked against the local build (http://localh
 ## Accepted risks
 | ID | Why accepted | Accepted by | Date |
 |----|--------------|-------------|------|
-| — | none yet | — | — |
+| SA-01..SA-04 (REOPENED) | The `?k=` webhook secret check was removed from all five webhook flows at the owner's request, because pairing the secrets in Studio kept failing. The first step now checks only the action (400 for an unknown one). Anyone who knows a webhook URL can start a report (AI and feed spend) or a BROADCAST send. Mitigation: keep the webhook URLs private, keep `auto_send` off until BROADCAST is wired, set a Studio budget alert. The table above still describes the earlier, fixed state. | Owner (jigar07.le@gmail.com) | 23 Oct 2026 |
 
 ## Not covered
 - **Studio behaviour** (no import was made):

@@ -33,13 +33,15 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **body_type**: `json`
   - **body**: `{"data": {"Kind": "{{step_send_loop['item']['delivery']['Kind']}}", "Report_ID": "{{step_send_loop['item']['delivery']['Report_ID']}}", "Report_Date": "{{step_send_loop['item']['delivery']['Report_Date']}}", "Subscriber_ID": "{{step_send_loop['item']['delivery']['Subscriber_ID']}}", "Subscriber_Name": "{{step_send_loop['item']['delivery']['Subscriber_Name']}}", "Sentiment": "{{step_send_loop['item']['delivery']['Sentiment']}}", "Status": "{{step_send_loop['item']['delivery']['Status']}}", "Delivery_ID": "", "Attempts": 1}}`
 
-## 5. Send WhatsApp template (mi_daily_report · mi_run_failed) (`step_send_whatsapp`, pucho-whatsapp)
-- [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
-- [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
-  - **account_id**: `{{step_constants['whatsapp_account_id']}}`
-  - **to**: `{{step_send_loop['item']['to']}}`
-  - **template_id**: `{{step_send_loop['item']['template_id']}}`
-  - **template_variables**: `{{step_send_loop['item']['template_variables']}}`
+## 5. Send email (Gmail): the report, or the admin alert (`step_send_email`, gmail)
+- [ ] Pick your **gmail** connection.
+- [ ] Studio may blank the boxes below when the connection is picked. Check each one; paste the value if empty:
+  - **receiver**: `["{{step_send_loop['item']['to']}}"]`
+  - **subject**: `{{step_send_loop['item']['subject']}}`
+  - **body_type**: `html`
+  - **body**: `{{step_send_loop['item']['body']}}`
+  - **sender_name**: `{{step_constants['sender_name']}}`
+  - **draft**: `false`
 
 ## 6. PATCH the delivery Sent (message id) or Failed (error) (`step_send_update`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
@@ -52,13 +54,12 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **body_type**: `json`
   - **body**: `{"data": {"Status": "{{step_send_result['Status']}}", "Message_ID": "{{step_send_result['Message_ID']}}", "Error_Message": "{{step_send_result['Error_Message']}}", "Sent_At": "{{step_send_result['Sent_At']}}"}}`
 
-## 7. POST MARKET_PUBLISH ?k= — counts, reader copy, job (`step_send_publish`, http)
+## 7. POST MARKET_PUBLISH — counts, reader copy, job (`step_send_publish`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
 - [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
   - **method**: `POST`
   - **url**: `{{step_constants['market_publish_webhook']}}`
   - **headers**: `application/json`
-  - **queryParams**: `{{step_constants['market_publish_secret']}}`
   - **authType**: `NONE`
   - **body_type**: `json`
   - **body**: `{"data": {"action": "publish", "Report_ID": "{{step_send_plan['publish']['Report_ID']}}", "_job": "{{step_send_plan['publish']['_job']}}", "_who": "flow:BROADCAST"}}`
@@ -101,13 +102,15 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **body_type**: `json`
   - **body**: `{"data": {"Attempts": "{{step_retry_plan['claim']['Attempts']}}"}}`
 
-## 12. Send WhatsApp template mi_daily_report to the number on the subscriber record (`step_retry_whatsapp`, pucho-whatsapp)
-- [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
-- [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
-  - **account_id**: `{{step_constants['whatsapp_account_id']}}`
-  - **to**: `{{step_retry_plan['send']['to']}}`
-  - **template_id**: `{{step_retry_plan['send']['template_id']}}`
-  - **template_variables**: `{{step_retry_plan['send']['template_variables']}}`
+## 12. Send the report email again to the address on the subscriber record (`step_retry_email`, gmail)
+- [ ] Pick your **gmail** connection.
+- [ ] Studio may blank the boxes below when the connection is picked. Check each one; paste the value if empty:
+  - **receiver**: `["{{step_retry_plan['send']['to']}}"]`
+  - **subject**: `{{step_retry_plan['send']['subject']}}`
+  - **body_type**: `html`
+  - **body**: `{{step_retry_plan['send']['body']}}`
+  - **sender_name**: `{{step_constants['sender_name']}}`
+  - **draft**: `false`
 
 ## 13. PATCH the same delivery Sent or Failed (`step_retry_update`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
@@ -120,28 +123,22 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **body_type**: `json`
   - **body**: `{"data": {"Status": "{{step_retry_result['Status']}}", "Message_ID": "{{step_retry_result['Message_ID']}}", "Error_Message": "{{step_retry_result['Error_Message']}}", "Sent_At": "{{step_retry_result['Sent_At']}}"}}`
 
-## 14. POST MARKET_PUBLISH ?k= — refresh the report's counts (`step_retry_publish`, http)
+## 14. POST MARKET_PUBLISH — refresh the report's counts (`step_retry_publish`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
 - [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
   - **method**: `POST`
   - **url**: `{{step_constants['market_publish_webhook']}}`
   - **headers**: `application/json`
-  - **queryParams**: `{{step_constants['market_publish_secret']}}`
   - **authType**: `NONE`
   - **body_type**: `json`
   - **body**: `{"data": {"action": "publish", "Report_ID": "{{step_retry_plan['publish']['Report_ID']}}", "_job": "", "_who": "flow:BROADCAST"}}`
 
-## 15. Constants + webhook secret check (first step) (`step_constants`, code)
+## 15. Constants + action check (first step) (`step_constants`, code)
 - [ ] Open the step's code and replace each placeholder with the real value, then save:
-  - `SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS` → the real value
+  - `SET_IN_STUDIO_ADMIN_EMAILS` → the real value
   - `SET_IN_STUDIO_APP_URL` → the app's public origin, e.g. `https://<client>-os.pucho.app` (no trailing slash)
-  - `SET_IN_STUDIO_BROADCAST_WEBHOOK_SECRET` → the real value
   - `SET_IN_STUDIO_INBOUND_TOKEN` → this flow's own token: set `INBOUND_TOKEN_<FLOW>` in the app's environment and paste the same value here (one token per flow — a leak points at one flow and one flow can be cut off); the shared `INBOUND_TOKEN` also works (docs/security.md § Inbound tokens)
-  - `SET_IN_STUDIO_MARKET_PUBLISH_WEBHOOK_SECRET` → the real value
   - `SET_IN_STUDIO_MARKET_PUBLISH_WEBHOOK_URL` → the real value
-  - `SET_IN_STUDIO_TEMPLATE_ID_MI_DAILY_REPORT` → the approved template's id: open the **Send Template Message** step, pick the template in the **Template** dropdown (the name is in `whatsapp_template_names`), copy the value and paste it here. The template must be approved on whatsapp.pucho.ai first; its {{1}}, {{2}}… must match the variables the step fills
-  - `SET_IN_STUDIO_TEMPLATE_ID_MI_RUN_FAILED` → the approved template's id: open the **Send Template Message** step, pick the template in the **Template** dropdown (the name is in `whatsapp_template_names`), copy the value and paste it here. The template must be approved on whatsapp.pucho.ai first; its {{1}}, {{2}}… must match the variables the step fills
-  - `SET_IN_STUDIO_WHATSAPP_ACCOUNT_ID` → the client's WhatsApp account on Pucho WhatsApp: open any pucho-whatsapp step, pick the account in its **WhatsApp Account** dropdown, copy the value (the account's id) and paste it here — every send step reads it from this constant
 
 ## 16. Publish
 - [ ] Press **Publish**. Edits do nothing until Studio says the flow is published.
@@ -153,7 +150,7 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
 - [ ] Each test must end at a **Return** step with `ok: true` and the row it wrote; a run that stops earlier is a failed path.
 - [ ] A WhatsApp **text** send reaches a number only inside Meta's 24-hour window after the customer last wrote; a reminder or a win-back must be a **template** send (`sends.template`) approved on whatsapp.pucho.ai.
 
-**send — today's Ready report to every Active, opted-in subscriber · URL ?k=<secret>**
+**send — today's Ready report to every Active, opted-in subscriber**
 ```json
 {
   "action": "send",
@@ -161,7 +158,7 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
 }
 ```
 
-**alert — the admin alert (flows only: the watchdog, MARKET_STORE for a Failed report) · URL ?k=<secret>**
+**alert — the admin alert (flows only: the watchdog, MARKET_STORE for a Failed report)**
 ```json
 {
   "action": "alert",
@@ -169,7 +166,7 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
 }
 ```
 
-**retry — one Failed delivery · URL ?k=<secret>**
+**retry — one Failed delivery**
 ```json
 {
   "action": "retry",
@@ -186,15 +183,16 @@ From a terminal (the app sends the same): `curl -X POST <webhook URL>/sync -H 'C
 
 ## Wiring the seven Market Intelligence flows (all of them — do this once)
 - Import in this order, publishing each and copying its webhook URL: MARKET_PUBLISH → BROADCAST → MARKET_STORE → MARKET_ANALYSE → MARKET_REPORT → DAILY_WATCHDOG → DAILY_SCHEDULE.
-- **Webhook secrets (SA-01..SA-04).** Generate one random secret per webhook flow (≥ 32 characters, e.g. `openssl rand -hex 24`): MARKET_REPORT, MARKET_ANALYSE,
-  MARKET_STORE, BROADCAST, MARKET_PUBLISH. Paste each into that flow's own `webhook_secret` constant AND into the `<flow>_secret` constant of every flow that
-  calls it. A missing or wrong `?k=` answers 401 before anything is read, fetched, sent or written; a placeholder secret refuses everyone.
-- Paste each URL **bare** (never `/sync` — every flow-to-flow hop is async) into the `<flow>_webhook` constant that names it; the `?k=` is added by the step.
-- The app calls two of them, with the secret in the URL: `WEBHOOK_MARKET_REPORT=<MARKET_REPORT url>?k=<MARKET_REPORT secret>` (run, rerun are async) and
-  `WEBHOOK_BROADCAST=<BROADCAST url>/sync?k=<BROADCAST secret>` (retry waits for its Return; send is async, so the app posts and does not wait).
+- **No webhook secret (owner decision 23 Oct 2026).** The flows no longer check a `?k=` secret: anyone who knows a webhook URL can start that flow
+  (SA-01..SA-04 reopened). Keep the URLs private; only the action is checked (400 for an unknown one).
+- Paste each URL **bare** (never `/sync` — every flow-to-flow hop is async) into the `<flow>_webhook` constant that names it.
+- The app calls two of them: `WEBHOOK_MARKET_REPORT=<MARKET_REPORT url>` (run, rerun are async) and
+  `WEBHOOK_BROADCAST=<BROADCAST url>/sync` (retry waits for its Return; send is async, so the app posts and does not wait).
   UNVERIFIED: that a long send started through /sync keeps running after Studio's sync window closes — if not, split send onto its own bare-URL flow.
 - `holidays` (NSE trading holidays, ⚑ G3): fill the SAME list in DAILY_SCHEDULE and DAILY_WATCHDOG.
+- **BROADCAST sends by Gmail (owner decision 23 Oct 2026).** Select the Gmail connection on both Gmail steps (send and retry), set `alert_to`
+  to the admins' email addresses (comma separated) and, if you like, `sender_name`. Subscribers receive the report at the `Email` on their record.
 - Give each flow its own token: `INBOUND_TOKEN_<FLOW>` on the app, the same value in that flow's `inbound_token`. While the app's token is unset every read answers 403 and the flows say APP_CLOSED.
-- UNVERIFIED until the first import: `{{trigger['queryParams']['k']}}` (the query string on catch_webhook), LOOP_ON_ITEMS (also nested), `body.data` in the JSON Body box,
-  pucho-whatsapp's response and `template_variables` keys (mi_daily_report: date, sentiment, confidence, driver · mi_run_failed: error, date, time),
+- UNVERIFIED until the first import: LOOP_ON_ITEMS (also nested), `body.data` in the JSON Body box,
+  Gmail send_email's response (the message id) and its props on the current piece version (registry props are from v2.0.1),
   `return_response` at the end of a schedule-triggered flow, and the app honouring `?Attempts=eq.<n>` on PATCH (kernel ticket: today the door filters on the id only).

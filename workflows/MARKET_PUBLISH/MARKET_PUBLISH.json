@@ -50,12 +50,11 @@
         "valid": true,
         "settings": {
           "input": {
-            "k": "{{trigger['queryParams']['k']}}",
             "action": "{{trigger['body']['action']}}"
           },
           "sampleData": {},
           "sourceCode": {
-            "code": "// @ts-nocheck\n// lib: secretMatches — app/src/custom/lib/market.js (constant-time, fail closed)\nfunction secretMatches(given, expected) {\n  const a = String(given ?? ''); const b = String(expected ?? '');\n  if (b.length < 16 || /SET_IN_STUDIO/.test(b)) return false;\n  let d = a.length ^ b.length;\n  for (let i = 0; i < b.length; i++) d |= (a.charCodeAt(i) || 0) ^ b.charCodeAt(i);\n  return d === 0;\n}\n// end lib\nexport const code = async (inputs) => {\n  const C = {\n    \"flow\": \"MARKET_PUBLISH\",\n    \"app_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"inbound_token\": \"SET_IN_STUDIO_INBOUND_TOKEN\",\n    \"webhook_secret\": \"SET_IN_STUDIO_MARKET_PUBLISH_WEBHOOK_SECRET\"\n  };\n  const actions = [\"publish\"];\n  const gate = !secretMatches(inputs.k, C.webhook_secret) ? 'denied' : actions.includes(String(inputs.action || '')) ? 'ok' : 'bad_action';\n  const { webhook_secret, ...rest } = C;\n  return { ...rest, gate };\n};",
+            "code": "// @ts-nocheck\nexport const code = async (inputs) => {\n  const C = {\n    \"flow\": \"MARKET_PUBLISH\",\n    \"app_url\": \"SET_IN_STUDIO_APP_URL\",\n    \"inbound_token\": \"SET_IN_STUDIO_INBOUND_TOKEN\"\n  };\n  const actions = [\"publish\"];\n  const gate = actions.includes(String(inputs.action || '')) ? 'ok' : 'bad_action';\n  return { ...C, gate };\n};",
             "packageJson": "{}"
           },
           "errorHandlingOptions": {
@@ -196,7 +195,7 @@
                   }
                 }
               },
-              "displayName": "Return 401: missing or wrong webhook secret, or no gate"
+              "displayName": "Return 401: no gate (the first step was skipped or replaced)"
             }
           ],
           "settings": {
@@ -786,9 +785,9 @@
             },
             "displayName": "GET reports"
           },
-          "displayName": "Webhook secret · action (allow-list)"
+          "displayName": "Action (allow-list)"
         },
-        "displayName": "Constants + webhook secret check (first step)"
+        "displayName": "Constants + action check (first step)"
       }
     },
     "valid": true,

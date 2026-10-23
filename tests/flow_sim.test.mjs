@@ -32,13 +32,13 @@ async function atClock(iso, fn) {
 
 const FLOWS = ['DAILY_SCHEDULE', 'DAILY_WATCHDOG', 'MARKET_REPORT', 'MARKET_ANALYSE', 'MARKET_STORE', 'BROADCAST', 'MARKET_PUBLISH'];
 const SECRET = (f) => `test-secret-${f.toLowerCase()}-0123456789`;
-const ADMINS = '+919800000001,+919800000002';
+const ADMINS = 'ops1@example.in,ops2@example.in';
 /** The flow as Studio runs it once the human has filled the constants: secrets, app URL, admins. */
 function load(name, consts = {}, { keepSecrets = false } = {}) {
   let text = fs.readFileSync(path.join(ROOT, 'workflows', name, `${name}.json`), 'utf8');
   text = text.replaceAll("trigger['queryParams']['k']", "trigger['body']['__k']");
   if (!keepSecrets) for (const f of FLOWS) text = text.replaceAll(`SET_IN_STUDIO_${f}_WEBHOOK_SECRET`, SECRET(f));
-  text = text.replaceAll('/api/data/', '/api/appdata/').replaceAll('SET_IN_STUDIO_APP_URL', 'https://app.test').replaceAll('SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS', ADMINS);
+  text = text.replaceAll('/api/data/', '/api/appdata/').replaceAll('SET_IN_STUDIO_APP_URL', 'https://app.test').replaceAll('SET_IN_STUDIO_ADMIN_EMAILS', ADMINS);
   for (const [k, v] of Object.entries(consts)) text = text.replace(new RegExp(`(\\\\"${k}\\\\": )[^,\\n]+`), `$1${JSON.stringify(v).replace(/"/g, '\\"')}`);
   return JSON.parse(text);
 }
@@ -96,7 +96,7 @@ function makeApp(seed = {}, { closed = false, conditional = false, race = null }
 
 /** Run a flow (with its secret unless `k` is given); webhook POSTs to other flows are followed with their ?k=. */
 async function run(world, name, body, opts = {}) {
-  const calls = []; const fakes = makeFakes({ app: world.app.app, calls, model: world.model, whatsapp: world.whatsapp, feeds: world.feeds });
+  const calls = []; const fakes = makeFakes({ app: world.app.app, calls, model: world.model, email: world.email, feeds: world.feeds });
   const k = 'k' in opts ? opts.k : SECRET(name);
   const r = await atClock(world.clock || THU, () => simulate(load(name, world.consts?.[name], opts), { ...body, __k: k }, fakes));
   world.log.push({ name, body, ...r, calls });
@@ -108,19 +108,20 @@ async function run(world, name, body, opts = {}) {
   }
   return r;
 }
-const newWorld = (seed, o = {}) => ({ app: makeApp(seed, o), log: [], model: o.model, whatsapp: o.whatsapp, consts: o.consts, clock: o.clock, feeds: o.feeds });
+const newWorld = (seed, o = {}) => ({ app: makeApp(seed, o), log: [], model: o.model, email: o.email, consts: o.consts, clock: o.clock, feeds: o.feeds });
 const SUBS = [
-  { Subscriber_ID: 'SUB-2026-0001', Name: 'Amit Shah', WhatsApp: '+919876543210', Status: 'Active', Opt_In_At: '2026-08-01', Opt_In_Source: 'WhatsApp reply' },
-  { Subscriber_ID: 'SUB-2026-0002', Name: 'Neha Iyer', WhatsApp: '+919820011223', Status: 'Active', Opt_In_At: '2026-08-04', Opt_In_Source: 'Web form' },
-  { Subscriber_ID: 'SUB-2026-0003', Name: 'Rohit Verma', WhatsApp: '+919811122334', Status: 'Paused', Opt_In_At: '2026-08-20', Opt_In_Source: 'Signed form' },
+  { Subscriber_ID: 'SUB-2026-0001', Name: 'Amit Shah', WhatsApp: '+919876543210', Email: 'amit.shah@example.in', Status: 'Active', Opt_In_At: '2026-08-01', Opt_In_Source: 'WhatsApp reply' },
+  { Subscriber_ID: 'SUB-2026-0002', Name: 'Neha Iyer', WhatsApp: '+919820011223', Email: 'neha.iyer@example.in', Status: 'Active', Opt_In_At: '2026-08-04', Opt_In_Source: 'Web form' },
+  { Subscriber_ID: 'SUB-2026-0003', Name: 'Rohit Verma', WhatsApp: '+919811122334', Email: 'rohit.verma@example.in', Status: 'Paused', Opt_In_At: '2026-08-20', Opt_In_Source: 'Signed form' },
 ];
 const all = (w) => w.log.flatMap((l) => l.calls);
-const sends = (w) => all(w).filter((c) => c.piece === 'pucho-whatsapp:send_template_message');
-const paid = (w) => all(w).filter((c) => c.piece === 'llm-ai:askLlm' || c.piece === 'pucho-whatsapp:send_template_message' || /news\.google\.com|reuters/.test(String(c.inputs.url)));
+const sends = (w) => all(w).filter((c) => c.piece === 'gmail:send_email');
+const to = (c) => c.inputs.receiver[0];
+const paid = (w) => all(w).filter((c) => c.piece === 'llm-ai:askLlm' || c.piece === 'gmail:send_email' || /news\.google\.com|reuters/.test(String(c.inputs.url)));
 const JOB = 'JOB-3F9A1C22B7E0';
 const readyToday = (o = {}) => ({ Report_ID: 'MIR-2026-0101', Report_Date: T, Created_At: '2026-10-15T00:31:00Z', Status: 'Ready', Sentiment: 'BULLISH', Confidence_Level: 'HIGH', Confidence_Pct: 74, Driver_1: 'FII inflows', WhatsApp_Message: 'w', ...o });
 
-test('MARKET_REPORT.run, end to end: report Ready → news with deterministic ids → template to each Active subscriber → Sent + counts + reader copy', async () => {
+test('MARKET_REPORT.run, end to end: report Ready → news with deterministic ids → email to each Active subscriber → Sent + counts + reader copy', async () => {
   const w = newWorld({ subscribers: SUBS });
   await run(w, 'MARKET_REPORT', { action: 'run', Trigger: 'Manual', _who: 'Test', _job: JOB });
   assert.deepEqual(w.log.map((l) => l.name), ['MARKET_REPORT', 'MARKET_ANALYSE', 'MARKET_STORE', 'BROADCAST', 'MARKET_PUBLISH']);
@@ -131,30 +132,31 @@ test('MARKET_REPORT.run, end to end: report Ready → news with deterministic id
   for (const n of ['Economic Times Markets', 'Moneycontrol', 'Reuters India', 'Google Finance News', 'Global Market Cues']) assert.match(rep.Source_Status, new RegExp(n + ' [1-9]'));
   assert.equal(rep.View_Intraday, '', 'the stop-loss sentence never reached the row');
   assert.ok(w.app.db.news_articles.length > 0 && w.app.db.news_articles.every((a) => a.Article_ID.startsWith(`NWS-${rep.Report_ID}-`) && a.Report_ID === rep.Report_ID));
-  const s = sends(w); assert.deepEqual(s.map((c) => c.inputs.to).sort(), ['+919820011223', '+919876543210'], 'Paused Rohit gets nothing');
-  assert.ok(s.every((c) => c.inputs.template_id === 'SET_IN_STUDIO_TEMPLATE_ID_MI_DAILY_REPORT' && c.inputs.template_variables.sentiment === 'CAUTIOUSLY BULLISH'));
-  assert.ok(w.app.db.deliveries.every((d) => d.Status === 'Sent' && d.Message_ID.startsWith('wamid.') && d.Kind === 'Report' && d.Attempts === 1));
+  const s = sends(w); assert.deepEqual(s.map(to).sort(), ['amit.shah@example.in', 'neha.iyer@example.in'], 'Paused Rohit gets nothing');
+  assert.ok(s.every((c) => /^Daily Market Intelligence — 15 Oct 2026 · CAUTIOUSLY BULLISH/.test(c.inputs.subject) && c.inputs.body_type === 'html' && /DAILY MARKET INTELLIGENCE/.test(c.inputs.body)));
+  assert.ok(w.app.db.deliveries.every((d) => d.Status === 'Sent' && d.Message_ID.startsWith('18fake') && d.Kind === 'Report' && d.Attempts === 1));
   assert.equal(w.app.db.published_reports.length, 1); assert.ok(!('Error_Message' in w.app.db.published_reports[0]));
   assert.ok(all(w).every((c) => !/\/api\/appdata\/subscribers/.test(c.inputs.url) || c.inputs.method === 'GET'), 'no flow writes subscribers');
   assert.equal(w.app.jobs[JOB].status, 'done'); assert.equal(w.app.jobs[JOB].result.Status, 'Ready');
 });
 
-test('SA-01..04: every webhook flow answers 401 without, or with a wrong, ?k= — before any read, fetch, AI, send or write', async () => {
-  const bodies = { MARKET_REPORT: { action: 'run' }, MARKET_ANALYSE: { action: 'run' }, MARKET_STORE: { action: 'store', Mode: 'run', report: readyToday({ Driver_1: 'Buy now' }) },
+test('no webhook secret (owner decision 23 Oct 2026): any caller with a known action gets past the first step; an unknown action is 400 before anything is called', async () => {
+  const bodies = { MARKET_REPORT: { action: 'run' }, MARKET_ANALYSE: { action: 'run' }, MARKET_STORE: { action: 'store', Mode: 'run', report: readyToday(), articles: [] },
     BROADCAST: { action: 'send', Report_ID: 'MIR-2026-0101' }, MARKET_PUBLISH: { action: 'publish', Report_ID: 'MIR-2026-0101' } };
   for (const [flow, body] of Object.entries(bodies)) {
-    for (const k of [undefined, '', 'wrong-secret-wrong-secret', SECRET(flow).slice(0, -1)]) {
+    const fl = load(flow); const first = fl.template.trigger.nextAction;
+    assert.equal(first.name, 'step_constants'); assert.deepEqual(Object.keys(first.settings.input), ['action'], `${flow}: the first step maps only the action`);
+    assert.doesNotMatch(first.settings.sourceCode.code, /webhook_secret|secretMatches|inputs\.k\b/, `${flow}: no secret check left`);
+    for (const k of [undefined, '', 'anything']) {
       const w = newWorld({ reports: [readyToday()], subscribers: SUBS });
       const r = await run(w, flow, body, { k, noFollow: true });
-      assert.equal(r.responses[0].error, 'unauthorized', `${flow} k=${k}`); assert.ok(r.trace.includes('step_denied_done(webhook:return_response)'), flow);
-      assert.equal(all(w).length, 0, `${flow}: nothing called`); assert.equal(w.app.db.deliveries.length + w.app.db.news_articles.length, 0);
+      assert.ok(!r.trace.some((x) => x.startsWith('step_denied_done')), `${flow} k=${k}: refused`);
+      assert.notEqual(r.responses[0].error, 'unauthorized', `${flow} k=${k}`);
     }
+    const bad = newWorld({ reports: [readyToday()], subscribers: SUBS });
+    const r = await run(bad, flow, { ...body, action: 'drop_tables' }, { noFollow: true });
+    assert.equal(r.responses[0].error, 'unknown action', flow); assert.equal(all(bad).length, 0, `${flow}: nothing called`);
   }
-  const w = newWorld({});                                        // the placeholder secret refuses everyone, even a caller who sends the placeholder
-  const r = await run(w, 'MARKET_REPORT', { action: 'run' }, { k: 'SET_IN_STUDIO_MARKET_REPORT_WEBHOOK_SECRET', keepSecrets: true, noFollow: true });
-  assert.equal(r.responses[0].error, 'unauthorized');
-  const ok = await run(newWorld({}), 'BROADCAST', { action: 'drop_tables' }, { noFollow: true });
-  assert.equal(ok.responses[0].error, 'unknown action');
 });
 
 test('SA-02: MARKET_REPORT refuses before any feed or model call — run when today is Ready / Sent, rerun unless today\'s report is Failed', async () => {
@@ -187,26 +189,26 @@ test('SA-01: a row handed to MARKET_STORE is re-checked — advice in Driver_1 f
   const w = newWorld({ subscribers: SUBS });
   await run(w, 'MARKET_STORE', { action: 'store', Mode: 'run', Trigger: 'Manual', report: readyToday({ Report_ID: undefined, Driver_1: 'Buy Reliance above 2,950', WhatsApp_Message: 'http://evil' }), articles: [] });
   const [rep] = w.app.db.reports; assert.equal(rep.Status, 'Failed'); assert.equal(rep.Error_Message, 'Advice language removed — review');
-  assert.ok(sends(w).every((c) => c.inputs.template_id === 'SET_IN_STUDIO_TEMPLATE_ID_MI_RUN_FAILED'), 'only the admin alert goes out');
+  assert.ok(sends(w).every((c) => /report run failed/.test(c.inputs.subject)), 'only the admin alert goes out');
 });
 
-test('no news from any source → a Failed row and the mi_run_failed alert to each admin, nothing to subscribers (S6)', async () => {
+test('no news from any source → a Failed row and the alert email to each admin, nothing to subscribers (S6)', async () => {
   const w = newWorld({ subscribers: SUBS }, { feeds: 'down' });
   await run(w, 'MARKET_REPORT', { action: 'run', Trigger: 'Schedule' });
   const [rep] = w.app.db.reports; assert.equal(rep.Status, 'Failed'); assert.match(rep.Error_Message, /^NO_NEWS/);
   assert.equal(all(w).filter((c) => c.piece === 'llm-ai:askLlm').length, 0, 'no model call');
-  assert.deepEqual(sends(w).map((c) => c.inputs.to), ['+919800000001', '+919800000002']);
-  assert.ok(sends(w).every((c) => c.inputs.template_id === 'SET_IN_STUDIO_TEMPLATE_ID_MI_RUN_FAILED' && rep.Error_Message.startsWith(c.inputs.template_variables.error.replace(/…$/, '')) && /^NO_NEWS/.test(c.inputs.template_variables.error)));
+  assert.deepEqual(sends(w).map(to), ['ops1@example.in', 'ops2@example.in']);
+  assert.ok(sends(w).every((c) => /report run failed/.test(c.inputs.subject) && /Error: NO_NEWS/.test(c.inputs.body)));
   assert.equal(w.app.db.published_reports.length, 0); assert.equal(rep.Sent_Count, undefined);
 });
 
-test('BROADCAST.send twice: the second gets 409 for everyone and makes no WhatsApp call and no PATCH', async () => {
+test('BROADCAST.send twice: the second gets 409 for everyone and makes no email call and no PATCH', async () => {
   const w = newWorld({ reports: [readyToday()], subscribers: SUBS });
   await run(w, 'BROADCAST', { action: 'send', Report_ID: 'MIR-2026-0101', _job: JOB });
   assert.equal(sends(w).length, 2); assert.equal(w.app.db.reports[0].Status, 'Sent'); assert.equal(w.app.jobs[JOB].status, 'done');
   const before = all(w).length; await run(w, 'BROADCAST', { action: 'send', Report_ID: 'MIR-2026-0101' });
   const second = all(w).slice(before);
-  assert.equal(second.filter((c) => c.piece === 'pucho-whatsapp:send_template_message').length, 0);
+  assert.equal(second.filter((c) => c.piece === 'gmail:send_email').length, 0);
   assert.equal(second.filter((c) => c.inputs.method === 'PATCH' && /deliveries/.test(c.inputs.url)).length, 0);
   assert.equal(w.app.db.deliveries.length, 2); assert.equal(w.app.db.reports[0].Sent_Count, 2);
 });
@@ -217,20 +219,20 @@ test('SA-03: yesterday\'s Ready draft is never sent; an alert carries only the r
   assert.equal(sends(w).length, 0); assert.match(r.responses[0].reason, /only today's report/);
   const a = newWorld({});
   await run(a, 'BROADCAST', { action: 'alert', Report_ID: '', Error_Message: 'Click http://evil' });
-  assert.equal(sends(a).length, 2); assert.ok(sends(a).every((c) => /No report row by 06:20 IST for 2026-10-15/.test(c.inputs.template_variables.error)));
+  assert.equal(sends(a).length, 2); assert.ok(sends(a).every((c) => /No report row by 06:20 IST for 2026-10-15/.test(c.inputs.body) && !/evil|Click/.test(c.inputs.body)));
   await atClock('2026-10-15T10:00:00Z', async () => {}); a.clock = '2026-10-15T10:00:00Z';
   await run(a, 'BROADCAST', { action: 'alert', Report_ID: '' });
   assert.equal(sends(a).length, 4, 'a second alert the same day still reaches the admins');
 });
 
-test('retry: Attempts + 1 per retry, refused at 3, to the record\'s number; a concurrent claim (conditional PATCH) sends nothing', async () => {
+test('retry: Attempts + 1 per retry, refused at 3, to the record\'s address; a concurrent claim (conditional PATCH) sends nothing', async () => {
   const w = newWorld({ reports: [readyToday({ Status: 'Sent' })], subscribers: SUBS, deliveries: [{ Delivery_ID: 'DLV-2026-0001', Kind: 'Report', Report_ID: 'MIR-2026-0101', Report_Date: T,
     Subscriber_ID: 'SUB-2026-0002', Subscriber_Name: 'Neha Iyer', Status: 'Failed', Attempts: 1, Error_Message: '131026' }] },
-  { whatsapp: () => { throw new Error('HTTP 400: 131026 undeliverable'); } });
+  { email: () => { throw new Error('HTTP 400: Invalid To header'); } });
   const d = w.app.db.deliveries[0];
   const r1 = await run(w, 'BROADCAST', { action: 'retry', Delivery_ID: 'DLV-2026-0001', To: '+910000000000' });
-  assert.equal(r1.responses[0].sent, false); assert.equal(d.Attempts, 2); assert.equal(sends(w).at(-1).inputs.to, '+919820011223', 'the record\'s number, never the payload');
-  w.whatsapp = undefined;
+  assert.equal(r1.responses[0].sent, false); assert.equal(d.Attempts, 2); assert.equal(to(sends(w).at(-1)), 'neha.iyer@example.in', 'the record\'s address, never the payload');
+  w.email = undefined;
   const r2 = await run(w, 'BROADCAST', { action: 'retry', Delivery_ID: 'DLV-2026-0001' });
   assert.equal(r2.responses[0].sent, true); assert.equal(d.Attempts, 3); assert.equal(d.Status, 'Sent');
   d.Status = 'Failed';
@@ -243,7 +245,7 @@ test('retry: Attempts + 1 per retry, refused at 3, to the record\'s number; a co
 });
 
 test('publish: nothing actually sent → the report stays Ready and the app job fails', async () => {
-  const w = newWorld({ reports: [readyToday()], subscribers: SUBS }, { whatsapp: () => { throw new Error('HTTP 400: 131047'); } });
+  const w = newWorld({ reports: [readyToday()], subscribers: SUBS }, { email: () => { throw new Error('HTTP 400: Invalid To header'); } });
   await run(w, 'BROADCAST', { action: 'send', Report_ID: 'MIR-2026-0101', _job: JOB });
   assert.equal(w.app.db.reports[0].Status, 'Ready'); assert.equal(w.app.db.published_reports.length, 0);
   assert.equal(w.app.jobs[JOB].status, 'failed'); assert.match(w.app.jobs[JOB].result.note, /NOTHING_SENT/);
@@ -257,12 +259,12 @@ test('closed door (403): MARKET_STORE refuses with APP_CLOSED; the watchdog stil
   assert.ok(wd.trace.includes('step_router→No report row — alert the admins'));
 });
 
-test('DAILY_SCHEDULE → MARKET_REPORT {action: run, Trigger: Schedule} with ?k=; a holiday or a Saturday skips; the watchdog alerts only without a row', async () => {
+test('DAILY_SCHEDULE → MARKET_REPORT {action: run, Trigger: Schedule}, no ?k=; a holiday or a Saturday skips; the watchdog alerts only without a row', async () => {
   const w = newWorld({ subscribers: [] });
   await run(w, 'DAILY_SCHEDULE', {}, { noFollow: true });
   const post = w.log[0].calls.find((c) => c.node === 'step_run_post');
   assert.deepEqual(post.inputs.body.data, { action: 'run', Trigger: 'Schedule', _who: 'flow:DAILY_SCHEDULE' });
-  assert.equal(post.inputs.url, 'SET_IN_STUDIO_MARKET_REPORT_WEBHOOK_URL'); assert.equal(post.inputs.queryParams.k, SECRET('MARKET_REPORT'));
+  assert.equal(post.inputs.url, 'SET_IN_STUDIO_MARKET_REPORT_WEBHOOK_URL'); assert.deepEqual(post.inputs.queryParams, {});
   for (const o of [{ consts: { DAILY_SCHEDULE: { holidays: [T] } } }, { clock: '2026-10-17T00:30:00Z' }]) {
     const h = newWorld({}, o); await run(h, 'DAILY_SCHEDULE', {}, { noFollow: true });
     assert.equal(h.log[0].calls.find((c) => c.node === 'step_run_post'), undefined);
@@ -270,7 +272,7 @@ test('DAILY_SCHEDULE → MARKET_REPORT {action: run, Trigger: Schedule} with ?k=
   const ok = newWorld({ reports: [{ Report_ID: 'MIR-2026-0101', Report_Date: T, Status: 'Failed', Error_Message: 'x' }] });
   assert.ok((await run(ok, 'DAILY_WATCHDOG', {}, { noFollow: true })).trace.includes('step_router→Report row present'));
   const miss = newWorld({ subscribers: [] }); await run(miss, 'DAILY_WATCHDOG', {});
-  assert.deepEqual(sends(miss).map((c) => c.inputs.to), ['+919800000001', '+919800000002']);
+  assert.deepEqual(sends(miss).map(to), ['ops1@example.in', 'ops2@example.in']);
 });
 
 test('every flow file is free of secrets and of free-text WhatsApp (S5, S7); the 06:00 trigger is IST (S1)', () => {
@@ -319,8 +321,8 @@ test('SA-21: a gate that is missing, empty, mis-cased or padded stops the run be
   for (const [flow, body] of Object.entries(WEBHOOK_FLOWS)) {
     for (const g of [undefined, '', 'OK', 'OK ', 'denied ', 'allowed']) {
       const fl = load(flow); const k = fl.template.trigger.nextAction;
-      k.settings.sourceCode.code = k.settings.sourceCode.code.replace('return { ...rest, gate };', g === undefined ? 'return { ...rest };' : `return { ...rest, gate: ${JSON.stringify(g)} };`);
-      assert.ok(!k.settings.sourceCode.code.includes('return { ...rest, gate };'), 'the gate was injected');
+      k.settings.sourceCode.code = k.settings.sourceCode.code.replace('return { ...C, gate };', g === undefined ? 'return { ...C };' : `return { ...C, gate: ${JSON.stringify(g)} };`);
+      assert.ok(!k.settings.sourceCode.code.includes('return { ...C, gate };'), 'the gate was injected');
       const calls = []; const w = newWorld({ reports: [readyToday()], subscribers: SUBS });
       const r = await atClock(THU, () => simulate(fl, { ...body, __k: SECRET(flow) }, makeFakes({ app: w.app.app, calls })));
       assert.deepEqual(r.failures, []); assert.equal(calls.length, 0, `${flow} gate=${JSON.stringify(g)}: nothing called`);
@@ -328,14 +330,15 @@ test('SA-21: a gate that is missing, empty, mis-cased or padded stops the run be
     }
   }
 });
-test('SA-20: only the secret-check step reads the query string; no Return, write or job result carries it or a secret', () => {
+test('SA-20: no step reads the query string or sends a ?k=; no Return, write or job result carries a secret', () => {
   for (const f of FLOWS) {
     const fl = JSON.parse(fs.readFileSync(path.join(ROOT, 'workflows', f, `${f}.json`), 'utf8'));
     const nodes = []; const walk = (n) => { if (!n) return; nodes.push(n); (n.children || []).forEach(walk); walk(n.firstLoopAction); walk(n.nextAction); };
     walk(fl.template.trigger);
     for (const n of nodes) {
       const input = JSON.stringify((n.settings || {}).input || {});
-      if (n.name !== 'step_constants') assert.doesNotMatch(input, /trigger\['queryParams'\]/, `${f}.${n.name} reads the query string`);
+      assert.doesNotMatch(input, /trigger\['queryParams'\]/, `${f}.${n.name} reads the query string`);
+      assert.doesNotMatch(input, /"queryParams":\{"k"/, `${f}.${n.name} sends a ?k=`);
       const outBound = n.settings && (n.settings.actionName === 'return_response' || (n.settings.input && n.settings.input.body));
       if (outBound) assert.doesNotMatch(JSON.stringify(n.settings.input.fields || n.settings.input.body), /_secret'\]|webhook_secret|queryParams|\?k=/, `${f}.${n.name} writes a secret`);
     }

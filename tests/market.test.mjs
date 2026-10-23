@@ -136,7 +136,7 @@ test('article ids are deterministic from Report_ID + dedupe key', () => {
   assert.deepEqual(M.newsRows(a, '', NOW), [], 'no Report_ID → no rows');
 });
 
-test('broadcast helpers: eligibility, numbers, already delivered, template variables', () => {
+test('broadcast helpers: eligibility, numbers, addresses, template variables, the report and alert emails', () => {
   assert.equal(M.normaliseWhatsApp('98765 43210'), '+919876543210');
   assert.equal(M.normaliseWhatsApp('+91 98765-43210'), '+919876543210');
   assert.equal(M.normaliseWhatsApp('12'), '');
@@ -148,6 +148,19 @@ test('broadcast helpers: eligibility, numbers, already delivered, template varia
   const rep = { Report_Date: '2026-10-15', Sentiment: 'BULLISH', Confidence_Level: 'HIGH', Confidence_Pct: 74, Driver_1: 'FII inflows strong' };
   assert.deepEqual(M.reportTemplateVars(rep), { date: '15 Oct 2026', sentiment: 'BULLISH', confidence: 'HIGH (74%)', driver: 'FII inflows strong' });
   assert.equal(M.alertTemplateVars({ error: 'boom', reportDate: '2026-10-15', now: NOW }).time, '02:00 PM IST');
+  // email (BROADCAST sends by Gmail since 23 Oct 2026)
+  assert.equal(M.normaliseEmail('  Neha@Example.IN '), 'neha@example.in'); assert.equal(M.normaliseEmail('not-an-email'), ''); assert.equal(M.normaliseEmail('a@b'), '');
+  assert.equal(M.normaliseEmail('x@y.in\nBcc: z@evil.com'), '', 'no header injection through an address');
+  assert.deepEqual(M.adminEmails('SET_IN_STUDIO_ADMIN_EMAILS'), []);
+  assert.deepEqual(M.adminEmails('ops1@example.in, OPS1@example.in; ops2@example.in'), ['ops1@example.in', 'ops2@example.in']);
+  const e = { Status: 'Active', Opt_In_At: '2026-08-01', Opt_In_Source: 'Web form', Email: 'amit@example.in' };
+  assert.equal(M.isEmailEligible(e), true); assert.equal(M.isEmailEligible({ ...e, Email: '' }), false); assert.equal(M.isEmailEligible({ ...e, Status: 'Paused' }), false);
+  const mail = M.reportEmail({ ...rep, WhatsApp_Message: '*DAILY MARKET INTELLIGENCE*\n<script>x</script> & more' });
+  assert.equal(mail.subject, 'Daily Market Intelligence — 15 Oct 2026 · BULLISH (HIGH (74%))');
+  assert.match(mail.body, /<b>DAILY MARKET INTELLIGENCE<\/b><br>&lt;script&gt;x&lt;\/script&gt; &amp; more/); assert.doesNotMatch(mail.body, /<script>/);
+  assert.match(M.reportEmail(rep).body, /DAILY MARKET INTELLIGENCE/, 'an empty stored text is rebuilt from the row');
+  const al = M.alertEmail({ error: 'boom\r\nBcc: x@evil.com', reportDate: '2026-10-15', now: NOW });
+  assert.equal(al.subject, 'Market Intelligence — report run failed (15 Oct 2026)'); assert.doesNotMatch(al.subject, /[\r\n]/); assert.match(al.body, /Error: boom/);
   assert.equal(M.statusOf({ error: 'HTTP 403: {"error":"closed"}' }), 403);
   assert.deepEqual(M.jobItems('JOB-3F9A1C22B7E0', 'done', {}), [{ id: 'JOB-3F9A1C22B7E0', status: 'done', result: {} }]);
   assert.deepEqual(M.jobItems('', 'done', {}), []);
@@ -206,37 +219,38 @@ test('afterWrite: the app-numbered id stamps the news; Failed → alert, Ready �
 });
 
 const SUBS = [
-  { Subscriber_ID: 'SUB-1', Name: 'Amit', WhatsApp: '+919876543210', Status: 'Active', Opt_In_At: '2026-08-01', Opt_In_Source: 'WhatsApp reply' },
-  { Subscriber_ID: 'SUB-2', Name: 'Neha', WhatsApp: '9820011223', Status: 'Active', Opt_In_At: '2026-08-04', Opt_In_Source: 'Web form' },
-  { Subscriber_ID: 'SUB-3', Name: 'Rohit', WhatsApp: '+919811122334', Status: 'Paused', Opt_In_At: '2026-08-20', Opt_In_Source: 'Signed form' },
-  { Subscriber_ID: 'SUB-4', Name: 'No opt-in', WhatsApp: '+919811100000', Status: 'Active', Opt_In_At: '', Opt_In_Source: '' },
+  { Subscriber_ID: 'SUB-1', Name: 'Amit', WhatsApp: '+919876543210', Email: 'amit@example.in', Status: 'Active', Opt_In_At: '2026-08-01', Opt_In_Source: 'WhatsApp reply' },
+  { Subscriber_ID: 'SUB-2', Name: 'Neha', WhatsApp: '9820011223', Email: ' Neha@Example.in ', Status: 'Active', Opt_In_At: '2026-08-04', Opt_In_Source: 'Web form' },
+  { Subscriber_ID: 'SUB-3', Name: 'Rohit', WhatsApp: '+919811122334', Email: 'rohit@example.in', Status: 'Paused', Opt_In_At: '2026-08-20', Opt_In_Source: 'Signed form' },
+  { Subscriber_ID: 'SUB-4', Name: 'No opt-in', WhatsApp: '+919811100000', Email: 'noopt@example.in', Status: 'Active', Opt_In_At: '', Opt_In_Source: '' },
 ];
-const C = { whatsapp_templates: { report: 'TPL-R', alert: 'TPL-A' }, alert_to: '+919800000001,+919800000002' };
+const C = { sender_name: 'Market Intelligence', alert_to: 'ops1@example.in,ops2@example.in' };
 test('sendPlan: Ready → eligible subscribers only; Failed or action alert → the admins, never a subscriber', () => {
   const rep = { Report_ID: 'MIR-1', Report_Date: today, Status: 'Ready', Sentiment: 'BULLISH', Confidence_Level: 'HIGH', Confidence_Pct: 70, Driver_1: 'd' };
   const p = FL.sendPlan({ body: { Report_ID: 'MIR-1', _job: 'JOB-3F9A1C22B7E0' }, C, reports: reportsOut([rep]), subscribers: reportsOut(SUBS) });
-  assert.deepEqual(p.items.map((i) => i.delivery.Subscriber_ID), ['SUB-1', 'SUB-2']); assert.equal(p.items[1].to, '+919820011223');
-  assert.equal(p.items[0].template_id, 'TPL-R'); assert.equal(p.publish._job, 'JOB-3F9A1C22B7E0');
+  assert.deepEqual(p.items.map((i) => i.delivery.Subscriber_ID), ['SUB-1', 'SUB-2']); assert.equal(p.items[1].to, 'neha@example.in');
+  assert.match(p.items[0].subject, /^Daily Market Intelligence — /); assert.match(p.items[0].body, /^<div/); assert.equal(p.publish._job, 'JOB-3F9A1C22B7E0');
   const failed = FL.sendPlan({ body: { Report_ID: 'MIR-1' }, C, reports: reportsOut([{ ...rep, Status: 'Failed', Error_Message: 'NO_NEWS' }]), subscribers: reportsOut(SUBS) });
-  assert.equal(failed.kind, 'Alert'); assert.deepEqual(failed.items.map((i) => i.to), ['+919800000001', '+919800000002']);
-  assert.ok(failed.items.every((i) => i.delivery.Kind === 'Alert' && i.template_id === 'TPL-A' && i.template_variables.error === 'NO_NEWS'));
+  assert.equal(failed.kind, 'Alert'); assert.deepEqual(failed.items.map((i) => i.to), ['ops1@example.in', 'ops2@example.in']);
+  assert.ok(failed.items.every((i) => i.delivery.Kind === 'Alert' && /report run failed/.test(i.subject) && /Error: NO_NEWS/.test(i.body)));
   const wd = FL.sendPlan({ body: { action: 'alert', Error_Message: 'No report row by 06:20 <script>' }, C, reports: { error: 'HTTP 403' }, subscribers: { error: 'HTTP 403' } });
-  assert.equal(wd.items.length, 2, 'the watchdog alert goes out even when the app is unreadable'); assert.doesNotMatch(wd.items[0].template_variables.error, /[<>]/);
-  assert.equal(FL.sendPlan({ body: { action: 'alert' }, C: { ...C, alert_to: 'SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS' } }).items.length, 0);
+  assert.equal(wd.items.length, 2, 'the watchdog alert goes out even when the app is unreadable'); assert.doesNotMatch(wd.items[0].body, /script/);
+  assert.equal(FL.sendPlan({ body: { action: 'alert' }, C: { ...C, alert_to: 'SET_IN_STUDIO_ADMIN_EMAILS' } }).items.length, 0);
 });
 
-test('sendResult: what WhatsApp answered → Sent with the message id, or Failed with the error; unconfirmed is Failed', () => {
+test('sendResult: what Gmail answered → Sent with the message id, or Failed with the error; unconfirmed is Failed', () => {
+  assert.deepEqual([FL.sendResult({ Delivery_ID: 'DLV-1', sent: { id: '18abc', threadId: '18t', labelIds: ['SENT'] } }).Status, FL.sendResult({ Delivery_ID: 'DLV-1', sent: { id: '18abc' } }).Message_ID], ['Sent', '18abc']);
   assert.equal(FL.sendResult({ Delivery_ID: 'DLV-1', sent: { success: true, messageId: 'wamid.X' } }).Status, 'Sent');
   assert.equal(FL.sendResult({ Delivery_ID: 'DLV-1', sent: { success: true, messageId: 'wamid.X' } }).Message_ID, 'wamid.X');
   assert.equal(FL.sendResult({ Delivery_ID: 'DLV-1', sent: { error: 'HTTP 400: 131047' } }).Status, 'Failed');
   assert.equal(FL.sendResult({ Delivery_ID: 'DLV-1', sent: {} }).Status, 'Failed');
 });
 
-test('retryPlan: only a Failed report delivery, to the number on the subscriber record — never the payload', () => {
+test('retryPlan: only a Failed report delivery, to the address on the subscriber record — never the payload', () => {
   const rep = { Report_ID: 'MIR-1', Report_Date: today, Status: 'Sent', Sentiment: 'BULLISH', Confidence_Level: 'HIGH', Confidence_Pct: 70, Driver_1: 'd' };
   const d = { Delivery_ID: 'DLV-9', Kind: 'Report', Status: 'Failed', Subscriber_ID: 'SUB-2', Report_ID: 'MIR-1' };
-  const go = FL.retryPlan({ body: { Delivery_ID: 'DLV-9', To: '+910000000000', WhatsApp: '+910000000000' }, C, deliveries: reportsOut([d]), subscribers: reportsOut(SUBS), reports: reportsOut([rep]) });
-  assert.equal(go.claim.Delivery_ID, 'DLV-9'); assert.equal(go.send.to, '+919820011223');
+  const go = FL.retryPlan({ body: { Delivery_ID: 'DLV-9', To: 'attacker@evil.com', Email: 'attacker@evil.com' }, C, deliveries: reportsOut([d]), subscribers: reportsOut(SUBS), reports: reportsOut([rep]) });
+  assert.equal(go.claim.Delivery_ID, 'DLV-9'); assert.equal(go.send.to, 'neha@example.in'); assert.match(go.send.subject, /Daily Market Intelligence/);
   const no = (dd, subs = SUBS) => FL.retryPlan({ body: { Delivery_ID: 'DLV-9' }, C, deliveries: reportsOut([dd]), subscribers: reportsOut(subs), reports: reportsOut([rep]) });
   assert.equal(no({ ...d, Status: 'Sent' }).claim.Delivery_ID, '');
   assert.equal(no({ ...d, Kind: 'Alert' }).claim.Delivery_ID, '');

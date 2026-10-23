@@ -1085,8 +1085,8 @@ export const PAGES = [
     "route": "/subscribers",
     "label": "Subscribers",
     "icon": "Users",
-    "desc": "Who receives the report on WhatsApp",
-    "subtitle": "Add, pause or remove WhatsApp subscribers — only people who opted in",
+    "desc": "Who receives the report by email",
+    "subtitle": "Add, pause or remove subscribers — only people who opted in",
     "entity": "subscribers",
     "covers": [
       "R26"
@@ -1136,9 +1136,8 @@ export const PAGES = [
             "grow": true
           },
           {
-            "key": "WhatsApp",
-            "header": "WhatsApp",
-            "type": "phone"
+            "key": "Email",
+            "header": "Email"
           },
           {
             "key": "Status",
@@ -1151,7 +1150,9 @@ export const PAGES = [
             "sub": "Opt_In_Source"
           },
           {
-            "key": "Email",
+            "key": "WhatsApp",
+            "header": "WhatsApp",
+            "type": "phone",
             "priority": "low"
           },
           {
@@ -1186,8 +1187,8 @@ export const PAGES = [
               "type": "fields",
               "title": "Contact",
               "columns": [
-                "WhatsApp",
                 "Email",
+                "WhatsApp",
                 "City",
                 "Status",
                 "Opt_In_At",
@@ -1212,7 +1213,7 @@ export const PAGES = [
         },
         "empty": {
           "title": "No subscribers yet",
-          "reason": "Add the first person who opted in to the daily WhatsApp report.",
+          "reason": "Add the first person who opted in to the daily report email.",
           "action": "add_subscriber"
         },
         "id": "subscribers-table"
@@ -1238,18 +1239,24 @@ export const PAGES = [
             "required": true
           },
           {
+            "key": "Email",
+            "label": "Email",
+            "type": "text",
+            "required": true,
+            "help": "The daily report is sent to this address"
+          },
+          {
             "key": "WhatsApp",
             "label": "WhatsApp number",
             "type": "text",
-            "required": true,
-            "help": "With country code, e.g. +91 98765 43210"
+            "help": "Optional — with country code, e.g. +91 98765 43210"
           },
           {
             "key": "Opt_In_At",
             "label": "Opted in on",
             "type": "date",
             "required": true,
-            "help": "The day the person agreed to receive the report — WhatsApp requires it"
+            "help": "The day the person agreed to receive the report"
           },
           {
             "key": "Opt_In_Source",
@@ -1266,11 +1273,6 @@ export const PAGES = [
           {
             "key": "City",
             "label": "City",
-            "type": "text"
-          },
-          {
-            "key": "Email",
-            "label": "Email",
             "type": "text"
           },
           {
@@ -1299,19 +1301,20 @@ export const PAGES = [
         ],
         "fields": [
           {
-            "key": "WhatsApp",
-            "label": "WhatsApp number",
+            "key": "Email",
+            "label": "Email",
             "type": "text",
             "required": true
           },
           {
-            "key": "City",
-            "label": "City",
-            "type": "text"
+            "key": "WhatsApp",
+            "label": "WhatsApp number",
+            "type": "text",
+            "help": "Optional"
           },
           {
-            "key": "Email",
-            "label": "Email",
+            "key": "City",
+            "label": "City",
             "type": "text"
           },
           {
@@ -1333,7 +1336,7 @@ export const PAGES = [
         ],
         "summary": [
           "Name",
-          "WhatsApp"
+          "Email"
         ],
         "intro": "Unsubscribed is final — the person must opt in again as a new subscriber.",
         "fields": [

@@ -74,7 +74,7 @@ journeys:
   - { role: analyst,    does: "Check the 6 AM report and send it",              lands: today,       steps: ["Today's report opens on the sentiment and segments", "Review & edit on the report row (only if a view needs changing)", "Send to subscribers on the same row"] }
   - { role: analyst,    does: "Recover a failed run",                           lands: pipeline,    steps: ["Pipeline opens on the run log, Failed segment", "Read the error and source counts on the row", "Re-run report now on the row"] }
   - { role: admin,      does: "Clear this morning's exceptions",                lands: overview,    steps: ["Overview opens on Needs action", "Send / Retry delivery / Re-run on the row"] }
-  - { role: admin,      does: "Add a WhatsApp subscriber",                      lands: subscribers, steps: ["Subscribers → Add subscriber", "Name, WhatsApp number, opt-in date and how they opted in → Add"] }
+  - { role: admin,      does: "Add a subscriber",                               lands: subscribers, steps: ["Subscribers → Add subscriber", "Name, email, opt-in date and how they opted in → Add"] }
   - { role: subscriber, does: "Read today's report before the open",            lands: me_today,    steps: ["Today's report opens on sentiment, drivers and segments", "Scroll to sectors, risks, the market view and news"] }
 
 entities:
@@ -250,11 +250,11 @@ entities:
       Paused:       [Active, Unsubscribed]
       Unsubscribed: [Unsubscribed]
     requires_on:
-      Active: [Opt_In_At, Opt_In_Source]
+      Active: [Opt_In_At, Opt_In_Source, Email]   # 23 Oct 2026: the report goes by email (BROADCAST → Gmail), so an Active subscriber needs one
     columns: [Subscriber_ID, Name, WhatsApp, Email, City, Status, Opt_In_At, Opt_In_Source, Joined_At, Notes]
     fields:
       Status:        { one_of: [Active, Paused, Unsubscribed] }
-      WhatsApp:      { type: phone, unique: true }
+      WhatsApp:      { type: phone }              # optional since 23 Oct 2026; no longer unique (blank numbers would collide)
       Email:         { type: email }
       Opt_In_At:     { type: date }
       Opt_In_Source: { one_of: [WhatsApp reply, Web form, Signed form, Phone call] }
@@ -358,7 +358,7 @@ header:
   search_placeholder: "Report date, subscriber or headline…"
   search:
     - { label: Reports,     entity: reports,       columns: [Report_ID, Report_Date, Sentiment], title: Report_Date, subtitle: [Sentiment, Status], link: /reports, page: reports }
-    - { label: Subscribers, entity: subscribers,   columns: [Name, WhatsApp, City], title: Name, subtitle: [City, Status], link: /subscribers, page: subscribers }
+    - { label: Subscribers, entity: subscribers,   columns: [Name, Email, City], title: Name, subtitle: [City, Status], link: /subscribers, page: subscribers }
     - { label: News,        entity: news_articles, columns: [Title, Source], title: Title, subtitle: [Source, Category], link: /news, page: news }
   notifications:
     - { metric: failed_runs,       title: Report_Date,     subtitle: [Error_Message],              date: Created_At, link: /pipeline,   page: pipeline }
@@ -689,8 +689,8 @@ pages:
     route: /subscribers
     label: Subscribers
     icon: Users
-    desc: Who receives the report on WhatsApp
-    subtitle: Add, pause or remove WhatsApp subscribers — only people who opted in
+    desc: Who receives the report by email
+    subtitle: Add, pause or remove subscribers — only people who opted in
     entity: subscribers
     roles: [admin, analyst]
     covers: [R26]
@@ -698,22 +698,23 @@ pages:
       - { type: kpis, kpis: [ { metric: active_subs }, { label: Paused, formula: "count where Status=Paused", icon: PauseCircle, filter: "Status=Paused" }, { label: Unsubscribed, formula: "count where Status=Unsubscribed", icon: UserX, filter: "Status=Unsubscribed" } ] }
       - type: table
         segments: { column: Status, all: All subscribers }
-        columns: [ { key: Name, type: text, sub: City, grow: true }, { key: WhatsApp, header: WhatsApp, type: phone }, { key: Status, type: badge }, { key: Opt_In_At, header: Opted in, type: date, sub: Opt_In_Source }, { key: Email, priority: low }, { key: Subscriber_ID, type: id, priority: low } ]
+        columns: [ { key: Name, type: text, sub: City, grow: true }, { key: Email, header: Email }, { key: Status, type: badge }, { key: Opt_In_At, header: Opted in, type: date, sub: Opt_In_Source }, { key: WhatsApp, header: WhatsApp, type: phone, priority: low }, { key: Subscriber_ID, type: id, priority: low } ]
         search: [Name, WhatsApp, City, Email]
         filters: [City, Opt_In_Source]
         bulk: [set_status]
         actions: { row: [edit_subscriber, set_status] }
-        drawer: { title_column: Name, sections: [ { type: fields, title: Contact, columns: [WhatsApp, Email, City, Status, Opt_In_At, Opt_In_Source, Notes] }, { type: related, entity: deliveries, by: Subscriber_ID, title: Deliveries, columns: [Report_Date, Kind, Status, Sent_At, Error_Message] } ] }
-        empty: { title: No subscribers yet, reason: "Add the first person who opted in to the daily WhatsApp report.", action: add_subscriber }
+        drawer: { title_column: Name, sections: [ { type: fields, title: Contact, columns: [Email, WhatsApp, City, Status, Opt_In_At, Opt_In_Source, Notes] }, { type: related, entity: deliveries, by: Subscriber_ID, title: Deliveries, columns: [Report_Date, Kind, Status, Sent_At, Error_Message] } ] }
+        empty: { title: No subscribers yet, reason: "Add the first person who opted in to the daily report email.", action: add_subscriber }
     modals:
       - { id: add_subscriber, kind: create, title: Add subscriber, direct: insert, primary: true, submit: Add subscriber, success: "Subscriber added — they get the next report", covers: [R26],
-          fields: [ { key: Name, label: Name, type: text, required: true }, { key: WhatsApp, label: WhatsApp number, type: text, required: true, help: "With country code, e.g. +91 98765 43210" },
-                    { key: Opt_In_At, label: Opted in on, type: date, required: true, help: "The day the person agreed to receive the report — WhatsApp requires it" },
+          fields: [ { key: Name, label: Name, type: text, required: true }, { key: Email, label: Email, type: text, required: true, help: "The daily report is sent to this address" },
+                    { key: WhatsApp, label: WhatsApp number, type: text, help: "Optional — with country code, e.g. +91 98765 43210" },
+                    { key: Opt_In_At, label: Opted in on, type: date, required: true, help: "The day the person agreed to receive the report" },
                     { key: Opt_In_Source, label: How they opted in, type: select, options: [WhatsApp reply, Web form, Signed form, Phone call], required: true },
-                    { key: City, label: City, type: text }, { key: Email, label: Email, type: text }, { key: Status, label: Status, type: select, options: [Active, Paused], default: Active, required: true } ] }
+                    { key: City, label: City, type: text }, { key: Status, label: Status, type: select, options: [Active, Paused], default: Active, required: true } ] }
       - { id: edit_subscriber, kind: edit, title: Edit subscriber, direct: patch, covers: [R26], summary: [Name],
-          fields: [ { key: WhatsApp, label: WhatsApp number, type: text, required: true }, { key: City, label: City, type: text }, { key: Email, label: Email, type: text }, { key: Notes, label: Notes, type: textarea, rows: 2 } ] }
-      - { id: set_status, kind: status, title: Pause, resume or remove, direct: patch, covers: [R26], summary: [Name, WhatsApp], intro: "Unsubscribed is final — the person must opt in again as a new subscriber.",
+          fields: [ { key: Email, label: Email, type: text, required: true }, { key: WhatsApp, label: WhatsApp number, type: text, help: "Optional" }, { key: City, label: City, type: text }, { key: Notes, label: Notes, type: textarea, rows: 2 } ] }
+      - { id: set_status, kind: status, title: Pause, resume or remove, direct: patch, covers: [R26], summary: [Name, Email], intro: "Unsubscribed is final — the person must opt in again as a new subscriber.",
           fields: [ { key: Status, label: Status, type: select, options_status: true, required: true } ] }
     actions: { header: [add_subscriber], row: [edit_subscriber, set_status] }
 

@@ -9,14 +9,14 @@ app/src/custom/lib/market-flow.js. Each CODE node carries only the library funct
 `// end lib` (flowkit.inline_lib when rolldown is installed in app/node_modules, else the same tree-shake done here).
 
 Seven flows (os.yaml has three; the other four keep every action path inside the simplicity budget — docs/flows-complexity.md).
-Every webhook flow's FIRST step checks ?k= against its own secret (constant time, fail closed) and answers 401 before any read:
-  DAILY_SCHEDULE  schedule every_day 06:00 IST, weekends off → holiday? → POST MARKET_REPORT {action: run} ?k= → Return
-  DAILY_WATCHDOG  cron 06:20 IST Mon–Fri → GET reports → no row today → POST BROADCAST {action: alert} ?k= → Return
-  MARKET_REPORT   webhook run | rerun (the app's door): secret → GET reports → today's state → 409 refused | POST MARKET_ANALYSE → Return
-  MARKET_ANALYSE  webhook run | rerun: secret → 5 RSS GETs → CODE → router (no news / analyse) → ONE llm-ai → CODE → POST MARKET_STORE → Return
-  MARKET_STORE    webhook store: secret → GET reports → CODE re-check + decide → router (refuse / new POST / re-run PATCH) → CODE → news → [BROADCAST] → [job] → Return
-  BROADCAST       webhook send | retry: secret → Queued delivery per recipient → only if queued: template → PATCH → MARKET_PUBLISH → Return
-  MARKET_PUBLISH  webhook publish: secret → GET reports + deliveries → CODE → [report Sent + counts, reader copy] → [job] → Return
+Every webhook flow's FIRST step checks the action and answers 400 before any read (owner decision 23 Oct 2026: no webhook secret):
+  DAILY_SCHEDULE  schedule every_day 06:00 IST, weekends off → holiday? → POST MARKET_REPORT {action: run} → Return
+  DAILY_WATCHDOG  cron 06:20 IST Mon–Fri → GET reports → no row today → POST BROADCAST {action: alert} → Return
+  MARKET_REPORT   webhook run | rerun (the app's door): action → GET reports → today's state → 409 refused | POST MARKET_ANALYSE → Return
+  MARKET_ANALYSE  webhook run | rerun: action → 5 RSS GETs → CODE → router (no news / analyse) → ONE llm-ai → CODE → POST MARKET_STORE → Return
+  MARKET_STORE    webhook store: action → GET reports → CODE re-check + decide → router (refuse / new POST / re-run PATCH) → CODE → news → [BROADCAST] → [job] → Return
+  BROADCAST       webhook send | retry: action → Queued delivery per recipient → only if queued: Gmail → PATCH → MARKET_PUBLISH → Return
+  MARKET_PUBLISH  webhook publish: action → GET reports + deliveries → CODE → [report Sent + counts, reader copy] → [job] → Return
 A loop over a 0-or-1 list stands in for "only if" where a second router would sit inside the first (no router in a router).
 Connections and Studio ids are never invented: SET_IN_STUDIO_* placeholders, listed by each CHECKLIST.
 """
@@ -64,17 +64,14 @@ def http(n, method, url, disp, body=None, query=None, headers=None, retry=False,
     return step(n, "http", "send_request", inp, disp, retry=retry, cont=cont)
 def read(n, entity, disp):
     return http(n, "GET", f"{APP}/api/data/{entity}", disp, query={"select": "*"}, retry=True, cont=True)
-def secret_key(webhook_key): return webhook_key.replace("_webhook", "_secret")
 def hook(n, const_key, body, disp, retry=True, cont=False):
-    """POST to another Studio flow's webhook — the bare URL (those flows answer at once and run on) with ?k=<that flow's secret>."""
+    """POST to another Studio flow's webhook — the bare URL (those flows answer at once and run on). Owner decision 23 Oct 2026:
+    no ?k= secret on flow-to-flow calls (the webhook secret check was removed; SA-01..SA-04 reopened, see docs/security-audit.md)."""
     return http(n, "POST", "{{step_constants['" + const_key + "']}}", disp, body=body, headers={"Content-Type": "application/json"},
-                query={"k": "{{step_constants['" + secret_key(const_key) + "']}}"}, retry=retry, cont=cont)
+                retry=retry, cont=cont)
 def callee(*flows):
-    """The constants a caller needs for each flow it calls: the bare webhook URL and that flow's secret (pasted in Studio)."""
-    out = {}
-    for f in flows:
-        out[f.lower() + "_webhook"] = f"SET_IN_STUDIO_{f}_WEBHOOK_URL"; out[f.lower() + "_secret"] = f"SET_IN_STUDIO_{f}_WEBHOOK_SECRET"
-    return out
+    """The constants a caller needs for each flow it calls: the bare webhook URL (pasted in Studio)."""
+    return {f.lower() + "_webhook": f"SET_IN_STUDIO_{f}_WEBHOOK_URL" for f in flows}
 def named(ref, cols, extra=None):
     d = {c: "{{" + ref + "['" + c + "']}}" for c in cols}
     d.update(extra or {}); return d
@@ -86,29 +83,29 @@ def loop(n, items, disp, *body):
             "settings": {"items": items, "sampleData": {}}, "firstLoopAction": chain(*body), "nextAction": None}
 def ret(n, body, disp, status=200):
     return respond(n, body, disp, status=status)
-def whatsapp(n, ref, disp):
-    """pucho-whatsapp approved template (S5): account from constants (a Studio dropdown value), number, template id + variables from the plan."""
-    return step(n, "pucho-whatsapp", "send_template_message",
-                {"account_id": "{{step_constants['whatsapp_account_id']}}", "to": "{{" + ref + "['to']}}", "template_id": "{{" + ref + "['template_id']}}",
-                 "template_variables": "{{" + ref + "['template_variables']}}"}, disp, retry=False, cont=True)
+def gmail(n, ref, disp):
+    """Gmail send_email (owner decision 23 Oct 2026: email replaces WhatsApp). One recipient per step; subject and HTML body come from the
+    plan (market.js reportEmail / alertEmail — built from the report row only). The Gmail connection is bound in Studio (auth \"\" while portable);
+    the shape follows golden_2's Gmail step."""
+    return step(n, "gmail", "send_email",
+                {"auth": "", "receiver": ["{{" + ref + "['to']}}"], "subject": "{{" + ref + "['subject']}}", "body_type": "html", "body": "{{" + ref + "['body']}}",
+                 "sender_name": "{{step_constants['sender_name']}}", "cc": [], "bcc": [], "reply_to": [], "draft": False}, disp, retry=False, cont=True)
 def app_consts(name, extra):
     return constants(C, {"flow": name, "app_url": "SET_IN_STUDIO_APP_URL", "inbound_token": "SET_IN_STUDIO_INBOUND_TOKEN", **extra},
                      "Constants — app_url, inbound_token and the flow's settings (set in Studio)")
 def auth_consts(name, extra, actions, app=True):
-    """The FIRST step of every webhook flow (SA-01..SA-04): the constants AND the webhook secret check. The caller's ?k= is compared in
-    constant time with this flow's own `webhook_secret` (fail closed on a placeholder); `gate` is denied | bad_action | ok and the next
-    router answers 401 / 400 before any read, fetch, AI step, send or write. The own secret is not passed on to later steps.
-    UNVERIFIED: that Studio's catch_webhook exposes the query string as {{trigger['queryParams']}} (Activepieces' shape; no golden export shows it)."""
-    vals = {"flow": name, **({"app_url": "SET_IN_STUDIO_APP_URL", "inbound_token": "SET_IN_STUDIO_INBOUND_TOKEN"} if app else {}),
-            "webhook_secret": f"SET_IN_STUDIO_{name}_WEBHOOK_SECRET", **extra}
+    """The FIRST step of every webhook flow: the constants AND the action check. `gate` is ok | bad_action and the next router answers
+    400 before any read, fetch, AI step, send or write. Owner decision 23 Oct 2026: the ?k= webhook secret check was removed, so any
+    caller that knows the webhook URL can start the flow (SA-01..SA-04 reopened, see docs/security-audit.md)."""
+    vals = {"flow": name, **({"app_url": "SET_IN_STUDIO_APP_URL", "inbound_token": "SET_IN_STUDIO_INBOUND_TOKEN"} if app else {}), **extra}
     body = json.dumps(vals, ensure_ascii=False, indent=2).replace("\n", "\n  ")
-    src = ("// @ts-nocheck\n// lib: secretMatches — app/src/custom/lib/market.js (constant-time, fail closed)\n" + lib_chunks()["secretMatches"] + "\n// end lib\n"
+    src = ("// @ts-nocheck\n"
            "export const code = async (inputs) => {\n  const C = " + body + ";\n"
            f"  const actions = {json.dumps(actions)};\n"
-           "  const gate = !secretMatches(inputs.k, C.webhook_secret) ? 'denied' : actions.includes(String(inputs.action || '')) ? 'ok' : 'bad_action';\n"
-           "  const { webhook_secret, ...rest } = C;\n  return { ...rest, gate };\n};")
-    return code(C, src, {"k": "{{trigger['queryParams']['k']}}", "action": "{{trigger['body']['action']}}"}, "Constants + webhook secret check (first step)")
-def denied(): return ret("step_denied_done", {"ok": False, "error": "unauthorized"}, "Return 401: missing or wrong webhook secret, or no gate", status=401)
+           "  const gate = actions.includes(String(inputs.action || '')) ? 'ok' : 'bad_action';\n"
+           "  return { ...C, gate };\n};")
+    return code(C, src, {"action": "{{trigger['body']['action']}}"}, "Constants + action check (first step)")
+def denied(): return ret("step_denied_done", {"ok": False, "error": "unauthorized"}, "Return 401: no gate (the first step was skipped or replaced)", status=401)
 def bad_action(): return ret("step_bad_action_done", {"ok": False, "error": "unknown action"}, "Return 400: unknown action", status=400)
 def GATE(v): return {**TEXT_IS("{{step_constants['gate']}}", v), "caseSensitive": True}
 def auth_router(with_action=False):
@@ -117,7 +114,7 @@ def auth_router(with_action=False):
     to the FALLBACK, which answers 401 and stops."""
     br = [("Authorised", GATE("ok"), None)]
     if with_action: br.append(("Unknown action → 400", GATE("bad_action"), bad_action()))
-    return router("step_auth", "Webhook secret · action (allow-list)", br + [("Anything else → 401", None, denied())])
+    return router("step_auth", "Action (allow-list)", br + [("Anything else → 401", None, denied())])
 def job_post(n, loop_name, disp):
     return http(n, "POST", f"{APP}/api/jobs/" + "{{" + loop_name + "['item']['id']}}", disp,
                 body={"status": "{{" + loop_name + "['item']['status']}}", "result": "{{" + loop_name + "['item']['result']}}"}, retry=True, cont=True)
@@ -126,14 +123,14 @@ def job_post(n, loop_name, disp):
 HOLIDAYS_NOTE = "Constants — holidays (NSE trading holidays, ⚑ G3: the SAME list in DAILY_SCHEDULE and DAILY_WATCHDOG)"
 def daily_schedule():
     t = piece_trigger("schedule", "every_day", {"hour_of_the_day": "6", "timezone": "Asia/Kolkata", "run_on_weekends": False}, "Every weekday at 06:00 IST (fixes S1)")
-    k = constants(C, {"flow": "DAILY_SCHEDULE", "holidays": [], **callee("MARKET_REPORT")}, HOLIDAYS_NOTE + " and MARKET_REPORT's URL + secret")
+    k = constants(C, {"flow": "DAILY_SCHEDULE", "holidays": [], **callee("MARKET_REPORT")}, HOLIDAYS_NOTE + " and MARKET_REPORT's URL")
     g = lib("step_gate", "scheduleGate", {"C": "{{step_constants}}"}, "Weekday and not an NSE holiday? (CODE)")
     r = router("step_router", "Run today?", [
         ("Holiday or weekend — no run", TEXT_IS("{{step_gate['route']}}", "skip"),
          ret("step_skip_done", {"ok": True, "queued": False, "date": "{{step_gate['today']}}", "reason": "{{step_gate['reason']}}"}, "Return: skipped")),
         ("Run the report", None, chain(
             hook("step_run_post", "market_report_webhook", {"action": "run", "Trigger": "Schedule", "_who": "flow:DAILY_SCHEDULE"},
-                 "POST MARKET_REPORT {action: run, Trigger: Schedule} ?k= — async, not /sync"),
+                 "POST MARKET_REPORT {action: run, Trigger: Schedule} — async, not /sync"),
             ret("step_run_done", {"ok": True, "queued": True, "date": "{{step_gate['today']}}"}, "Return: queued")))])
     chain(t, k, g, r)
     return flow("DAILY_SCHEDULE", "Market Intelligence — the 06:00 IST weekday trigger (holidays skipped) that starts MARKET_REPORT.run", t, ["schedule", "http", "webhook"])
@@ -141,13 +138,13 @@ def daily_schedule():
 def daily_watchdog():
     t = piece_trigger("schedule", "cron_expression", {"cronExpression": "20 6 * * 1-5", "timezone": "Asia/Kolkata"}, "Mon–Fri at 06:20 IST — the watchdog")
     k = constants(C, {"flow": "DAILY_WATCHDOG", "app_url": "SET_IN_STUDIO_APP_URL", "inbound_token": "SET_IN_STUDIO_INBOUND_TOKEN", "holidays": [], **callee("BROADCAST")},
-                  HOLIDAYS_NOTE + ", app_url, inbound_token and BROADCAST's URL + secret")
+                  HOLIDAYS_NOTE + ", app_url, inbound_token and BROADCAST's URL")
     rd = read("step_read_reports", "reports", "GET reports (the app's door)")
     ck = lib("step_check", "watchdogCheck", {"C": "{{step_constants}}", "reports": "{{step_read_reports}}"}, "Today's report row there? (CODE)")
     r = router("step_router", "Alert?", [
         ("No report row — alert the admins", TEXT_IS("{{step_check['route']}}", "alert"), chain(
             hook("step_alert_post", "broadcast_webhook", {"action": "alert", "Report_ID": "", "_who": "flow:DAILY_WATCHDOG"},
-                 "POST BROADCAST {action: alert} ?k= (BROADCAST writes the fixed watchdog text)"),
+                 "POST BROADCAST {action: alert} (BROADCAST writes the fixed watchdog text)"),
             ret("step_alert_done", {"ok": True, "alerted": True, "date": "{{step_check['today']}}", "reason": "{{step_check['reason']}}"}, "Return: alerted"))),
         ("Report row present", None,
          ret("step_ok_done", {"ok": True, "alerted": False, "date": "{{step_check['today']}}", "reason": "{{step_check['reason']}}"}, "Return: nothing to do"))])
@@ -155,7 +152,7 @@ def daily_watchdog():
     return flow("DAILY_WATCHDOG", "Market Intelligence — 06:20 IST: no report row for today → the admins get the mi_run_failed alert", t, ["schedule", "http", "webhook"])
 
 def market_report():
-    """The app-facing door (WEBHOOK_MARKET_REPORT): secret, action, today's report state — all BEFORE a feed or the model is paid for (SA-02)."""
+    """The app-facing door (WEBHOOK_MARKET_REPORT): action and today's report state — all BEFORE a feed or the model is paid for (SA-02)."""
     t = webhook_trigger("Catch Webhook — MARKET_REPORT (run · rerun)")
     k = auth_consts("MARKET_REPORT", callee("MARKET_ANALYSE"), ["run", "rerun"])
     rd = read("step_read_reports", "reports", "GET reports (today's row, the re-run target)")
@@ -167,10 +164,10 @@ def market_report():
             ret("step_refuse_done", {"ok": False, "code": "{{step_gate['code']}}", "error": "{{step_gate['error']}}"}, "Return 409: refused", status=409))),
         ("Analyse", None, chain(
             hook("step_analyse_post", "market_analyse_webhook", {"action": "{{step_gate['Mode']}}", "Trigger": "{{step_gate['Trigger']}}", "Report_ID": "{{step_gate['Report_ID']}}",
-                                                              "_job": "{{step_gate['_job']}}", "_who": "flow:MARKET_REPORT"}, "POST MARKET_ANALYSE ?k= — the feeds and the model"),
+                                                              "_job": "{{step_gate['_job']}}", "_who": "flow:MARKET_REPORT"}, "POST MARKET_ANALYSE — the feeds and the model"),
             ret("step_analyse_done", {"ok": True, "queued": True, "action": "{{step_gate['Mode']}}"}, "Return 202: queued", status=202)))])
     chain(t, k, auth_router(with_action=True), rd, g, r)
-    return flow("MARKET_REPORT", "Market Intelligence — the app's door for run / rerun: webhook secret, action and today's report checked before any paid step", t, ["webhook", "http"])
+    return flow("MARKET_REPORT", "Market Intelligence — the app's door for run / rerun: action and today's report checked before any paid step", t, ["webhook", "http"])
 
 def market_analyse():
     t = webhook_trigger("Catch Webhook — MARKET_ANALYSE (from MARKET_REPORT)")
@@ -188,11 +185,11 @@ def market_analyse():
     ai["settings"]["errorHandlingOptions"]["continueOnFailure"]["value"] = True   # a model failure becomes a Failed row + the admin alert
     r = router("step_router", "No news? · analyse", [
         ("No news → Failed row", TEXT_IS("{{step_prep['route']}}", "failed"), chain(
-            store_post("step_nonews_store", "{{step_prep['failed_report']}}", "POST MARKET_STORE ?k= — Failed (no news)"),
+            store_post("step_nonews_store", "{{step_prep['failed_report']}}", "POST MARKET_STORE — Failed (no news)"),
             ret("step_nonews_done", {"ok": True, "Status": "Failed", "Report_Date": "{{step_prep['Report_Date']}}", "Source_Status": "{{step_prep['Source_Status']}}"}, "Return: no news"))),
         ("Analyse", TEXT_IS("{{step_prep['route']}}", "analyse"), chain(
             ai, lib("step_finish", "finishReport", {"ai": "{{step_ai}}", "prep": "{{step_prep}}"}, "Parse + check the model JSON · format WhatsApp (CODE)"),
-            store_post("step_store", "{{step_finish['report']}}", "POST MARKET_STORE ?k= — the finished report"),
+            store_post("step_store", "{{step_finish['report']}}", "POST MARKET_STORE — the finished report"),
             ret("step_done", {"ok": True, "action": "{{step_prep['Mode']}}", "Report_Date": "{{step_prep['Report_Date']}}", "Status": "{{step_finish['Status']}}",
                               "Articles_Analyzed": "{{step_prep['Articles_Analyzed']}}"}, "Return: handed to MARKET_STORE"))),
         ("Invalid", None, ret("step_invalid_done", {"ok": False, "error": "{{step_prep['error']}}"}, "Return 400: invalid", status=400))])
@@ -213,7 +210,7 @@ def market_store():
         bcl = f"step_{prefix}_bc_loop"
         bc = loop(bcl, "{{step_" + prefix + "_after['broadcasts']}}", "Hand to BROADCAST (0 or 1: Failed → admin alert · Ready → only when auto_send)",
                   hook(f"step_{prefix}_bc", "broadcast_webhook", {"action": "{{" + bcl + "['item']['action']}}", "Report_ID": "{{" + bcl + "['item']['Report_ID']}}",
-                                                               "_who": "flow:MARKET_STORE"}, "POST BROADCAST {action: send | alert} ?k=", cont=True))
+                                                               "_who": "flow:MARKET_STORE"}, "POST BROADCAST {action: send | alert}", cont=True))
         jl = f"step_{prefix}_job_loop"
         jb = loop(jl, "{{step_" + prefix + "_after['jobs']}}", "Report the app's job (0 or 1 — a scheduled run has none)", job_post(f"step_{prefix}_job", jl, "POST /api/jobs/<id> done | failed"))
         dn = ret(f"step_{prefix}_done", {"ok": "{{step_" + prefix + "_after['ok']}}", "Report_ID": "{{step_" + prefix + "_after['Report_ID']}}", "Status": "{{step_" + prefix + "_after['Status']}}",
@@ -236,10 +233,7 @@ def market_store():
 
 def broadcast():
     t = webhook_trigger("Catch Webhook — BROADCAST (send · retry)")
-    k = auth_consts("BROADCAST", {"whatsapp_account_id": "SET_IN_STUDIO_WHATSAPP_ACCOUNT_ID",
-                                  "whatsapp_templates": {"report": "SET_IN_STUDIO_TEMPLATE_ID_MI_DAILY_REPORT", "alert": "SET_IN_STUDIO_TEMPLATE_ID_MI_RUN_FAILED"},
-                                  "whatsapp_template_names": {"report": "mi_daily_report", "alert": "mi_run_failed"},
-                                  "alert_to": "SET_IN_STUDIO_ADMIN_WHATSAPP_NUMBERS", "portal_url": "SET_IN_STUDIO_APP_URL", **callee("MARKET_PUBLISH")}, ["send", "retry", "alert"])
+    k = auth_consts("BROADCAST", {"sender_name": "Market Intelligence", "alert_to": "SET_IN_STUDIO_ADMIN_EMAILS", "portal_url": "SET_IN_STUDIO_APP_URL", **callee("MARKET_PUBLISH")}, ["send", "retry", "alert"])
     sl, ql = "step_send_loop", "step_send_queued"
     send = chain(
         read("step_send_reports", "reports", "GET reports"),
@@ -249,15 +243,15 @@ def broadcast():
         loop(sl, "{{step_send_plan['items']}}", "For each recipient",
              http("step_send_queue", "POST", f"{APP}/api/data/deliveries", "POST deliveries — Queued, Attempts 1 (409 = already sent)",
                   body=named(sl + "['item']['delivery']", ["Kind", "Report_ID", "Report_Date", "Subscriber_ID", "Subscriber_Name", "Sentiment", "Status"], {"Delivery_ID": "", "Attempts": 1}), cont=True),
-             loop(ql, "{{step_send_queue['body']}}", "Only if queued (0 or 1: a 409 skips — no WhatsApp, no PATCH)",
-                  whatsapp("step_send_whatsapp", sl + "['item']", "Send WhatsApp template (mi_daily_report · mi_run_failed)"),
-                  lib("step_send_result", "sendResult", {"Delivery_ID": "{{" + ql + "['item']['Delivery_ID']}}", "sent": "{{step_send_whatsapp}}"}, "Sent or Failed? (CODE)"),
+             loop(ql, "{{step_send_queue['body']}}", "Only if queued (0 or 1: a 409 skips — no email, no PATCH)",
+                  gmail("step_send_email", sl + "['item']", "Send email (Gmail): the report, or the admin alert"),
+                  lib("step_send_result", "sendResult", {"Delivery_ID": "{{" + ql + "['item']['Delivery_ID']}}", "sent": "{{step_send_email}}"}, "Sent or Failed? (CODE)"),
                   http("step_send_update", "PATCH", f"{APP}/api/data/deliveries", "PATCH the delivery Sent (message id) or Failed (error)",
                        body=named("step_send_result", ["Status", "Message_ID", "Error_Message", "Sent_At"]), query={"Delivery_ID": "eq.{{step_send_result['Delivery_ID']}}"}, retry=True, cont=True))),
         hook("step_send_publish", "market_publish_webhook", {"action": "publish", "Report_ID": "{{step_send_plan['publish']['Report_ID']}}",
-                                                          "_job": "{{step_send_plan['publish']['_job']}}", "_who": "flow:BROADCAST"}, "POST MARKET_PUBLISH ?k= — counts, reader copy, job", cont=True),
+                                                          "_job": "{{step_send_plan['publish']['_job']}}", "_who": "flow:BROADCAST"}, "POST MARKET_PUBLISH — counts, reader copy, job", cont=True),
         ret("step_send_done", {"ok": True, "kind": "{{step_send_plan['kind']}}", "Report_ID": "{{step_send_plan['Report_ID']}}", "queued": "{{step_send_plan['queued']}}",
-                               "reason": "{{step_send_plan['reason']}}"}, "Return: handed to WhatsApp"))
+                               "reason": "{{step_send_plan['reason']}}"}, "Return: handed to Gmail"))
     cl = "step_retry_claimed"
     retry = chain(
         read("step_retry_deliveries", "deliveries", "GET deliveries"),
@@ -268,24 +262,24 @@ def broadcast():
         http("step_retry_claim", "PATCH", f"{APP}/api/data/deliveries", "PATCH Attempts + 1, only where Attempts = the value read (a refusal has no id → the app refuses)",
              body={"Attempts": "{{step_retry_plan['claim']['Attempts']}}"}, query={"Delivery_ID": "eq.{{step_retry_plan['claim']['Delivery_ID']}}", "Attempts": "{{step_retry_plan['claim']['expect']}}"}, cont=True),
         loop(cl, "{{step_retry_claim['body']}}", "Only if claimed (0 or 1)",
-             whatsapp("step_retry_whatsapp", "step_retry_plan['send']", "Send WhatsApp template mi_daily_report to the number on the subscriber record"),
-             lib("step_retry_result", "sendResult", {"Delivery_ID": "{{" + cl + "['item']['Delivery_ID']}}", "sent": "{{step_retry_whatsapp}}"}, "Sent or Failed? (CODE)"),
+             gmail("step_retry_email", "step_retry_plan['send']", "Send the report email again to the address on the subscriber record"),
+             lib("step_retry_result", "sendResult", {"Delivery_ID": "{{" + cl + "['item']['Delivery_ID']}}", "sent": "{{step_retry_email}}"}, "Sent or Failed? (CODE)"),
              http("step_retry_update", "PATCH", f"{APP}/api/data/deliveries", "PATCH the same delivery Sent or Failed",
                   body=named("step_retry_result", ["Status", "Message_ID", "Error_Message", "Sent_At"]), query={"Delivery_ID": "eq.{{step_retry_result['Delivery_ID']}}"}, retry=True, cont=True),
              hook("step_retry_publish", "market_publish_webhook", {"action": "publish", "Report_ID": "{{step_retry_plan['publish']['Report_ID']}}", "_job": "", "_who": "flow:BROADCAST"},
-                  "POST MARKET_PUBLISH ?k= — refresh the report's counts", cont=True),
+                  "POST MARKET_PUBLISH — refresh the report's counts", cont=True),
              ret("step_retry_sent", {"ok": True, "sent": "{{step_retry_result['sent']}}", "Delivery_ID": "{{step_retry_result['Delivery_ID']}}",
                                      "error": "{{step_retry_result['Error_Message']}}"}, "Return: the retry's outcome")),
         ret("step_retry_done", {"ok": False, "sent": False, "Delivery_ID": "{{step_retry_plan['Delivery_ID']}}", "error": "{{step_retry_plan['reason']}}"}, "Return: refused (nothing sent)"))
     ACT = lambda v: {**TEXT_IS("{{trigger['body']['action']}}", v), "caseSensitive": True}
-    r = router("step_router", "Webhook secret · send | alert · retry (allow-list)", [
+    r = router("step_router", "Action · send | alert · retry (allow-list)", [
         ("send | alert", [GATE("ok"), ACT("send")], send),
         ("retry", [GATE("ok"), ACT("retry")], retry),
         ("Unknown action → 400", GATE("bad_action"), bad_action()),
         ("Anything else → 401", None, denied())])
     r["settings"]["branches"][0]["conditions"].append([GATE("ok"), ACT("alert")])   # OR: the flow-only alert action takes the same path
     chain(t, k, r)
-    return flow("BROADCAST", "Market Intelligence — the report to every Active, opted-in subscriber (template), the admin alert, one delivery again", t, ["webhook", "http", "pucho-whatsapp"])
+    return flow("BROADCAST", "Market Intelligence — the report email to every Active, opted-in subscriber, the admin alert, one delivery again", t, ["webhook", "http", "gmail"])
 
 def market_publish():
     t = webhook_trigger("Catch Webhook — MARKET_PUBLISH (from BROADCAST)")
@@ -311,17 +305,18 @@ def market_publish():
 WIRING = """
 ## Wiring the seven Market Intelligence flows (all of them — do this once)
 - Import in this order, publishing each and copying its webhook URL: MARKET_PUBLISH → BROADCAST → MARKET_STORE → MARKET_ANALYSE → MARKET_REPORT → DAILY_WATCHDOG → DAILY_SCHEDULE.
-- **Webhook secrets (SA-01..SA-04).** Generate one random secret per webhook flow (≥ 32 characters, e.g. `openssl rand -hex 24`): MARKET_REPORT, MARKET_ANALYSE,
-  MARKET_STORE, BROADCAST, MARKET_PUBLISH. Paste each into that flow's own `webhook_secret` constant AND into the `<flow>_secret` constant of every flow that
-  calls it. A missing or wrong `?k=` answers 401 before anything is read, fetched, sent or written; a placeholder secret refuses everyone.
-- Paste each URL **bare** (never `/sync` — every flow-to-flow hop is async) into the `<flow>_webhook` constant that names it; the `?k=` is added by the step.
-- The app calls two of them, with the secret in the URL: `WEBHOOK_MARKET_REPORT=<MARKET_REPORT url>?k=<MARKET_REPORT secret>` (run, rerun are async) and
-  `WEBHOOK_BROADCAST=<BROADCAST url>/sync?k=<BROADCAST secret>` (retry waits for its Return; send is async, so the app posts and does not wait).
+- **No webhook secret (owner decision 23 Oct 2026).** The flows no longer check a `?k=` secret: anyone who knows a webhook URL can start that flow
+  (SA-01..SA-04 reopened). Keep the URLs private; only the action is checked (400 for an unknown one).
+- Paste each URL **bare** (never `/sync` — every flow-to-flow hop is async) into the `<flow>_webhook` constant that names it.
+- The app calls two of them: `WEBHOOK_MARKET_REPORT=<MARKET_REPORT url>` (run, rerun are async) and
+  `WEBHOOK_BROADCAST=<BROADCAST url>/sync` (retry waits for its Return; send is async, so the app posts and does not wait).
   UNVERIFIED: that a long send started through /sync keeps running after Studio's sync window closes — if not, split send onto its own bare-URL flow.
 - `holidays` (NSE trading holidays, ⚑ G3): fill the SAME list in DAILY_SCHEDULE and DAILY_WATCHDOG.
+- **BROADCAST sends by Gmail (owner decision 23 Oct 2026).** Select the Gmail connection on both Gmail steps (send and retry), set `alert_to`
+  to the admins' email addresses (comma separated) and, if you like, `sender_name`. Subscribers receive the report at the `Email` on their record.
 - Give each flow its own token: `INBOUND_TOKEN_<FLOW>` on the app, the same value in that flow's `inbound_token`. While the app's token is unset every read answers 403 and the flows say APP_CLOSED.
-- UNVERIFIED until the first import: `{{trigger['queryParams']['k']}}` (the query string on catch_webhook), LOOP_ON_ITEMS (also nested), `body.data` in the JSON Body box,
-  pucho-whatsapp's response and `template_variables` keys (mi_daily_report: date, sentiment, confidence, driver · mi_run_failed: error, date, time),
+- UNVERIFIED until the first import: LOOP_ON_ITEMS (also nested), `body.data` in the JSON Body box,
+  Gmail send_email's response (the message id) and its props on the current piece version (registry props are from v2.0.1),
   `return_response` at the end of a schedule-triggered flow, and the app honouring `?Attempts=eq.<n>` on PATCH (kernel ticket: today the door filters on the id only).
 """
 
@@ -350,29 +345,29 @@ CONTRACTS = {
                      "job_rerun=step_rerun_job:http:write", "answer_rerun=step_rerun_done:webhook:respond", "answer_unexpected=step_unexpected_done:webhook:respond"],
     "BROADCAST": ["webhook=trigger:webhook:trigger", *AUTH, "route=step_router:router:route",
                   "read_reports=step_send_reports:http:read", "read_subscribers=step_send_subscribers:http:read", "plan=step_send_plan:code:transform",
-                  "queue=step_send_queue:http:write", "send=step_send_whatsapp:pucho-whatsapp:write", "result=step_send_result:code:transform",
+                  "queue=step_send_queue:http:write", "send=step_send_email:gmail:write", "result=step_send_result:code:transform",
                   "delivery_update=step_send_update:http:write", "publish=step_send_publish:http:write", "answer_send=step_send_done:webhook:respond",
                   "retry_read_deliveries=step_retry_deliveries:http:read", "retry_read_subscribers=step_retry_subscribers:http:read", "retry_read_reports=step_retry_reports:http:read",
-                  "retry_plan=step_retry_plan:code:transform", "retry_claim=step_retry_claim:http:write", "retry_send=step_retry_whatsapp:pucho-whatsapp:write",
+                  "retry_plan=step_retry_plan:code:transform", "retry_claim=step_retry_claim:http:write", "retry_send=step_retry_email:gmail:write",
                   "retry_result=step_retry_result:code:transform", "retry_update=step_retry_update:http:write", "retry_publish=step_retry_publish:http:write",
                   "answer_retry_sent=step_retry_sent:webhook:respond", "answer_retry_refused=step_retry_done:webhook:respond"],
     "MARKET_PUBLISH": ["webhook=trigger:webhook:trigger", *AUTH, *AUTH_ROUTER, "read_reports=step_read_reports:http:read", "read_deliveries=step_read_deliveries:http:read",
                        "plan=step_plan:code:transform", "report_sent=step_report_update:http:write", "published_insert=step_published_insert:http:write",
                        "published_update=step_published_update:http:write", "job=step_job:http:write", "answer=step_done:webhook:respond"],
 }
-# One test payload per action — the CHECKLIST shows them (send each to the webhook URL with ?k=<that flow's secret>), tests/flow_sim.test.mjs runs them.
+# One test payload per action — the CHECKLIST shows them (send each to the webhook URL), tests/flow_sim.test.mjs runs them.
 SAMPLES = {
     "DAILY_SCHEDULE": [],
     "DAILY_WATCHDOG": [],
-    "MARKET_REPORT": [("run — today's report (Run report now, DAILY_SCHEDULE) · URL ?k=<secret>", {"action": "run", "Trigger": "Manual", "_who": "Test"}),
-                      ("rerun — today's Failed report · URL ?k=<secret>", {"action": "rerun", "Report_ID": "MIR-2026-0099", "_who": "Test"})],
-    "MARKET_ANALYSE": [("run — sent by MARKET_REPORT (test MARKET_REPORT instead) · URL ?k=<secret>", {"action": "run", "Trigger": "Manual", "Report_ID": "", "_job": ""})],
-    "MARKET_STORE": [("store — sent by MARKET_ANALYSE (shape only; test MARKET_REPORT instead) · URL ?k=<secret>", {"action": "store", "Mode": "run", "Trigger": "Manual", "Report_ID": "", "_job": "",
+    "MARKET_REPORT": [("run — today's report (Run report now, DAILY_SCHEDULE)", {"action": "run", "Trigger": "Manual", "_who": "Test"}),
+                      ("rerun — today's Failed report", {"action": "rerun", "Report_ID": "MIR-2026-0099", "_who": "Test"})],
+    "MARKET_ANALYSE": [("run — sent by MARKET_REPORT (test MARKET_REPORT instead)", {"action": "run", "Trigger": "Manual", "Report_ID": "", "_job": ""})],
+    "MARKET_STORE": [("store — sent by MARKET_ANALYSE (shape only; test MARKET_REPORT instead)", {"action": "store", "Mode": "run", "Trigger": "Manual", "Report_ID": "", "_job": "",
                       "report": {"Report_Date": "2026-10-15", "Status": "Failed", "Error_Message": "Studio test — no analysis", "Source_Status": "test"}, "articles": []})],
-    "BROADCAST": [("send — today's Ready report to every Active, opted-in subscriber · URL ?k=<secret>", {"action": "send", "Report_ID": "MIR-2026-0101"}),
-                  ("alert — the admin alert (flows only: the watchdog, MARKET_STORE for a Failed report) · URL ?k=<secret>", {"action": "alert", "Report_ID": ""}),
-                  ("retry — one Failed delivery · URL ?k=<secret>", {"action": "retry", "Delivery_ID": "DLV-2026-2402"})],
-    "MARKET_PUBLISH": [("publish — sent by BROADCAST after a send · URL ?k=<secret>", {"action": "publish", "Report_ID": "MIR-2026-0101", "_job": ""})],
+    "BROADCAST": [("send — today's Ready report to every Active, opted-in subscriber", {"action": "send", "Report_ID": "MIR-2026-0101"}),
+                  ("alert — the admin alert (flows only: the watchdog, MARKET_STORE for a Failed report)", {"action": "alert", "Report_ID": ""}),
+                  ("retry — one Failed delivery", {"action": "retry", "Delivery_ID": "DLV-2026-2402"})],
+    "MARKET_PUBLISH": [("publish — sent by BROADCAST after a send", {"action": "publish", "Report_ID": "MIR-2026-0101", "_job": ""})],
 }
 
 # ── the library in each CODE node: flowkit.inline_lib when rolldown is there, else the same reachability shake done here ──

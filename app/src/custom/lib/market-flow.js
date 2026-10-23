@@ -4,8 +4,8 @@
 // reaches; tests/market.test.mjs and tests/flow_sim.test.mjs run them. Plain JS, no app imports.
 import {
   SOURCES, ENUMS, PUBLISHED_COLUMNS, selectArticles, buildPrompt, parseModel, buildReportRow, sanitizeReportRow, newsRows, istDate,
-  istWeekday, rowsOf, statusOf, doorError, jobItems, isEligible, normaliseWhatsApp, adminNumbers, reportTemplateVars,
-  alertTemplateVars, toIso, istHHmm, scrubSecrets,
+  istWeekday, rowsOf, statusOf, doorError, jobItems, isEmailEligible, normaliseEmail, adminEmails, reportEmail, alertEmail,
+  toIso, istHHmm, scrubSecrets,
 } from './market.js';
 
 const nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());
@@ -127,17 +127,16 @@ export function sendPlan(inp) {
   const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp); const today = istDate(now);
   const reports = rowsOf(inp && inp.reports); const subs = rowsOf(inp && inp.subscribers);
   const report = reports && body.Report_ID ? reports.find((r) => r.Report_ID === String(body.Report_ID)) || null : null;
-  const tpl = C.whatsapp_templates || {};
   const publish = { Report_ID: report ? report.Report_ID : '', _job: String(body._job || '') };
   const done = (kind, items, reason, code = '') => ({ kind, items, reason, code, Report_ID: publish.Report_ID, publish, queued: items.length });
   const alertWatchdog = body.action === 'alert' && !body.Report_ID;
   if (alertWatchdog || (report && report.Status === 'Failed')) {
     const date = report ? report.Report_Date : today;
     const error = report ? report.Error_Message || 'The report could not be generated' : watchdogText(today);
-    const numbers = adminNumbers(C.alert_to); const at = istHHmm(now);
-    const items = numbers.map((to, i) => ({ to, template_id: tpl.alert || '', template_variables: alertTemplateVars({ error, reportDate: date, now }),
+    const emails = adminEmails(C.alert_to); const at = istHHmm(now); const mail = alertEmail({ error, reportDate: date, now });
+    const items = emails.map((to, i) => ({ to, subject: mail.subject, body: mail.body,
       delivery: { Kind: 'Alert', Report_ID: report ? report.Report_ID : '', Report_Date: date, Subscriber_ID: `ADMIN-${i + 1}-${at}`, Subscriber_Name: `Admin alert ${i + 1}`, Sentiment: '', Status: 'Queued' } }));
-    return done('Alert', items, numbers.length ? '' : 'constants.alert_to has no WhatsApp number yet — nobody was alerted');
+    return done('Alert', items, emails.length ? '' : 'constants.alert_to has no email address yet — nobody was alerted');
   }
   if (!reports) return done('Report', [], doorError(inp.reports, 'reports'), 'APP_READ_FAILED');
   if (!report) return done('Report', [], `No report ${String(body.Report_ID || '').slice(0, 30)}`, 'NOT_FOUND');
@@ -145,13 +144,13 @@ export function sendPlan(inp) {
   if (!['Ready', 'Sent'].includes(report.Status)) return done('Report', [], `${report.Report_ID} is ${report.Status} — not sent`, 'NOT_READY');
   if (report.Report_Date !== today) return done('Report', [], `${report.Report_ID} is the report for ${report.Report_Date} — only today's report is sent`, 'NOT_TODAY');
   if (!subs) return done('Report', [], doorError(inp.subscribers, 'subscribers'), 'APP_READ_FAILED');
-  const vars = reportTemplateVars(report);
-  const items = subs.filter(isEligible).map((s) => ({ to: normaliseWhatsApp(s.WhatsApp), template_id: tpl.report || '', template_variables: vars,
+  const mail = reportEmail(report);
+  const items = subs.filter(isEmailEligible).map((s) => ({ to: normaliseEmail(s.Email), subject: mail.subject, body: mail.body,
     delivery: { Kind: 'Report', Report_ID: report.Report_ID, Report_Date: report.Report_Date, Subscriber_ID: s.Subscriber_ID, Subscriber_Name: s.Name || '', Sentiment: report.Sentiment || '', Status: 'Queued' } }));
-  return done('Report', items, items.length ? '' : 'No Active, opted-in subscriber');
+  return done('Report', items, items.length ? '' : 'No Active, opted-in subscriber with an email address');
 }
 
-/** step_*_result — what WhatsApp answered → the delivery's Status, Message_ID, Error_Message. Unconfirmed is Failed (retryable). */
+/** step_*_result — what Gmail answered (its message id) → the delivery's Status, Message_ID, Error_Message. Unconfirmed is Failed (retryable). */
 export function sendResult(inp) {
   const id = String((inp && inp.Delivery_ID) || ''); const out = inp && inp.sent; const now = nowOf(inp).toISOString();
   const o = out && typeof out === 'object' ? out : {};
@@ -161,7 +160,7 @@ export function sendResult(inp) {
   const err = pick(o.error && (o.error.message || o.error), o.errorMessage, o.success === false ? o.message : '', o.status === 'failed' ? o.message : '');
   const failed = !!err || !out || (typeof out === 'object' && !Object.keys(o).length);
   return { Delivery_ID: id, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),
-    Error_Message: failed ? scrubSecrets(err || 'WhatsApp step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed };
+    Error_Message: failed ? scrubSecrets(err || 'Email step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed };
 }
 
 export const MAX_ATTEMPTS = 3;
@@ -173,7 +172,7 @@ export const MAX_ATTEMPTS = 3;
 export function retryPlan(inp) {
   const body = (inp && inp.body) || {}; const C = (inp && inp.C) || {}; const now = nowOf(inp);
   const dels = rowsOf(inp && inp.deliveries); const subs = rowsOf(inp && inp.subscribers); const reports = rowsOf(inp && inp.reports);
-  const none = (reason, d) => ({ claim: { Delivery_ID: '', Attempts: 0, expect: '' }, send: { to: '', template_id: '', template_variables: {} }, reason,
+  const none = (reason, d) => ({ claim: { Delivery_ID: '', Attempts: 0, expect: '' }, send: { to: '', subject: '', body: '' }, reason,
     Delivery_ID: d ? d.Delivery_ID : '', publish: { Report_ID: d ? d.Report_ID : '', _job: '' } });
   if (!dels || !subs || !reports) return none(doorError(!dels ? inp.deliveries : !subs ? inp.subscribers : inp.reports, !dels ? 'deliveries' : !subs ? 'subscribers' : 'reports'));
   const d = dels.find((x) => x.Delivery_ID === String(body.Delivery_ID || ''));
@@ -182,11 +181,11 @@ export function retryPlan(inp) {
   const n = Math.max(0, Math.round(Number(d.Attempts) || 0));
   if (n >= MAX_ATTEMPTS) return none(`${d.Delivery_ID} has had ${n} attempts — the cap is ${MAX_ATTEMPTS} attempts`, d);
   const s = subs.find((x) => x.Subscriber_ID === d.Subscriber_ID);
-  if (!isEligible(s)) return none(`${d.Subscriber_Name || d.Subscriber_ID} is not Active and opted in — not sent`, d);
+  if (!isEmailEligible(s)) return none(`${d.Subscriber_Name || d.Subscriber_ID} is not Active and opted in with an email address — not sent`, d);
   const r = reports.find((x) => x.Report_ID === d.Report_ID);
   if (!r || !['Ready', 'Sent'].includes(r.Status)) return none(`Report ${d.Report_ID} is not Ready or Sent — not sent`, d);
-  const tpl = C.whatsapp_templates || {};
-  return { claim: { Delivery_ID: d.Delivery_ID, Attempts: n + 1, expect: `eq.${n}` }, send: { to: normaliseWhatsApp(s.WhatsApp), template_id: tpl.report || '', template_variables: reportTemplateVars(r) },
+  const mail = reportEmail(r);
+  return { claim: { Delivery_ID: d.Delivery_ID, Attempts: n + 1, expect: `eq.${n}` }, send: { to: normaliseEmail(s.Email), subject: mail.subject, body: mail.body },
     reason: '', Delivery_ID: d.Delivery_ID, publish: { Report_ID: r.Report_ID, _job: '' } };
 }
 

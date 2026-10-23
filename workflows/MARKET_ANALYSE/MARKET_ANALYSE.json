@@ -51,12 +51,11 @@
         "valid": true,
         "settings": {
           "input": {
-            "k": "{{trigger['queryParams']['k']}}",
             "action": "{{trigger['body']['action']}}"
           },
           "sampleData": {},
           "sourceCode": {
-            "code": "// @ts-nocheck\n// lib: secretMatches — app/src/custom/lib/market.js (constant-time, fail closed)\nfunction secretMatches(given, expected) {\n  const a = String(given ?? ''); const b = String(expected ?? '');\n  if (b.length < 16 || /SET_IN_STUDIO/.test(b)) return false;\n  let d = a.length ^ b.length;\n  for (let i = 0; i < b.length; i++) d |= (a.charCodeAt(i) || 0) ^ b.charCodeAt(i);\n  return d === 0;\n}\n// end lib\nexport const code = async (inputs) => {\n  const C = {\n    \"flow\": \"MARKET_ANALYSE\",\n    \"webhook_secret\": \"SET_IN_STUDIO_MARKET_ANALYSE_WEBHOOK_SECRET\",\n    \"news_limit\": 40,\n    \"summary_chars\": 300,\n    \"dedupe_chars\": 60,\n    \"max_age_hours\": 48,\n    \"feeds\": {\n      \"et\": \"https://news.google.com/rss/search?q=site:economictimes.indiatimes.com+markets+when:1d&hl=en-IN&gl=IN&ceid=IN:en\",\n      \"mc\": \"https://news.google.com/rss/search?q=site:moneycontrol.com+markets+when:1d&hl=en-IN&gl=IN&ceid=IN:en\",\n      \"reuters\": \"https://news.google.com/rss/search?q=site:reuters.com+India+markets+when:1d&hl=en-IN&gl=IN&ceid=IN:en\",\n      \"gfn\": \"https://news.google.com/rss/search?q=India+stock+market+Nifty+Sensex&hl=en-IN&gl=IN&ceid=IN:en\",\n      \"global\": \"https://news.google.com/rss/search?q=SGX+Nifty+US+markets+Dow+Jones+NASDAQ+when:1d&hl=en&gl=US&ceid=US:en\"\n    },\n    \"market_store_webhook\": \"SET_IN_STUDIO_MARKET_STORE_WEBHOOK_URL\",\n    \"market_store_secret\": \"SET_IN_STUDIO_MARKET_STORE_WEBHOOK_SECRET\"\n  };\n  const actions = [\"run\", \"rerun\"];\n  const gate = !secretMatches(inputs.k, C.webhook_secret) ? 'denied' : actions.includes(String(inputs.action || '')) ? 'ok' : 'bad_action';\n  const { webhook_secret, ...rest } = C;\n  return { ...rest, gate };\n};",
+            "code": "// @ts-nocheck\nexport const code = async (inputs) => {\n  const C = {\n    \"flow\": \"MARKET_ANALYSE\",\n    \"news_limit\": 40,\n    \"summary_chars\": 300,\n    \"dedupe_chars\": 60,\n    \"max_age_hours\": 48,\n    \"feeds\": {\n      \"et\": \"https://news.google.com/rss/search?q=site:economictimes.indiatimes.com+markets+when:1d&hl=en-IN&gl=IN&ceid=IN:en\",\n      \"mc\": \"https://news.google.com/rss/search?q=site:moneycontrol.com+markets+when:1d&hl=en-IN&gl=IN&ceid=IN:en\",\n      \"reuters\": \"https://news.google.com/rss/search?q=site:reuters.com+India+markets+when:1d&hl=en-IN&gl=IN&ceid=IN:en\",\n      \"gfn\": \"https://news.google.com/rss/search?q=India+stock+market+Nifty+Sensex&hl=en-IN&gl=IN&ceid=IN:en\",\n      \"global\": \"https://news.google.com/rss/search?q=SGX+Nifty+US+markets+Dow+Jones+NASDAQ+when:1d&hl=en&gl=US&ceid=US:en\"\n    },\n    \"market_store_webhook\": \"SET_IN_STUDIO_MARKET_STORE_WEBHOOK_URL\"\n  };\n  const actions = [\"run\", \"rerun\"];\n  const gate = actions.includes(String(inputs.action || '')) ? 'ok' : 'bad_action';\n  return { ...C, gate };\n};",
             "packageJson": "{}"
           },
           "errorHandlingOptions": {
@@ -197,7 +196,7 @@
                   }
                 }
               },
-              "displayName": "Return 401: missing or wrong webhook secret, or no gate"
+              "displayName": "Return 401: no gate (the first step was skipped or replaced)"
             }
           ],
           "settings": {
@@ -525,9 +524,7 @@
                                 "headers": {
                                   "Content-Type": "application/json"
                                 },
-                                "queryParams": {
-                                  "k": "{{step_constants['market_store_secret']}}"
-                                },
+                                "queryParams": {},
                                 "authType": "NONE",
                                 "body_type": "json",
                                 "body": {
@@ -646,7 +643,7 @@
                               },
                               "displayName": "Return: no news"
                             },
-                            "displayName": "POST MARKET_STORE ?k= — Failed (no news)"
+                            "displayName": "POST MARKET_STORE — Failed (no news)"
                           },
                           {
                             "name": "step_ai",
@@ -734,9 +731,7 @@
                                     "headers": {
                                       "Content-Type": "application/json"
                                     },
-                                    "queryParams": {
-                                      "k": "{{step_constants['market_store_secret']}}"
-                                    },
+                                    "queryParams": {},
                                     "authType": "NONE",
                                     "body_type": "json",
                                     "body": {
@@ -856,7 +851,7 @@
                                   },
                                   "displayName": "Return: handed to MARKET_STORE"
                                 },
-                                "displayName": "POST MARKET_STORE ?k= — the finished report"
+                                "displayName": "POST MARKET_STORE — the finished report"
                               },
                               "displayName": "Parse + check the model JSON · format WhatsApp (CODE)"
                             },
@@ -977,9 +972,9 @@
             },
             "displayName": "Fetch Economic Times Markets RSS (a failure yields 0 items)"
           },
-          "displayName": "Webhook secret · action (allow-list)"
+          "displayName": "Action (allow-list)"
         },
-        "displayName": "Constants + webhook secret check (first step)"
+        "displayName": "Constants + action check (first step)"
       }
     },
     "valid": true,

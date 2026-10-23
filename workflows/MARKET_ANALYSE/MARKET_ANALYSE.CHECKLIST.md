@@ -45,13 +45,12 @@ File: `MARKET_ANALYSE.json`. Do the steps in order. Tick each box.
   - **headers**: `{"Accept": "application/rss+xml, application/xml, text/xml", "User-Agent": "Mozilla/5.0 (compatible; MarketIntelligence/1.0)"}`
   - **authType**: `NONE`
 
-## 7. POST MARKET_STORE ?k= — Failed (no news) (`step_nonews_store`, http)
+## 7. POST MARKET_STORE — Failed (no news) (`step_nonews_store`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
 - [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
   - **method**: `POST`
   - **url**: `{{step_constants['market_store_webhook']}}`
   - **headers**: `application/json`
-  - **queryParams**: `{{step_constants['market_store_secret']}}`
   - **authType**: `NONE`
   - **body_type**: `json`
   - **body**: `{"data": {"action": "store", "Mode": "{{step_prep['Mode']}}", "Trigger": "{{step_prep['Trigger']}}", "Report_ID": "{{step_prep['Report_ID']}}", "_job": "{{step_prep['_job']}}", "_who": "flow:MARKET_ANALYSE", "report": "{{step_prep['failed_report']}}", "articles": "{{step_prep['articles']}}"}}`
@@ -66,21 +65,18 @@ File: `MARKET_ANALYSE.json`. Do the steps in order. Tick each box.
   - **temperature**: `0.3`
   - **maxTokens**: `2000`
 
-## 9. POST MARKET_STORE ?k= — the finished report (`step_store`, http)
+## 9. POST MARKET_STORE — the finished report (`step_store`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
 - [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
   - **method**: `POST`
   - **url**: `{{step_constants['market_store_webhook']}}`
   - **headers**: `application/json`
-  - **queryParams**: `{{step_constants['market_store_secret']}}`
   - **authType**: `NONE`
   - **body_type**: `json`
   - **body**: `{"data": {"action": "store", "Mode": "{{step_prep['Mode']}}", "Trigger": "{{step_prep['Trigger']}}", "Report_ID": "{{step_prep['Report_ID']}}", "_job": "{{step_prep['_job']}}", "_who": "flow:MARKET_ANALYSE", "report": "{{step_finish['report']}}", "articles": "{{step_prep['articles']}}"}}`
 
-## 10. Constants + webhook secret check (first step) (`step_constants`, code)
+## 10. Constants + action check (first step) (`step_constants`, code)
 - [ ] Open the step's code and replace each placeholder with the real value, then save:
-  - `SET_IN_STUDIO_MARKET_ANALYSE_WEBHOOK_SECRET` → the real value
-  - `SET_IN_STUDIO_MARKET_STORE_WEBHOOK_SECRET` → the real value
   - `SET_IN_STUDIO_MARKET_STORE_WEBHOOK_URL` → the real value
 
 ## 11. Publish
@@ -93,7 +89,7 @@ File: `MARKET_ANALYSE.json`. Do the steps in order. Tick each box.
 - [ ] Each test must end at a **Return** step with `ok: true` and the row it wrote; a run that stops earlier is a failed path.
 - [ ] A WhatsApp **text** send reaches a number only inside Meta's 24-hour window after the customer last wrote; a reminder or a win-back must be a **template** send (`sends.template`) approved on whatsapp.pucho.ai.
 
-**run — sent by MARKET_REPORT (test MARKET_REPORT instead) · URL ?k=<secret>**
+**run — sent by MARKET_REPORT (test MARKET_REPORT instead)**
 ```json
 {
   "action": "run",
@@ -112,15 +108,16 @@ From a terminal (the app sends the same): `curl -X POST <webhook URL>/sync -H 'C
 
 ## Wiring the seven Market Intelligence flows (all of them — do this once)
 - Import in this order, publishing each and copying its webhook URL: MARKET_PUBLISH → BROADCAST → MARKET_STORE → MARKET_ANALYSE → MARKET_REPORT → DAILY_WATCHDOG → DAILY_SCHEDULE.
-- **Webhook secrets (SA-01..SA-04).** Generate one random secret per webhook flow (≥ 32 characters, e.g. `openssl rand -hex 24`): MARKET_REPORT, MARKET_ANALYSE,
-  MARKET_STORE, BROADCAST, MARKET_PUBLISH. Paste each into that flow's own `webhook_secret` constant AND into the `<flow>_secret` constant of every flow that
-  calls it. A missing or wrong `?k=` answers 401 before anything is read, fetched, sent or written; a placeholder secret refuses everyone.
-- Paste each URL **bare** (never `/sync` — every flow-to-flow hop is async) into the `<flow>_webhook` constant that names it; the `?k=` is added by the step.
-- The app calls two of them, with the secret in the URL: `WEBHOOK_MARKET_REPORT=<MARKET_REPORT url>?k=<MARKET_REPORT secret>` (run, rerun are async) and
-  `WEBHOOK_BROADCAST=<BROADCAST url>/sync?k=<BROADCAST secret>` (retry waits for its Return; send is async, so the app posts and does not wait).
+- **No webhook secret (owner decision 23 Oct 2026).** The flows no longer check a `?k=` secret: anyone who knows a webhook URL can start that flow
+  (SA-01..SA-04 reopened). Keep the URLs private; only the action is checked (400 for an unknown one).
+- Paste each URL **bare** (never `/sync` — every flow-to-flow hop is async) into the `<flow>_webhook` constant that names it.
+- The app calls two of them: `WEBHOOK_MARKET_REPORT=<MARKET_REPORT url>` (run, rerun are async) and
+  `WEBHOOK_BROADCAST=<BROADCAST url>/sync` (retry waits for its Return; send is async, so the app posts and does not wait).
   UNVERIFIED: that a long send started through /sync keeps running after Studio's sync window closes — if not, split send onto its own bare-URL flow.
 - `holidays` (NSE trading holidays, ⚑ G3): fill the SAME list in DAILY_SCHEDULE and DAILY_WATCHDOG.
+- **BROADCAST sends by Gmail (owner decision 23 Oct 2026).** Select the Gmail connection on both Gmail steps (send and retry), set `alert_to`
+  to the admins' email addresses (comma separated) and, if you like, `sender_name`. Subscribers receive the report at the `Email` on their record.
 - Give each flow its own token: `INBOUND_TOKEN_<FLOW>` on the app, the same value in that flow's `inbound_token`. While the app's token is unset every read answers 403 and the flows say APP_CLOSED.
-- UNVERIFIED until the first import: `{{trigger['queryParams']['k']}}` (the query string on catch_webhook), LOOP_ON_ITEMS (also nested), `body.data` in the JSON Body box,
-  pucho-whatsapp's response and `template_variables` keys (mi_daily_report: date, sentiment, confidence, driver · mi_run_failed: error, date, time),
+- UNVERIFIED until the first import: LOOP_ON_ITEMS (also nested), `body.data` in the JSON Body box,
+  Gmail send_email's response (the message id) and its props on the current piece version (registry props are from v2.0.1),
   `return_response` at the end of a schedule-triggered flow, and the app honouring `?Attempts=eq.<n>` on PATCH (kernel ticket: today the door filters on the id only).

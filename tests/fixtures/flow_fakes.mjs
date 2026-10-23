@@ -15,7 +15,8 @@ export class ServiceError extends Error { constructor(status, msg) { super(`HTTP
 export const FEED_FILES = { 'site:economictimes.indiatimes.com': ['et-markets.xml'], 'site:moneycontrol.com': ['moneycontrol.xml'], 'site:reuters.com': ['reuters-india.xml'],
   'q=India+stock': ['google-finance.xml'], 'q=SGX+Nifty': ['global-cues.xml'] };
 
-/** opts: { feeds: 'down' (every feed fails), model: text the model answers, whatsapp: (inputs) => output | throws, app: (method, url, query, body) => {status, body}, calls: [] } */
+/** opts: { feeds: 'down' (every feed fails), model: text the model answers, email: (inputs) => output | throws (Gmail), whatsapp: (inputs) => output | throws,
+ *  app: (method, url, query, body) => {status, body}, calls: [] } */
 export function makeFakes(opts = {}) {
   const calls = opts.calls || [];
   return async (piece, inputs, node) => {
@@ -33,6 +34,12 @@ export function makeFakes(opts = {}) {
       return { status: 200, headers: {}, body: { ok: true } };          // another flow's webhook (bare URL: answers at once)
     }
     if (piece === 'llm-ai:askLlm') return { data: { response: opts.model ?? MODEL.fenced } };
+    if (piece === 'gmail:send_email') {                                // Gmail answers the sent message's id (and thread id)
+      if (opts.email) return opts.email(inputs);
+      const to = Array.isArray(inputs.receiver) ? inputs.receiver.filter(Boolean) : [];
+      if (!to.length || !to.every((a) => /@/.test(a))) throw new ServiceError(400, 'Invalid To header');
+      return { id: `18fake${calls.length}`, threadId: `18thr${calls.length}`, labelIds: ['SENT'] };
+    }
     if (piece === 'pucho-whatsapp:send_template_message') {
       if (opts.whatsapp) return opts.whatsapp(inputs);
       if (!inputs.to) throw new ServiceError(400, 'to is required');
