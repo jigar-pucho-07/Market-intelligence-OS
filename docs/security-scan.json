@@ -1,13 +1,13 @@
 {
   "root": "J:\\Market intelligense\\Market intelligense\\market-intel-os",
-  "stage": "production",
+  "stage": "pilot",
   "tier": "v4",
-  "files_scanned": 135,
+  "files_scanned": 140,
   "flows_scanned": 7,
   "counts": {
     "Critical": 1,
     "High": 2,
-    "Medium": 10,
+    "Medium": 12,
     "Low": 1
   },
   "findings": [
@@ -68,6 +68,20 @@
       "fix": "Render text, not HTML; sanitise (DOMPurify) and record the review in Decision.md if HTML is unavoidable."
     },
     {
+      "id": "F5",
+      "severity": "Medium",
+      "where": "app\\src\\module\\DocumentPreview.jsx:37",
+      "what": "innerHTML assignment in kernel code",
+      "fix": "Render text, not HTML; sanitise (DOMPurify) and record the review in Decision.md if HTML is unavoidable."
+    },
+    {
+      "id": "F5",
+      "severity": "Medium",
+      "where": "app\\src\\module\\ListPdf.jsx:75",
+      "what": "innerHTML assignment in kernel code",
+      "fix": "Render text, not HTML; sanitise (DOMPurify) and record the review in Decision.md if HTML is unavoidable."
+    },
+    {
       "id": "W1",
       "severity": "Medium",
       "where": "workflows\\BROADCAST\\BROADCAST.json \u00b7 trigger (Catch Webhook \u2014 BROADCAST (send \u00b7 retry))",
@@ -106,7 +120,7 @@
       "id": "F18",
       "severity": "Low",
       "where": "app (npm audit --omit=dev)",
-      "what": "1 critical \u00b7 0 high dependency advisory(ies) \u2014 reported, not a gate failure",
+      "what": "0 critical \u00b7 1 high dependency advisory(ies) \u2014 reported, not a gate failure",
       "fix": "Run `npm audit` in app/; upgrade or pin the affected packages, or record an accepted-risk note in docs/security.md."
     }
   ],
