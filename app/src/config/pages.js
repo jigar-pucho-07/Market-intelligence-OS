@@ -982,7 +982,8 @@ export const PAGES = [
               "columns": [
                 "Link",
                 "Report_ID"
-              ]
+              ],
+              "link_label": "Read full article"
             }
           ]
         },

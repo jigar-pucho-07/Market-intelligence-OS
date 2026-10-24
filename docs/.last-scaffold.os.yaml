@@ -681,7 +681,7 @@ pages:
         columns: [ { key: Title, type: text, sub: Summary, grow: true }, { key: Category, type: tag }, { key: Impact, type: badge }, { key: Source, type: tag }, { key: Fetched_At, header: Fetched, type: date, time: true }, { key: Report_ID, header: Report, type: id, priority: low } ]
         search: [Title, Summary]
         filters: [Source, Impact]
-        drawer: { title_column: Title, sections: [ { type: tiles, title: Article, columns: [Source, Category, Impact, Published_At] }, { type: callout, column: Summary, title: Summary, tone: neutral }, { type: fields, title: Link, columns: [Link, Report_ID] } ] }
+        drawer: { title_column: Title, sections: [ { type: tiles, title: Article, columns: [Source, Category, Impact, Published_At] }, { type: callout, column: Summary, title: Summary, tone: neutral }, { type: fields, title: Link, columns: [Link, Report_ID], link_label: Read full article } ] }
         empty: { title: No news in this period, reason: "News is fetched by each report run; widen the period or run the report." }
 
   - id: pipeline
