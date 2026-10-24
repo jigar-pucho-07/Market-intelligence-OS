@@ -1004,8 +1004,10 @@ export const PAGES = [
     "subtitle": "How the 6 AM run is wired, and every run — re-run the ones that failed",
     "export": {
       "format": "pdf",
-      "title": "Pipeline run log",
-      "file_name": "Market-Intelligence-Runs-{{today}}",
+      "title": "Pipeline",
+      "file_name": "Market-Intelligence-Pipeline-{{today}}",
+      "section": "PipelinePdf",
+      "table_title": "Run log",
       "lines": [
         "Daily run: 06:00 IST, Monday to Friday",
         "5 RSS sources → AI analysis → report → broadcast"

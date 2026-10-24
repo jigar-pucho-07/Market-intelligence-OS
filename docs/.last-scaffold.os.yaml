@@ -691,8 +691,10 @@ pages:
     subtitle: How the 6 AM run is wired, and every run — re-run the ones that failed
     export:   # 24 Oct 2026: designed PDF — the run log with full source and error lines
       format: pdf
-      title: Pipeline run log
-      file_name: "Market-Intelligence-Runs-{{today}}"
+      title: Pipeline
+      file_name: "Market-Intelligence-Pipeline-{{today}}"
+      section: PipelinePdf          # page 1: latest run, 8 steps, safety nets, workflow configuration (same content as the page)
+      table_title: Run log          # page 2 onwards: the run log the table is showing
       lines: ["Daily run: 06:00 IST, Monday to Friday", "5 RSS sources → AI analysis → report → broadcast"]
       records_label: Runs
       count_by: [Trigger]

@@ -133,7 +133,7 @@ export default function Page({ config }) {
       )}
       {renderBlocks(config.blocks)}
       {pdfExport && listPdf && <ListPdf open onClose={() => setListPdf(false)} spec={pdfExport} page={config} entity={config.entity}
-        block={shown?.block ?? [...walkAll(config.blocks)].find((b) => b.type === 'table' && (b.entity ?? config.entity) === config.entity)} rows={shown?.rows ?? rows} filters={shown?.filters ?? {}} />}
+        block={shown?.block ?? [...walkAll(config.blocks)].find((b) => b.type === 'table' && (b.entity ?? config.entity) === config.entity)} rows={shown?.rows ?? rows} allRows={rows} data={data} filters={shown?.filters ?? {}} />}
       {modal && modal.spec.kind === 'document' && <DocumentPreview docId={modal.spec.document} row={modal.row} data={data} open onClose={() => setModal(null)} />}
       {modal && modal.spec.kind !== 'document' && <ActionModal spec={{ entity: config.entity, ...modal.spec }} row={modal.row} open onClose={() => setModal(null)} data={data} onDone={reload} />}
       {config.entity && <Drawer open={!!drawerRow} onClose={() => setDrawerRow(null)} row={drawerRow} entity={config.entity} spec={config.drawer ?? {}} data={data} actions={(config.actions?.row ?? []).map((id) => (config.modals ?? []).find((m) => m.id === id)).filter(Boolean)} onAction={(m, r) => { setDrawerRow(null); openModal(m, r); }} reload={reload} />}

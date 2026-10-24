@@ -12,6 +12,7 @@ import Modal from '../components/Modal';
 import { toneOf } from '../components/ui/primitives';
 import { ENTITIES, OS, BRAND } from '../config/os.config';
 import { toDate, toNum } from './formula';
+import { CUSTOM } from '../custom';
 
 const TONE = { ok: ['#E7F6EF', '#0B6B4F'], warn: ['#FEF3E2', '#92590A'], bad: ['#FDECEC', '#B42318'], info: ['#E8F1FD', '#1D4ED8'], neutral: ['#F1F3F5', '#4B5563'], brand: ['#E7F6EF', '#0B6B4F'] };
 // Market words first (BULLISH is not a status word), then the kernel's status vocabulary.
@@ -28,7 +29,10 @@ function text(col, v) {
   return String(v);
 }
 
-export default function ListPdf({ open, onClose, spec = {}, page, entity, block, rows = [], filters = {} }) {
+// `section: <CustomName>` puts a registered custom component (src/custom/index.js) above the tiles — given every row of the
+// entity and the page data, not just the filtered ones — and starts the tiles + table on a new page under `table_title`.
+export default function ListPdf({ open, onClose, spec = {}, page, entity, block, rows = [], allRows = rows, data = {}, filters = {} }) {
+  const Section = spec.section ? CUSTOM[spec.section] : null;
   const ref = useRef(null);
   const ent = ENTITIES[entity];
   // Per-page structure (os.yaml `export:`): `columns` (else the table's), `count_by` (tiles per value of those columns),
@@ -94,6 +98,8 @@ export default function ListPdf({ open, onClose, spec = {}, page, entity, block,
           <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>Generated {format(now, 'dd MMM yyyy, hh:mm a')}</div>
         </div>
       </div>
+      {Section && <Section rows={allRows} data={data} />}
+      {Section && <div style={{ breakBefore: 'page', pageBreakBefore: 'always', fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.07em', color: '#111827', margin: '4px 0 10px', paddingTop: 4 }}>{spec.table_title ?? 'Records'}</div>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
         {tiles.map((t) => { const [bg, fg] = TONE[t.tone] ?? TONE.neutral; return (
           <div key={t.label} style={{ flex: '1 1 110px', border: '1px solid #E5E7EB', borderRadius: 10, padding: '8px 12px', background: '#FAFAFA' }}>
