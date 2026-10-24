@@ -46,8 +46,11 @@ export default function HeaderTools({ slot = 'all' }) {   // slot: 'search' (the
   const { data } = useEntities([...new Set([...search, ...notes].map((s) => s.entity))]);
   const navigate = useNavigate();
   const S = usePopover(); const N = usePopover(); const [q, setQ] = useState('');
-  const [recent, setRecent] = useState(() => load('recent', []));
-  const [read, setRead] = useState(() => new Set(load('read', [])));
+  // 24 Oct 2026: the first render matches the server's (which has no localStorage) — read marks and recent searches load after
+  // mount; reading them in useState's initialiser made the bell's count differ on hydration ("6 unread" server, "0" client).
+  const [recent, setRecent] = useState([]);
+  const [read, setRead] = useState(() => new Set());
+  useEffect(() => { setRecent(load('recent', [])); setRead(new Set(load('read', []))); }, []);
   const groups = useMemo(() => {
     if (q.trim().length < 2) return [];
     const t = q.toLowerCase();
