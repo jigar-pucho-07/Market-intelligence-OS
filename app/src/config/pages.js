@@ -827,6 +827,45 @@ export const PAGES = [
     "icon": "Newspaper",
     "desc": "Every article the runs analysed, by category, impact and source",
     "subtitle": "The news behind each report — filter by category, impact or source",
+    "export": {
+      "format": "pdf",
+      "title": "News feed",
+      "file_name": "Market-Intelligence-News-{{today}}",
+      "lines": [
+        "The news behind each daily report",
+        "Five sources · categorised and impact-rated"
+      ],
+      "records_label": "Articles",
+      "count_by": [
+        "Impact"
+      ],
+      "group_by": "Category",
+      "columns": [
+        {
+          "key": "Title",
+          "header": "Headline",
+          "type": "text",
+          "sub": "Summary",
+          "grow": true,
+          "width": "52%"
+        },
+        {
+          "key": "Impact",
+          "type": "badge"
+        },
+        {
+          "key": "Source",
+          "type": "tag"
+        },
+        {
+          "key": "Fetched_At",
+          "header": "Fetched",
+          "type": "date",
+          "time": true
+        }
+      ],
+      "footer": "Headlines and summaries as published by the listed sources; categories and impact are assigned by the analysis run."
+    },
     "entity": "news_articles",
     "covers": [
       "R3",
@@ -963,6 +1002,57 @@ export const PAGES = [
     "icon": "Workflow",
     "desc": "The workflow steps, its configuration and every run with its source counts and errors",
     "subtitle": "How the 6 AM run is wired, and every run — re-run the ones that failed",
+    "export": {
+      "format": "pdf",
+      "title": "Pipeline run log",
+      "file_name": "Market-Intelligence-Runs-{{today}}",
+      "lines": [
+        "Daily run: 06:00 IST, Monday to Friday",
+        "5 RSS sources → AI analysis → report → broadcast"
+      ],
+      "records_label": "Runs",
+      "count_by": [
+        "Trigger"
+      ],
+      "totals": [
+        "Articles_Analyzed"
+      ],
+      "columns": [
+        {
+          "key": "Created_At",
+          "header": "Started",
+          "type": "date",
+          "time": true,
+          "sub": "Report_ID"
+        },
+        {
+          "key": "Trigger",
+          "type": "tag"
+        },
+        {
+          "key": "Status",
+          "type": "badge"
+        },
+        {
+          "key": "Articles_Analyzed",
+          "header": "News",
+          "type": "number"
+        },
+        {
+          "key": "Source_Status",
+          "header": "Sources",
+          "type": "text",
+          "width": "34%"
+        },
+        {
+          "key": "Error_Message",
+          "header": "Error",
+          "type": "text",
+          "width": "20%"
+        }
+      ],
+      "footer": "A failed source never stops a run; a run with no news from any source is recorded as Failed and can be re-run."
+    },
     "entity": "reports",
     "covers": [
       "R12",
@@ -1113,6 +1203,49 @@ export const PAGES = [
     "icon": "Users",
     "desc": "Who receives the report by email",
     "subtitle": "Add, pause or remove subscribers — only people who opted in",
+    "export": {
+      "format": "pdf",
+      "title": "Subscribers",
+      "file_name": "Market-Intelligence-Subscribers-{{today}}",
+      "orientation": "portrait",
+      "lines": [
+        "Daily report distribution list",
+        "Only people who opted in"
+      ],
+      "records_label": "Subscribers",
+      "count_by": [
+        "Opt_In_Source"
+      ],
+      "columns": [
+        {
+          "key": "Name",
+          "type": "text",
+          "sub": "City",
+          "grow": true,
+          "width": "26%"
+        },
+        {
+          "key": "Email",
+          "header": "Email"
+        },
+        {
+          "key": "Status",
+          "type": "badge"
+        },
+        {
+          "key": "Opt_In_At",
+          "header": "Opted in",
+          "type": "date",
+          "sub": "Opt_In_Source"
+        },
+        {
+          "key": "WhatsApp",
+          "header": "WhatsApp",
+          "type": "phone"
+        }
+      ],
+      "footer": "Contains personal data (names, email addresses, phone numbers). Share only inside the desk and delete copies you no longer need."
+    },
     "entity": "subscribers",
     "covers": [
       "R26"
@@ -1414,6 +1547,60 @@ export const PAGES = [
     "icon": "MessageSquare",
     "desc": "Every WhatsApp sent, with its status — retry the failed ones",
     "subtitle": "Every WhatsApp the desk sent — retry a failed delivery",
+    "export": {
+      "format": "pdf",
+      "title": "Delivery log",
+      "file_name": "Market-Intelligence-Deliveries-{{today}}",
+      "lines": [
+        "One row per subscriber and report",
+        "Failed deliveries can be retried up to 3 attempts"
+      ],
+      "records_label": "Deliveries",
+      "count_by": [
+        "Kind"
+      ],
+      "totals": [],
+      "columns": [
+        {
+          "key": "Subscriber_Name",
+          "header": "Subscriber",
+          "type": "text",
+          "sub": "Subscriber_ID",
+          "grow": true,
+          "width": "22%"
+        },
+        {
+          "key": "Report_Date",
+          "header": "Report",
+          "type": "date"
+        },
+        {
+          "key": "Kind",
+          "type": "tag"
+        },
+        {
+          "key": "Status",
+          "type": "badge"
+        },
+        {
+          "key": "Attempts",
+          "type": "number"
+        },
+        {
+          "key": "Sent_At",
+          "header": "Sent",
+          "type": "date",
+          "time": true
+        },
+        {
+          "key": "Error_Message",
+          "header": "Error",
+          "type": "text",
+          "width": "24%"
+        }
+      ],
+      "footer": "Message ids and errors as returned by the email provider at send time."
+    },
     "entity": "deliveries",
     "covers": [
       "R10",
