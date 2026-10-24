@@ -472,11 +472,22 @@ export const PAGES = [
         "kind": "document",
         "title": "Print report",
         "document": "report_pdf"
+      },
+      {
+        "id": "pdf_today",
+        "kind": "document",
+        "title": "Download PDF",
+        "document": "report_pdf",
+        "where": "Report_Date in last 1 days",
+        "date": "Report_Date",
+        "empty": "No report for today yet — run the report first"
       }
     ],
+    "export": false,
     "actions": {
       "header": [
-        "run_now"
+        "run_now",
+        "pdf_today"
       ],
       "row": [
         "review",

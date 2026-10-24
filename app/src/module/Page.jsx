@@ -26,7 +26,8 @@ import { useEntity, useEntities } from '../hooks/useEntity';
 import { downloadCSV } from '../utils/api';
 import { CUSTOM } from '../custom';
 import { useT } from '../i18n';
-import { DOCUMENTS } from '../config/os.config';
+import { DOCUMENTS, ENTITIES } from '../config/os.config';
+import { where as whereRows } from './formula';
 const DOC_ENTITIES = Object.fromEntries(Object.entries(DOCUMENTS).map(([k, d]) => [k, [d.entity, d.items?.entity].filter(Boolean)]));
 
 function* walkAll(blocks) { for (const b of blocks ?? []) { yield b; yield* walkAll(b.blocks); for (const t of b.tabs ?? []) yield* walkAll(t.blocks); } }
@@ -56,7 +57,19 @@ export default function Page({ config }) {
   const [drawerRow, setDrawerRow] = useState(null);
   // A KPI with `filter:` is a button: clicking it narrows the tables on this page to that clause.
   const [kpi, setKpi] = useState(null);
-  const openModal = (spec, row) => setModal({ spec, row });
+  // A document action in the page header has no row: it prints the newest record its `where:` matches (24 Oct 2026, e.g. today's
+  // report as a PDF from the Today page). Newest = the modal's `date:` column, else the entity's created column.
+  const openModal = (spec, row) => {
+    if (spec?.kind === 'document' && !row) {
+      const doc = DOCUMENTS[spec.document]; const e = doc?.entity;
+      const list = e ? whereRows(data[e] ?? [], spec.where, user) : [];
+      const dc = spec.date ?? ENTITIES[e]?.created;
+      const pick = [...list].sort((a, b) => (Date.parse(b?.[dc]) || 0) - (Date.parse(a?.[dc]) || 0))[0];
+      if (!pick) { toast.error(t(spec.empty ?? 'Nothing to print yet')); return; }
+      row = pick;
+    }
+    setModal({ spec, row });
+  };
   // `?action=<modal id>` opens that modal on arrival — how the shell's primary action (design.sidebar.action) lands here.
   const [params, setParams] = useSearchParams();
   // Next's search params are read-only: edit a mutable copy, never the object itself (deleting on it throws and unmounts the page).
@@ -108,7 +121,7 @@ export default function Page({ config }) {
           <motion.div variants={itemVariants} className="flex gap-2 ml-auto" data-os-page-actions>
             {config.entity && config.export !== false && <Button icon={<Download className="w-4 h-4" />} onClick={() => { downloadCSV(rows, config.entity); toast.success(t('Export completed')); }}>{t('Export')}</Button>}
             {/* One primary per header (ux-laws: Von Restorff, Fitts) — the action marked `primary`, else the first; it sits last, nearest the pointer's usual path */}
-            {headerActions.map((m, i) => ({ m, main: i === mainAction })).sort((a, b) => a.main - b.main).map(({ m, main }) => <Button key={m.id} data-os-action={m.id} type={main ? 'primary' : 'default'} icon={<Plus className="w-4 h-4" />} onClick={() => openModal(m, null)}>{t(m.title)}</Button>)}
+            {headerActions.map((m, i) => ({ m, main: i === mainAction })).sort((a, b) => a.main - b.main).map(({ m, main }) => <Button key={m.id} data-os-action={m.id} type={main ? 'primary' : 'default'} icon={m.kind === 'document' ? <Download className="w-4 h-4" /> : <Plus className="w-4 h-4" />} onClick={() => openModal(m, null)}>{t(m.title)}</Button>)}
           </motion.div>
         </motion.div>
       )}

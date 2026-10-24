@@ -604,7 +604,10 @@ pages:
                     { key: View_Intraday, label: Intraday view, type: textarea, rows: 2 }, { key: View_FnO, label: F&O positioning view, type: textarea, rows: 2 } ] }
       - { id: send_all, kind: status, title: Send to subscribers, flow: BROADCAST, action: send, submit: Send to subscribers, pending: "Sending to subscribers…", success: "Sending — each delivery is logged", covers: [R9, R24], summary: [Report_Date, Sentiment, Confidence_Pct], intro: "Goes to every Active, opted-in subscriber's WhatsApp as the approved Daily Market Intelligence template. Subscribers who already received this report are skipped." }
       - { id: pdf,      kind: document, title: Print report, document: report_pdf }
-    actions: { header: [run_now], row: [review, send_all, pdf] }
+      - { id: pdf_today, kind: document, title: Download PDF, document: report_pdf, where: "Report_Date in last 1 days", date: Report_Date,
+          empty: "No report for today yet — run the report first" }   # 24 Oct 2026: today's report as the designed PDF (replaces the CSV export)
+    export: false
+    actions: { header: [run_now, pdf_today], row: [review, send_all, pdf] }
 
   - id: reports
     route: /reports
