@@ -1,6 +1,6 @@
 // ContactActions — Call · WhatsApp · Email for a record, from the entity's `contact:` declaration:
 //   contact: { phone: Phone, whatsapp: Phone, email: Email }
-// Real links (tel:, wa.me, mailto:), so on a phone a tap dials. `onLog` (optional) opens the log modal after a
+// Real links (tel:, wa.me, Gmail compose), so on a phone a tap dials. `onLog` (optional) opens the log modal after a
 // tap so the rep records what happened — the audit's H2: a rep should never copy a number by hand.
 import { Phone, MessageCircle, Mail } from 'lucide-react';
 import { cn } from '../../utils/cn';
@@ -12,13 +12,18 @@ export function formatPhone(v) {
   const n = d.match(/^(\d{5})(\d{5})$/); return n ? `${n[1]} ${n[2]}` : String(v ?? '');
 }
 
+/** Gmail's compose window, To filled: https://mail.google.com/mail/?view=cm&fs=1&to=a%40b.in */
+export const gmailCompose = (email) => `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(String(email).trim())}`;
+
 export function contactLinks(row, ent) {
   const c = ent?.contact; if (!c || !row) return [];
   const out = [];
   const phone = c.phone && row[c.phone]; const wa = c.whatsapp && row[c.whatsapp]; const email = c.email && row[c.email];
   if (phone) out.push({ key: 'call', label: 'Call', icon: Phone, href: `tel:${digits(phone)}`, title: formatPhone(phone) });
   if (wa) out.push({ key: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, href: `https://wa.me/${digits(wa).replace(/^\+/, '')}`, title: formatPhone(wa), external: true });
-  if (email) out.push({ key: 'email', label: 'Email', icon: Mail, href: `mailto:${email}`, title: String(email) });
+  // 24 Oct 2026: Email opens Gmail's compose window in a new tab with the address in To (a mailto: link only opened the
+  // browser's default handler — nothing, on a PC without a mail app).
+  if (email) out.push({ key: 'email', label: 'Email', icon: Mail, href: gmailCompose(email), title: String(email), external: true });
   return out;
 }
 
