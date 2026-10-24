@@ -1,3 +1,6 @@
-npm run check · 2026-10-23T10:59:53.718Z
-6 passed, 1 failed
+npm run check · 2026-10-24T05:55:34.064Z
+5 passed, 2 failed
 FAIL S1 secret-shaped NEXT_PUBLIC_ name(s): NEXT_PUBLIC_DB_TIMEZONE
+FAIL S6 npm audit reports a high or critical vulnerability:
+zod  <4.6.6
+Severity: high
