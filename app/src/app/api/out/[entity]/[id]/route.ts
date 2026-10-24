@@ -5,7 +5,7 @@
 import { currentUser } from '@/lib/auth';
 import { getRow } from '@/lib/dal';
 import { ENTITIES } from '@/config/os.config';
-import { webUrl, resolveOutbound } from '@/lib/outLink';
+import { webUrl, resolveOutbound, isGoogleNews } from '@/lib/outLink';
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request, ctx: { params: Promise<{ entity: string; id: string }> }) {
   const user = await currentUser(); if (!user) return Response.json({ error: 'not signed in' }, { status: 401 });
@@ -14,6 +14,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ entity: string;
   if (!e || !e.columns.includes(colName) || id.length > 200) return Response.json({ error: 'not found' }, { status: 404 });
   const row = await getRow({ kind: 'user', user }, entity, id).catch(() => null);
   const link = row && webUrl(row[colName]); if (!link) return Response.json({ error: 'not found' }, { status: 404 });
-  const to = webUrl(await resolveOutbound(link.href)) ?? link;
+  let to = webUrl(await resolveOutbound(link.href)) ?? link;
+  // Google would not decode it (rate limit, change of format): its own redirect page may 400, so search the headline instead.
+  const title = String(row[e.title ?? ''] ?? '').trim();
+  if (isGoogleNews(to.href) && title) to = new URL(`https://www.google.com/search?q=${encodeURIComponent(title)}`);
   return new Response(null, { status: 302, headers: { Location: to.href, 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer' } });
 }

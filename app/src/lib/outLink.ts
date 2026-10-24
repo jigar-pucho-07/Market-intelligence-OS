@@ -3,7 +3,8 @@
 // address and then redirects — and in some browsers that request fails with a 400. Here the server asks Google once (the
 // same two calls the page makes: the article page for its signature and timestamp, then batchexecute "garturlreq") and
 // remembers the answer; every other address is returned unchanged. Only news.google.com is ever fetched (no SSRF), each
-// call has a timeout, and anything unexpected falls back to the original link.
+// call has a timeout, and anything unexpected (Google answers 429 when asked too often) falls back to the original link —
+// the route then searches the headline instead.
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36';
 const GN = /^https:\/\/news\.google\.com\/(?:rss\/)?(?:articles|read)\/([A-Za-z0-9_-]{20,})/;
 const cache = new Map<string, string>();
