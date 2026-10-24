@@ -277,6 +277,7 @@ entities:
       Failed: [Sent, Failed]
       Sent:   [Sent]
     unique_together: [[Report_Date, Subscriber_ID, Kind]]
+    required: [Kind, Status, Subscriber_ID]   # 24 Oct 2026: a write without these is a 400 (a Studio "Test step" once stored an empty row)
     columns: [Delivery_ID, Sent_At, Kind, Report_ID, Report_Date, Subscriber_ID, Subscriber_Name, Sentiment, Status, Attempts, Message_ID, Error_Message]
     fields:
       Status:      { one_of: [Queued, Sent, Failed] }

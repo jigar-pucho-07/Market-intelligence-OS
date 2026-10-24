@@ -59,7 +59,8 @@ function makeApp(seed = {}, { closed = false, conditional = false, race = null }
       || (E.status && r[E.status.column] !== undefined && !E.status.values.includes(r[E.status.column]));
     const dupOf = (r, except) => [...(E.unique || []).map((c) => [c]), ...(E.unique_together || [])]
       .find((g) => g.every((c) => String(r[c] ?? '') !== '') && rows.some((x) => x[idc] !== except && g.every((c) => String(x[c]) === String(r[c]))));
-    const stage = (from, r) => { const sc = E.status && E.status.column; if (!sc) return null; const to = r[sc]; if (!to) return null;
+    const stage = (from, r) => { for (const f of E.required || []) if (String(r[f] ?? '').trim() === '') return `${f} is required`;
+      const sc = E.status && E.status.column; if (!sc) return null; const to = r[sc]; if (!to) return null;
       if (from && to !== from && !(E.transitions[from] || []).includes(to)) return `cannot move from ${from} to ${to}`;
       for (const f of (E.requires_on || {})[to] || []) if (r[f] === '' || r[f] == null) return `${f} required`; return null; };
     if (method === 'GET') return { status: 200, body: rows.map((r) => ({ ...r })) };
@@ -278,6 +279,17 @@ test('ZeroBounce on retry: a still-invalid address sends nothing and answers why
   w.app.db.subscribers[1].Email = 'neha.iyer@example.in';
   const r2 = await run(w, 'BROADCAST', { action: 'retry', Delivery_ID: 'DLV-2026-0001' });
   assert.equal(r2.responses[0].sent, true); assert.equal(d.Status, 'Sent'); assert.deepEqual(sends(w).map(to), ['neha.iyer@example.in']);
+});
+
+test('deliveries required (24 Oct 2026): the queue step run on its own — Studio "Test step", no loop item — is a 400 and stores nothing', async () => {
+  assert.deepEqual(ENTITIES.deliveries.required, ['Kind', 'Status', 'Subscriber_ID'], 'os.yaml deliveries.required reached the generated config');
+  const w = newWorld({});
+  const queue = []; const find = (n) => { if (!n) return; if (n.name === 'step_send_queue') queue.push(n); (n.children || []).forEach(find); find(n.firstLoopAction); find(n.nextAction); };
+  find(load('BROADCAST').template.trigger);
+  const blank = Object.fromEntries(Object.entries(queue[0].settings.input.body.data).map(([k, v]) => [k, typeof v === 'string' && v.startsWith('{{') ? '' : v]));
+  assert.deepEqual(blank, { Kind: '', Report_ID: '', Report_Date: '', Subscriber_ID: '', Subscriber_Name: '', Sentiment: '', Status: '', Delivery_ID: '', Attempts: 1 });
+  const r = w.app.app('POST', 'https://app.test/api/appdata/deliveries', {}, blank);
+  assert.equal(r.status, 400); assert.equal(w.app.db.deliveries.length, 0);
 });
 
 test('publish: nothing actually sent → the report stays Ready and the app job fails', async () => {

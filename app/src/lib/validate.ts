@@ -174,23 +174,28 @@ export function applyComputed(entity: string, row: Record<string, unknown>): Rec
 // be entered only when those fields are present. Enforced server-side on every write path (not just the Kanban `locked`
 // UI). On an insert `from` is '' so only requires_on applies (you may create a record directly into a stage, but it must
 // carry that stage's required fields).
-type StageSpec = { statusColumn?: string; transitions?: Record<string, string[]>; requires_on?: Record<string, string[]> };
+// 24 Oct 2026: entity-level `required: [cols]` — columns every stored row must carry, whatever its stage (a blank status
+// included: requires_on cannot see a row that has none). Checked on the merged row, so an insert or a patch that leaves one
+// empty is a 400 — a Studio "Test step" outside its loop (every mapped value blank) can no longer write an empty row.
+type StageSpec = { statusColumn?: string; transitions?: Record<string, string[]>; requires_on?: Record<string, string[]>; required?: string[] };
 const stageOf = (entity: string): StageSpec => {
   const e = (ENTITIES as any)[entity] ?? {};
-  return { statusColumn: e.status?.column, transitions: e.transitions, requires_on: e.requires_on };
+  return { statusColumn: e.status?.column, transitions: e.transitions, requires_on: e.requires_on, required: e.required };
 };
 /** True when a patch needs the current stored row to be validated (to know the from-stage, to recompute a formula from
  *  siblings the patch did not send, or to tell an unchanged no_past date from a new one). The write paths fetch the row only when this is true. */
 export function needsCurrentRow(entity: string): boolean {
   const e = (ENTITIES as any)[entity] ?? {};
   const noPast = Object.values((e.field_rules ?? {}) as Record<string, FieldRule>).some((r) => r?.no_past);
-  return !!(e.transitions || e.requires_on || (e.computed && Object.keys(e.computed).length) || noPast);
+  return !!(e.transitions || e.requires_on || e.required?.length || (e.computed && Object.keys(e.computed).length) || noPast);
 }
 /** Validate a stage change. `from` is the current stored stage ('' on insert); `merged` is the row as it will be after
  *  the write (so requires_on sees the final values). Returns a field-keyed error (on the status column for an illegal
  *  move, or on the first missing required field) or null. No status column / no transitions = nothing to enforce. */
 export function validateStage(entity: string, from: string, merged: Record<string, unknown>): Record<string, string> | null {
-  const sp = stageOf(entity); const sc = sp.statusColumn; if (!sc) return null;
+  const sp = stageOf(entity);
+  for (const f of sp.required ?? []) { const v = merged[f]; if (v == null || String(v).trim() === '') return { [f]: 'is required' }; }
+  const sc = sp.statusColumn; if (!sc) return null;
   const to = String(merged[sc] ?? '').trim(); if (!to) return null;
   if (sp.transitions && from && to !== from) {
     const allowed = sp.transitions[from] ?? [];
