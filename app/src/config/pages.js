@@ -509,6 +509,16 @@ export const PAGES = [
       "R10",
       "R24"
     ],
+    "export": {
+      "format": "pdf",
+      "title": "Daily reports",
+      "file_name": "Market-Intelligence-Reports-{{today}}",
+      "lines": [
+        "Daily pre-market commentary · NSE / BSE",
+        "Market Opens: 9:15 AM IST"
+      ],
+      "footer": "Market commentary generated with AI from public news. Not investment advice and not a research report by a SEBI-registered research analyst."
+    },
     "blocks": [
       {
         "type": "table",

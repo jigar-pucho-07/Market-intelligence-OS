@@ -20,6 +20,7 @@ import Feed from './blocks/Feed';
 import Queue from './blocks/Queue';
 import Form from './blocks/Form';
 import DocumentPreview from './DocumentPreview';
+import ListPdf from './ListPdf';
 import Drawer from './blocks/Drawer';
 import { Callout } from '../components/ui/primitives';
 import { useEntity, useEntities } from '../hooks/useEntity';
@@ -55,6 +56,10 @@ export default function Page({ config }) {
   const busy = loading || extraLoading;
   const [modal, setModal] = useState(null);
   const [drawerRow, setDrawerRow] = useState(null);
+  // `export: { format: pdf, ... }` (24 Oct 2026): Export opens a designed PDF of the rows the page's table is showing.
+  const pdfExport = config.export && typeof config.export === 'object' && config.export.format === 'pdf' ? config.export : null;
+  const [shown, setShown] = useState(null);
+  const [listPdf, setListPdf] = useState(false);
   // A KPI with `filter:` is a button: clicking it narrows the tables on this page to that clause.
   const [kpi, setKpi] = useState(null);
   // A document action in the page header has no row: it prints the newest record its `where:` matches (24 Oct 2026, e.g. today's
@@ -90,7 +95,8 @@ export default function Page({ config }) {
     switch (b.type) {
       case 'kpis': return <Kpis key={key} kpis={b.kpis.map((k) => ({ entity: config.entity, ...k }))} data={{ ...data, [config.entity]: scopedRows }} loading={busy} user={user} selected={kpi?.label ?? null} onSelect={setKpi} layout={b.layout ?? (hasList ? 'strip' : 'tiles')} />;
       case 'charts': return <Charts key={key} charts={b.charts.map((c) => ({ entity: config.entity, ...c }))} data={{ ...data, [config.entity]: scopedRows }} loading={busy} user={user} />;
-      case 'table': return <TableBlock key={key} block={b} page={config} rows={scoped} loading={busy} data={data} openModal={openModal} detailRoute={detailRoute} user={user} reload={reload} extraWhere={kpi && (!kpi.entity || kpi.entity === (b.entity ?? config.entity)) ? kpi.filter : undefined} />;
+      case 'table': return <TableBlock key={key} block={b} page={config} rows={scoped} loading={busy} data={data} openModal={openModal} detailRoute={detailRoute} user={user} reload={reload} extraWhere={kpi && (!kpi.entity || kpi.entity === (b.entity ?? config.entity)) ? kpi.filter : undefined}
+        onShown={pdfExport && (b.entity ?? config.entity) === config.entity ? (r, f) => setShown({ rows: r, filters: f, block: b }) : undefined} />;
       case 'tabs': return <Tabs key={key} block={b} rows={scopedRows} renderBlocks={renderBlocks} user={user} />;
       case 'calendar': return <Calendar key={key} block={b} rows={scoped} onOpen={(r) => setDrawerRow(r)} user={user} />;
       case 'stepper': return <Stepper key={key} block={b} data={data} reload={reload} entity={config.entity} />;
@@ -119,13 +125,15 @@ export default function Page({ config }) {
       {(config.entity || headerActions.length > 0) && (
         <motion.div variants={containerVariants} initial="initial" animate="animate" className="flex items-center justify-end gap-3 flex-wrap">
           <motion.div variants={itemVariants} className="flex gap-2 ml-auto" data-os-page-actions>
-            {config.entity && config.export !== false && <Button icon={<Download className="w-4 h-4" />} onClick={() => { downloadCSV(rows, config.entity); toast.success(t('Export completed')); }}>{t('Export')}</Button>}
+            {config.entity && config.export !== false && <Button icon={<Download className="w-4 h-4" />} data-os-export={pdfExport ? 'pdf' : 'csv'} onClick={() => { if (pdfExport) { setListPdf(true); return; } downloadCSV(rows, config.entity); toast.success(t('Export completed')); }}>{t('Export')}</Button>}
             {/* One primary per header (ux-laws: Von Restorff, Fitts) — the action marked `primary`, else the first; it sits last, nearest the pointer's usual path */}
             {headerActions.map((m, i) => ({ m, main: i === mainAction })).sort((a, b) => a.main - b.main).map(({ m, main }) => <Button key={m.id} data-os-action={m.id} type={main ? 'primary' : 'default'} icon={m.kind === 'document' ? <Download className="w-4 h-4" /> : <Plus className="w-4 h-4" />} onClick={() => openModal(m, null)}>{t(m.title)}</Button>)}
           </motion.div>
         </motion.div>
       )}
       {renderBlocks(config.blocks)}
+      {pdfExport && listPdf && <ListPdf open onClose={() => setListPdf(false)} spec={pdfExport} page={config} entity={config.entity}
+        block={shown?.block ?? [...walkAll(config.blocks)].find((b) => b.type === 'table' && (b.entity ?? config.entity) === config.entity)} rows={shown?.rows ?? rows} filters={shown?.filters ?? {}} />}
       {modal && modal.spec.kind === 'document' && <DocumentPreview docId={modal.spec.document} row={modal.row} data={data} open onClose={() => setModal(null)} />}
       {modal && modal.spec.kind !== 'document' && <ActionModal spec={{ entity: config.entity, ...modal.spec }} row={modal.row} open onClose={() => setModal(null)} data={data} onDone={reload} />}
       {config.entity && <Drawer open={!!drawerRow} onClose={() => setDrawerRow(null)} row={drawerRow} entity={config.entity} spec={config.drawer ?? {}} data={data} actions={(config.actions?.row ?? []).map((id) => (config.modals ?? []).find((m) => m.id === id)).filter(Boolean)} onAction={(m, r) => { setDrawerRow(null); openModal(m, r); }} reload={reload} />}

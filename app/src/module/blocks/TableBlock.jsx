@@ -41,7 +41,7 @@ function inPeriod(rows, column, preset) {
   return rows.filter((r) => { const d = toDate(r[column]); return d && d >= from && (!to || d < to); });
 }
 
-export default function TableBlock({ block, page, rows, loading, data, openModal, detailRoute, user, extraWhere, reload }) {
+export default function TableBlock({ block, page, rows, loading, data, openModal, detailRoute, user, extraWhere, reload, onShown }) {
   const t = useT();
   const entity = block.entity ?? page.entity; const ent = ENTITIES[entity];
   const src = useMemo(() => where(where(rows, block.where, user), extraWhere, user), [rows, block.where, extraWhere, user]);
@@ -52,7 +52,10 @@ export default function TableBlock({ block, page, rows, loading, data, openModal
   const periodRows = useMemo(() => inPeriod(src, block.period?.column ?? ent?.created, period), [src, block.period, ent, period]);
   const counts = useMemo(() => { const c = {}; for (const r of periodRows) c[r[segCol]] = (c[r[segCol]] || 0) + 1; return c; }, [periodRows, segCol]);
   const segRows = useMemo(() => (segment ? periodRows.filter((r) => r[segCol] === segment) : periodRows), [periodRows, segment, segCol]);
-  const { q, setQ, active, setActive, filtered } = useSearch(segRows, block.search ?? [], {});
+  const searchKeys = useMemo(() => block.search ?? [], [block.search]);   // a stable [] — a fresh one each render recomputed `filtered` every time
+  const { q, setQ, active, setActive, filtered } = useSearch(segRows, searchKeys, {});
+  // The page's Export (`export: { format: pdf }`) prints what this table is showing — period, status chip and search applied.
+  useEffect(() => { onShown?.(filtered, { period, segment, q }); }, [filtered, period, segment, q]); // eslint-disable-line react-hooks/exhaustive-deps
   const [drawerRow, setDrawerRow] = useState(null);
   const views = block.views ?? [block.view ?? (block.group ? 'grouped' : 'table')];
   const [view, setView] = useState(block.view ?? views[0]);
