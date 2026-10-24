@@ -36,6 +36,10 @@ export default function Header({ onMenuClick, wiring }) {
   const { pathname } = useLocation(); const meta = metaForPath(pathname);
   const titleRef = useEntrance([pathname], { y: 10, x: -8, duration: 0.4 });
   const t = useT(); const flat = (DESIGN.header ?? {}).style === 'flat';
+  // os.yaml `design.header.simulated_on: [/pipeline]` (23 Oct 2026) shows the "workflows simulated" pill only on those routes
+  // (and their sub-routes); without it the pill shows on every page, as before.
+  const simOn = (DESIGN.header ?? {}).simulated_on;
+  const showSim = !Array.isArray(simOn) || simOn.some((p) => pathname === p || pathname.startsWith(`${String(p).replace(/\/$/, '')}/`));
   return (
     <header data-os-header={flat ? 'flat' : 'blur'} className={cn('sticky top-0 z-20 w-full border-b border-surface-border grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center page-gutter h-[56px] gap-3', flat ? 'app-canvas' : 'backdrop-blur-xl')}
       style={{ background: flat ? 'var(--bg)' : 'color-mix(in srgb, var(--surface) 90%, transparent)' }}>
@@ -46,7 +50,7 @@ export default function Header({ onMenuClick, wiring }) {
       {/* centre slot: global search (UI 10) — HeaderTools renders the search here and the bell on the right */}
       <div className="flex items-center justify-center min-w-0"><HeaderTools slot="search" /></div>
       <div className="flex items-center justify-end gap-2 min-w-0">
-        {wiring && wiring.total > 0 && wiring.wired < wiring.total && <span data-os-simulated={wiring.total - wiring.wired} title={`Not wired yet: ${(wiring.unwired || []).join(', ')} — the app applies these actions itself until the workflow URL is set (docs/security.md)`} className="hidden sm:inline-flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1 rounded-[var(--r-6)] bg-warn-soft text-warn-text"><span className="w-1.5 h-1.5 rounded-full bg-warn" />{wiring.wired === 0 ? 'Workflows simulated' : `${wiring.total - wiring.wired} of ${wiring.total} workflows simulated`}</span>}
+        {showSim && wiring && wiring.total > 0 && wiring.wired < wiring.total && <span data-os-simulated={wiring.total - wiring.wired} title={`Not wired yet: ${(wiring.unwired || []).join(', ')} — the app applies these actions itself until the workflow URL is set (docs/security.md)`} className="hidden sm:inline-flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1 rounded-[var(--r-6)] bg-warn-soft text-warn-text"><span className="w-1.5 h-1.5 rounded-full bg-warn" />{wiring.wired === 0 ? 'Workflows simulated' : `${wiring.total - wiring.wired} of ${wiring.total} workflows simulated`}</span>}
         <InstallPrompt />
         <ThemeToggle />
         <HeaderTools slot="tools" />

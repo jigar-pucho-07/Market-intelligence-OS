@@ -1,5 +1,5 @@
 # Wiring map · Market Intelligence
-_Generated 2026-10-23._
+_Generated 2026-10-24._
 
 ## Screen → flow.action
 - Overview `/` → `BROADCAST.send` (Send to subscribers), `MARKET_REPORT.rerun` (Re-run report now), `BROADCAST.retry` (Retry delivery)

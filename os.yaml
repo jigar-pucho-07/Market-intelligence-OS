@@ -29,6 +29,7 @@ design:
   shell: sidebar
   direction: "Analysts read one dense report each morning; numbers in mono, status carries the colour, dark mode for the early start"
   sidebar: { footer: profile }
+  header: { simulated_on: [/pipeline] }   # 23 Oct 2026: the "workflows simulated" pill only on the Pipeline page
   powered_by: false            # the floating badge covered row content on desktop and mobile (qaqc 15 Oct); kernel ticket K12
 
 requirements:

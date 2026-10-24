@@ -14,6 +14,9 @@ export const DESIGN = {
   },
   "sidebar_styles": {},
   "header": {
+    "simulated_on": [
+      "/pipeline"
+    ],
     "style": "blur",
     "show_name": true
   },
