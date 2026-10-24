@@ -6,6 +6,16 @@ import { Phone, MessageCircle, Mail } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
 export const digits = (v) => String(v ?? '').replace(/[^\d+]/g, '');
+/** 24 Oct 2026: the number to dial, with its country code — "45436 36435" → +914543636435, "098250 12345" → +919825012345,
+ *  "919825012345" → +919825012345; a number already starting with + is kept. Without it a phone app or Phone Link on a PC
+ *  dials the wrong country (and wa.me opens no chat). The OS is India-first, so a bare 10-digit number is Indian. */
+export function dialable(v) {
+  const d = digits(v); if (d.startsWith('+')) return d;
+  if (/^0\d{10}$/.test(d)) return `+91${d.slice(1)}`;
+  if (/^\d{10}$/.test(d)) return `+91${d}`;
+  if (/^91\d{10}$/.test(d)) return `+${d}`;
+  return d;
+}
 /** +919870011132 → +91 98700 11132 (Indian mobile grouping); other lengths are returned as typed. */
 export function formatPhone(v) {
   const d = digits(v); const m = d.match(/^\+?91(\d{5})(\d{5})$/); if (m) return `+91 ${m[1]} ${m[2]}`;
@@ -19,8 +29,8 @@ export function contactLinks(row, ent) {
   const c = ent?.contact; if (!c || !row) return [];
   const out = [];
   const phone = c.phone && row[c.phone]; const wa = c.whatsapp && row[c.whatsapp]; const email = c.email && row[c.email];
-  if (phone) out.push({ key: 'call', label: 'Call', icon: Phone, href: `tel:${digits(phone)}`, title: formatPhone(phone) });
-  if (wa) out.push({ key: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, href: `https://wa.me/${digits(wa).replace(/^\+/, '')}`, title: formatPhone(wa), external: true });
+  if (phone) out.push({ key: 'call', label: 'Call', icon: Phone, href: `tel:${dialable(phone)}`, title: formatPhone(dialable(phone)) });
+  if (wa) out.push({ key: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, href: `https://wa.me/${dialable(wa).replace(/^\+/, '')}`, title: formatPhone(dialable(wa)), external: true });
   // 24 Oct 2026: Email opens Gmail's compose window in a new tab with the address in To (a mailto: link only opened the
   // browser's default handler — nothing, on a PC without a mail app).
   if (email) out.push({ key: 'email', label: 'Email', icon: Mail, href: gmailCompose(email), title: String(email), external: true });
