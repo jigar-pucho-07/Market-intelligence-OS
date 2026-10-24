@@ -17,17 +17,36 @@ export default function DocumentPreview({ docId, row, data, open, onClose, inlin
   const ref = useRef(null);
   const items = useMemo(() => (doc?.items ? (data?.[doc.items.entity] ?? []).filter((r) => r[doc.items.by] === row?.[ENTITIES[doc.entity].id.column]) : []), [doc, data, row]);
   if (!doc || !row) return null;
+  // 24 Oct 2026: the frame used to be 0×0 and was removed 1 s after print() — current Chrome / Edge open print preview
+  // asynchronously, so the frame was gone before the preview rendered and "Print / Save PDF" did nothing. Now the frame has a
+  // real A4 size off-screen, is removed only after the print dialog closes (afterprint, with a long safety timeout), the page
+  // title carries the file name (Save as PDF suggests it), and a blocked frame print falls back to a new tab that prints itself.
   const print = () => {
-    const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.appendChild(f);
-    const w = f.contentWindow; w.document.open();
-    w.document.write(`<!doctype html><html><head><title>${fill(doc.file_name ?? doc.title, row)}</title><style>
+    const name = fill(doc.file_name ?? doc.title, row);
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${name}</title><style>
       @page{size:A4;margin:16mm} body{font-family:Lato,Arial,sans-serif;color:#1f2937;font-size:12px} h1{font-size:18px;margin:0}
       .lh{display:flex;justify-content:space-between;border-bottom:3px solid ${BRAND.color};padding-bottom:10px;margin-bottom:16px}
       .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;margin:12px 0} .k{color:#6b7280;font-size:10px;text-transform:uppercase;letter-spacing:.05em} .v{font-weight:700}
       table{width:100%;border-collapse:collapse;margin:14px 0} th{background:${BRAND.color}15;color:#374151;text-align:left;font-size:10px;text-transform:uppercase;padding:6px;border-bottom:1px solid #e5e7eb} td{padding:6px;border-bottom:1px solid #f1f1f1} .r{text-align:right}
       .tot td{font-weight:700;border-top:2px solid #e5e7eb} .body{white-space:pre-wrap;line-height:1.55;margin:14px 0} .sig{margin-top:48px;display:flex;justify-content:flex-end} .sig div{text-align:center;border-top:1px solid #9ca3af;padding-top:6px;min-width:200px}
-    </style></head><body>${ref.current.innerHTML}</body></html>`);
-    w.document.close(); setTimeout(() => { w.focus(); w.print(); setTimeout(() => f.remove(), 1000); }, 250);
+    </style></head><body>${ref.current.innerHTML}</body></html>`;
+    const pageTitle = document.title; document.title = name;
+    const f = document.createElement('iframe'); f.setAttribute('aria-hidden', 'true'); f.setAttribute('data-os-print-frame', '');
+    f.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;height:297mm;border:0';
+    document.body.appendChild(f);
+    let done = false;
+    const cleanup = () => { if (done) return; done = true; document.title = pageTitle; setTimeout(() => f.remove(), 500); };
+    const viaTab = () => {                                     // the fallback: the same document in its own tab, printing itself
+      const tab = window.open('', '_blank'); if (!tab) { cleanup(); return; }
+      tab.document.open(); tab.document.write(html.replace('</body>', '<script>window.onload=()=>{window.focus();window.print();}</scr' + 'ipt></body>')); tab.document.close();
+      cleanup();
+    };
+    try {
+      const w = f.contentWindow; w.document.open(); w.document.write(html); w.document.close();
+      w.addEventListener('afterprint', cleanup, { once: true });
+      setTimeout(() => { try { w.focus(); w.print(); } catch { viaTab(); } }, 300);
+      setTimeout(cleanup, 10 * 60 * 1000);                     // safety: never leave the frame behind
+    } catch { viaTab(); }
   };
   const totals = (doc.items?.totals ?? []).map((t) => ({ label: t.label, value: t.sum ? items.reduce((s, r) => s + toNum(r[t.sum]), 0) : toNum(row[t.column]) }));
   const body = (
