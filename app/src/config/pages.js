@@ -1753,6 +1753,52 @@ export const PAGES = [
       "R28"
     ],
     "read_only": "The audit log is written by the app for every change; nobody edits history",
+    "export": {
+      "format": "pdf",
+      "title": "Activity log",
+      "file_name": "Market-Intelligence-Activity-{{today}}",
+      "lines": [
+        "Audit trail — every change by a person or a flow",
+        "Written by the app; nobody edits history"
+      ],
+      "records_label": "Changes",
+      "count_by": [
+        "Action"
+      ],
+      "totals": [],
+      "group_by": "Entity",
+      "columns": [
+        {
+          "key": "At",
+          "header": "When",
+          "type": "date",
+          "time": true,
+          "width": "15%"
+        },
+        {
+          "key": "Who",
+          "type": "text",
+          "width": "17%"
+        },
+        {
+          "key": "Action",
+          "type": "badge",
+          "width": "9%"
+        },
+        {
+          "key": "Record_ID",
+          "header": "Record",
+          "type": "text",
+          "width": "19%"
+        },
+        {
+          "key": "Summary",
+          "type": "text",
+          "grow": true
+        }
+      ],
+      "footer": "Every insert, update and delete the app recorded, with the person or flow that made it. Rows marked with a flow name were written by a Pucho Studio workflow."
+    },
     "blocks": [
       {
         "type": "kpis",
@@ -1847,7 +1893,6 @@ export const PAGES = [
       }
     ],
     "entity": "audit_log",
-    "export": true,
     "portal": "desk"
   },
   {
