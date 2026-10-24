@@ -15,7 +15,7 @@ Every webhook flow's FIRST step checks the action and answers 400 before any rea
   MARKET_REPORT   webhook run | rerun (the app's door): action → GET reports → today's state → 409 refused | POST MARKET_ANALYSE → Return
   MARKET_ANALYSE  webhook run | rerun: action → 5 RSS GETs → CODE → router (no news / analyse) → ONE llm-ai → CODE → POST MARKET_STORE → Return
   MARKET_STORE    webhook store: action → GET reports → CODE re-check + decide → router (refuse / new POST / re-run PATCH) → CODE → news → [BROADCAST] → [job] → Return
-  BROADCAST       webhook send | retry: action → Queued delivery per recipient → only if queued: Gmail → PATCH → MARKET_PUBLISH → Return
+  BROADCAST       webhook send | retry: action → Queued delivery per recipient → only if queued: ZeroBounce → valid | catch-all: Gmail → PATCH · else PATCH Failed → MARKET_PUBLISH → Return
   MARKET_PUBLISH  webhook publish: action → GET reports + deliveries → CODE → [report Sent + counts, reader copy] → [job] → Return
 A loop over a 0-or-1 list stands in for "only if" where a second router would sit inside the first (no router in a router).
 Connections and Studio ids are never invented: SET_IN_STUDIO_* placeholders, listed by each CHECKLIST.
@@ -90,6 +90,23 @@ def gmail(n, ref, disp):
     return step(n, "gmail", "send_email",
                 {"auth": "", "receiver": ["{{" + ref + "['to']}}"], "subject": "{{" + ref + "['subject']}}", "body_type": "html", "body": "{{" + ref + "['body']}}",
                  "sender_name": "{{step_constants['sender_name']}}", "cc": [], "bcc": [], "reply_to": [], "draft": False}, disp, retry=False, cont=True)
+def zerobounce(n, email, disp):
+    """ZeroBounce validateEmail (owner decision 24 Oct 2026): every address is checked right before its email. The ZeroBounce connection
+    (its API key) is bound in Studio (auth \"\" while portable). The answer is ZeroBounce's /v2/validate body: status (valid · invalid ·
+    catch-all · unknown · spamtrap · abuse · do_not_mail) and sub_status. retry on a network blip; cont so a ZeroBounce outage marks
+    the delivery Failed with the reason instead of stopping the run (the step's output is then {error})."""
+    return step(n, "zerobounce", "validateEmail", {"auth": "", "email": email}, disp, retry=True, cont=True)
+def deliverable(n, zb, ok_chain, bad_chain):
+    """valid or catch-all (owner decision 24 Oct 2026) → the email goes; anything else — invalid, spamtrap, abuse, do_not_mail, unknown,
+    or no answer from ZeroBounce — takes the fallback: no email, the delivery is Failed with ZeroBounce's reason."""
+    st = "{{" + zb + "['status']}}"
+    r = router(n, "ZeroBounce: valid or catch-all?", [("valid | catch-all → send", TEXT_IS(st, "valid"), ok_chain),
+                                                     ("invalid / unknown / not checked → Failed, no email", None, bad_chain)])
+    r["settings"]["branches"][0]["conditions"].append([{**TEXT_IS(st, "catch-all"), "caseSensitive": False}])   # OR
+    return r
+def zb_reason(zb):
+    return "Email not sent — ZeroBounce: {{" + zb + "['status']}} {{" + zb + "['sub_status']}}{{" + zb + "['error']}}"
+
 def app_consts(name, extra):
     return constants(C, {"flow": name, "app_url": "SET_IN_STUDIO_APP_URL", "inbound_token": "SET_IN_STUDIO_INBOUND_TOKEN", **extra},
                      "Constants — app_url, inbound_token and the flow's settings (set in Studio)")
@@ -243,11 +260,15 @@ def broadcast():
         loop(sl, "{{step_send_plan['items']}}", "For each recipient",
              http("step_send_queue", "POST", f"{APP}/api/data/deliveries", "POST deliveries — Queued, Attempts 1 (409 = already sent)",
                   body=named(sl + "['item']['delivery']", ["Kind", "Report_ID", "Report_Date", "Subscriber_ID", "Subscriber_Name", "Sentiment", "Status"], {"Delivery_ID": "", "Attempts": 1}), cont=True),
-             loop(ql, "{{step_send_queue['body']}}", "Only if queued (0 or 1: a 409 skips — no email, no PATCH)",
-                  gmail("step_send_email", sl + "['item']", "Send email (Gmail): the report, or the admin alert"),
-                  lib("step_send_result", "sendResult", {"Delivery_ID": "{{" + ql + "['item']['Delivery_ID']}}", "sent": "{{step_send_email}}"}, "Sent or Failed? (CODE)"),
-                  http("step_send_update", "PATCH", f"{APP}/api/data/deliveries", "PATCH the delivery Sent (message id) or Failed (error)",
-                       body=named("step_send_result", ["Status", "Message_ID", "Error_Message", "Sent_At"]), query={"Delivery_ID": "eq.{{step_send_result['Delivery_ID']}}"}, retry=True, cont=True))),
+             loop(ql, "{{step_send_queue['body']}}", "Only if queued (0 or 1: a 409 skips — no check, no email, no PATCH)",
+                  zerobounce("step_send_zb", "{{" + sl + "['item']['to']}}", "Validate the email address (ZeroBounce)"),
+                  deliverable("step_send_valid", "step_send_zb", chain(
+                      gmail("step_send_email", sl + "['item']", "Send email (Gmail): the report, or the admin alert"),
+                      lib("step_send_result", "sendResult", {"Delivery_ID": "{{" + ql + "['item']['Delivery_ID']}}", "sent": "{{step_send_email}}"}, "Sent or Failed? (CODE)"),
+                      http("step_send_update", "PATCH", f"{APP}/api/data/deliveries", "PATCH the delivery Sent (message id) or Failed (error)",
+                           body=named("step_send_result", ["Status", "Message_ID", "Error_Message", "Sent_At"]), query={"Delivery_ID": "eq.{{step_send_result['Delivery_ID']}}"}, retry=True, cont=True)),
+                      http("step_send_invalid", "PATCH", f"{APP}/api/data/deliveries", "PATCH the delivery Failed — the address did not pass ZeroBounce",
+                           body={"Status": "Failed", "Error_Message": zb_reason("step_send_zb")}, query={"Delivery_ID": "eq.{{" + ql + "['item']['Delivery_ID']}}"}, retry=True, cont=True)))),
         hook("step_send_publish", "market_publish_webhook", {"action": "publish", "Report_ID": "{{step_send_plan['publish']['Report_ID']}}",
                                                           "_job": "{{step_send_plan['publish']['_job']}}", "_who": "flow:BROADCAST"}, "POST MARKET_PUBLISH — counts, reader copy, job", cont=True),
         ret("step_send_done", {"ok": True, "kind": "{{step_send_plan['kind']}}", "Report_ID": "{{step_send_plan['Report_ID']}}", "queued": "{{step_send_plan['queued']}}",
@@ -267,14 +288,22 @@ def broadcast():
         loop(rl, "{{step_retry_plan['claims']}}", "Only if the plan allows a retry (0 or 1) — a refusal sends no request",
           http("step_retry_claim", "PATCH", f"{APP}/api/data/deliveries", "PATCH Attempts + 1, only where Attempts = the value read",
                body={"Attempts": "{{" + rl + "['item']['Attempts']}}"}, query={"Delivery_ID": "eq.{{" + rl + "['item']['Delivery_ID']}}", "Attempts": "{{" + rl + "['item']['expect']}}"}, cont=False),
-             gmail("step_retry_email", "step_retry_plan['send']", "Send the report email again to the address on the subscriber record"),
-             lib("step_retry_result", "sendResult", {"Delivery_ID": "{{" + rl + "['item']['Delivery_ID']}}", "sent": "{{step_retry_email}}"}, "Sent or Failed? (CODE)"),
-             http("step_retry_update", "PATCH", f"{APP}/api/data/deliveries", "PATCH the same delivery Sent or Failed",
-                  body=named("step_retry_result", ["Status", "Message_ID", "Error_Message", "Sent_At"]), query={"Delivery_ID": "eq.{{step_retry_result['Delivery_ID']}}"}, retry=True, cont=True),
-             hook("step_retry_publish", "market_publish_webhook", {"action": "publish", "Report_ID": "{{step_retry_plan['publish']['Report_ID']}}", "_job": "", "_who": "flow:BROADCAST"},
-                  "POST MARKET_PUBLISH — refresh the report's counts", cont=True),
-             ret("step_retry_sent", {"ok": True, "sent": "{{step_retry_result['sent']}}", "Delivery_ID": "{{step_retry_result['Delivery_ID']}}",
-                                     "error": "{{step_retry_result['Error_Message']}}"}, "Return: the retry's outcome")),
+             zerobounce("step_retry_zb", "{{step_retry_plan['send']['to']}}", "Validate the email address again (ZeroBounce)"),
+             deliverable("step_retry_valid", "step_retry_zb", chain(
+                 gmail("step_retry_email", "step_retry_plan['send']", "Send the report email again to the address on the subscriber record"),
+                 lib("step_retry_result", "sendResult", {"Delivery_ID": "{{" + rl + "['item']['Delivery_ID']}}", "sent": "{{step_retry_email}}"}, "Sent or Failed? (CODE)"),
+                 http("step_retry_update", "PATCH", f"{APP}/api/data/deliveries", "PATCH the same delivery Sent or Failed",
+                      body=named("step_retry_result", ["Status", "Message_ID", "Error_Message", "Sent_At"]), query={"Delivery_ID": "eq.{{step_retry_result['Delivery_ID']}}"}, retry=True, cont=True),
+                 hook("step_retry_publish", "market_publish_webhook", {"action": "publish", "Report_ID": "{{step_retry_plan['publish']['Report_ID']}}", "_job": "", "_who": "flow:BROADCAST"},
+                      "POST MARKET_PUBLISH — refresh the report's counts", cont=True),
+                 ret("step_retry_sent", {"ok": True, "sent": "{{step_retry_result['sent']}}", "Delivery_ID": "{{step_retry_result['Delivery_ID']}}",
+                                         "error": "{{step_retry_result['Error_Message']}}"}, "Return: the retry's outcome")),
+                 chain(
+                     http("step_retry_invalid", "PATCH", f"{APP}/api/data/deliveries", "PATCH the delivery Failed — the address did not pass ZeroBounce",
+                          body={"Status": "Failed", "Error_Message": zb_reason("step_retry_zb")}, query={"Delivery_ID": "eq.{{" + rl + "['item']['Delivery_ID']}}"}, retry=True, cont=True),
+                     ret("step_retry_invalid_done", {"ok": False, "sent": False, "Delivery_ID": "{{" + rl + "['item']['Delivery_ID']}}",
+                                                     "error": "Not sent: the email address failed the ZeroBounce check ({{step_retry_zb['status']}} {{step_retry_zb['sub_status']}}{{step_retry_zb['error']}}). Correct the subscriber's email, then retry."},
+                         "Return: not sent — invalid email")))),
         ret("step_retry_done", {"ok": False, "sent": False, "Delivery_ID": "{{step_retry_plan['Delivery_ID']}}", "error": "{{step_retry_plan['reason']}}"}, "Return: refused (nothing sent)"))
     ACT = lambda v: {**TEXT_IS("{{trigger['body']['action']}}", v), "caseSensitive": True}
     r = router("step_router", "Action · send | alert · retry (allow-list)", [
@@ -284,7 +313,7 @@ def broadcast():
         ("Anything else → 401", None, denied())])
     r["settings"]["branches"][0]["conditions"].append([GATE("ok"), ACT("alert")])   # OR: the flow-only alert action takes the same path
     chain(t, k, r)
-    return flow("BROADCAST", "Market Intelligence — the report email to every Active, opted-in subscriber, the admin alert, one delivery again", t, ["webhook", "http", "gmail"])
+    return flow("BROADCAST", "Market Intelligence — the report email to every Active, opted-in subscriber, the admin alert, one delivery again", t, ["webhook", "http", "zerobounce", "gmail"])
 
 def market_publish():
     t = webhook_trigger("Catch Webhook — MARKET_PUBLISH (from BROADCAST)")
@@ -319,12 +348,21 @@ WIRING = """
 - `holidays` (NSE trading holidays, ⚑ G3): fill the SAME list in DAILY_SCHEDULE and DAILY_WATCHDOG.
 - **BROADCAST sends by Gmail (owner decision 23 Oct 2026).** Select the Gmail connection on both Gmail steps (send and retry), set `alert_to`
   to the admins' email addresses (comma separated) and, if you like, `sender_name`. Subscribers receive the report at the `Email` on their record.
+- **BROADCAST checks every address with ZeroBounce first (owner decision 24 Oct 2026).** Select your ZeroBounce connection (its API key)
+  on both "Validate the email address" steps (send and retry). valid or catch-all → the email goes; anything else (invalid, spamtrap,
+  abuse, do_not_mail, unknown, or ZeroBounce not answering — e.g. out of credits) → no email, the delivery is Failed with
+  "Email not sent — ZeroBounce: <status> <sub_status>". A retry of such a delivery is checked again; if the address is still bad
+  the retry answers "Not sent: the email address failed the ZeroBounce check …". Each check uses one ZeroBounce credit.
 - Give each flow its own token: `INBOUND_TOKEN_<FLOW>` on the app, the same value in that flow's `inbound_token`. While the app's token is unset every read answers 403 and the flows say APP_CLOSED.
 - UNVERIFIED until the first import: LOOP_ON_ITEMS (also nested), `body.data` in the JSON Body box,
+  ZeroBounce validateEmail's input name (`email`) and its answer (`status`, `sub_status`) on the current piece version,
   Gmail send_email's response (the message id) and its props on the current piece version (registry props are from v2.0.1),
   `return_response` at the end of a schedule-triggered flow, and the app honouring `?Attempts=eq.<n>` on PATCH (kernel ticket: today the door filters on the id only).
 """
 
+# Owner decision 24 Oct 2026: BROADCAST's send and retry paths may be 16 steps — the ZeroBounce check before every email (a
+# ZeroBounce step and a valid / not-valid router inside the recipient loop) does not fit the standard 14. Every other flow stays at 14.
+BUDGETS = {"BROADCAST": 16}   # every other flow: 14
 BUILDERS = [daily_schedule, daily_watchdog, market_report, market_analyse, market_store, broadcast, market_publish]
 
 # ── the contracts: written here, by hand, as the outcomes each flow must perform (stricter than the generic one) ──
@@ -350,10 +388,13 @@ CONTRACTS = {
                      "job_rerun=step_rerun_job:http:write", "answer_rerun=step_rerun_done:webhook:respond", "answer_unexpected=step_unexpected_done:webhook:respond"],
     "BROADCAST": ["webhook=trigger:webhook:trigger", *AUTH, "route=step_router:router:route",
                   "read_reports=step_send_reports:http:read", "read_subscribers=step_send_subscribers:http:read", "plan=step_send_plan:code:transform",
-                  "queue=step_send_queue:http:write", "send=step_send_email:gmail:write", "result=step_send_result:code:transform",
+                  "queue=step_send_queue:http:write", "verify=step_send_zb:zerobounce:action", "deliverable=step_send_valid:router:route",
+                  "invalid_update=step_send_invalid:http:write", "send=step_send_email:gmail:write", "result=step_send_result:code:transform",
                   "delivery_update=step_send_update:http:write", "publish=step_send_publish:http:write", "answer_send=step_send_done:webhook:respond",
                   "retry_read_deliveries=step_retry_deliveries:http:read", "retry_read_subscribers=step_retry_subscribers:http:read", "retry_read_reports=step_retry_reports:http:read",
-                  "retry_plan=step_retry_plan:code:transform", "retry_claim=step_retry_claim:http:write", "retry_send=step_retry_email:gmail:write",
+                  "retry_plan=step_retry_plan:code:transform", "retry_claim=step_retry_claim:http:write", "retry_verify=step_retry_zb:zerobounce:action",
+                  "retry_deliverable=step_retry_valid:router:route", "retry_invalid_update=step_retry_invalid:http:write",
+                  "answer_retry_invalid=step_retry_invalid_done:webhook:respond", "retry_send=step_retry_email:gmail:write",
                   "retry_result=step_retry_result:code:transform", "retry_update=step_retry_update:http:write", "retry_publish=step_retry_publish:http:write",
                   "answer_retry_sent=step_retry_sent:webhook:respond", "answer_retry_refused=step_retry_done:webhook:respond"],
     "MARKET_PUBLISH": ["webhook=trigger:webhook:trigger", *AUTH, *AUTH_ROUTER, "read_reports=step_read_reports:http:read", "read_deliveries=step_read_deliveries:http:read",
@@ -462,7 +503,7 @@ def delete_step(fl, name):
     return visit(fl["template"]["trigger"])[1]
 MUTATIONS = {"DAILY_SCHEDULE": ["step_run_post"], "DAILY_WATCHDOG": ["step_alert_post"], "MARKET_REPORT": ["step_denied_done", "step_gate"],
              "MARKET_ANALYSE": ["step_denied_done", "step_ai"], "MARKET_STORE": ["step_denied_done", "step_new_news"],
-             "BROADCAST": ["step_denied_done", "step_send_queue", "step_retry_claim"], "MARKET_PUBLISH": ["step_denied_done", "step_published_update"]}
+             "BROADCAST": ["step_denied_done", "step_send_queue", "step_send_zb", "step_retry_claim", "step_retry_zb"], "MARKET_PUBLISH": ["step_denied_done", "step_published_update"]}
 
 # ── the honest count: flow/complexity.py walks nextAction only, so a loop's body is invisible to it. Here every loop body is
 # counted once on its path (and its credits once per item), routers count as a step and cost 0 (workflow-rules § 1.20). ──
@@ -487,6 +528,8 @@ def honest_paths(fl):
                     for b in ch:
                         yield b
                         if b.get("type") == "LOOP_ON_ITEMS": yield from flat(_chain(b.get("firstLoopAction")))
+                        if b.get("type") == "ROUTER":   # a router inside a loop (BROADCAST's ZeroBounce check): its longest branch
+                            yield from max((list(flat(_chain(c))) for c in (b.get("children") or []) if c), key=len, default=[])
                 body = list(flat(_chain(n.get("firstLoopAction"))))
                 if body and _is_ret(body[-1]):   # the body answers and stops: the steps after the loop run only on 0 items
                     yield ("inner Return", nodes[:i] + [n] + body)
@@ -601,15 +644,16 @@ def write_honest_report(flows):
          "its path (the budget question) and its credits once per item; a router is a step that costs 0, every other executed step 1 credit",
          "(workflow-rules § 1.20 — the llm-ai model charge on top is UNVERIFIED). All counts are Estimated until Studio's billing confirms them.", "",
          "| flow | path | steps | credits per run |", "|---|---|---:|---|"]
-    worst = 0
+    worst, over = 0, []
     for fl in flows:
         for lab, nodes in honest_paths(fl):
             fixed, per = credits_of(nodes); worst = max(worst, len(nodes))
+            if len(nodes) > BUDGETS.get(fl["name"], 14): over.append(f"{fl['name']} {lab} ({len(nodes)})")
             c = f"{fixed}" + "".join(f" + {k}×{v}" for k, v in per.items())
             L.append(f"| {fl['name']} | {lab or '(single path)'} | {len(nodes)} | {c} |")
-    L += ["", f"Longest path with loop bodies counted: **{worst} steps** (budget 14).", OS_YAML_ADDITIONS]
+    L += ["", f"Longest path with loop bodies counted: **{worst} steps** (budget 14; BROADCAST 16 — owner decision 24 Oct 2026, the ZeroBounce check).", OS_YAML_ADDITIONS]
     with open(os.path.join(ROOT, "docs", "flows-complexity.md"), "a", encoding="utf-8", newline="\n") as fh: fh.write("\n".join(L) + "\n")
-    return worst
+    return worst, over
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--mutate", action="store_true"); a = ap.parse_args()
@@ -642,9 +686,9 @@ def main():
     c = subprocess.run([sys.executable, os.path.join(FLOW_DIR, "complexity.py"), WF, "--strict", "--out", os.path.join(ROOT, "docs", "flows-complexity.md")], capture_output=True, text=True, encoding="utf-8")
     print(c.stdout.strip().splitlines()[-1] if c.stdout.strip() else c.stderr)
     if c.returncode != 0: failed.append("complexity"); print(c.stdout)
-    worst = write_honest_report(flows)
-    print(f"longest path with loop bodies counted: {worst} steps (budget 14)")
-    if worst > 14: failed.append("honest path count")
+    worst, over = write_honest_report(flows)
+    print(f"longest path with loop bodies counted: {worst} steps (budget 14; BROADCAST 16 by owner decision)")
+    if over: failed.append("honest path count: " + "; ".join(over))
     if failed: print("FAILED:", ", ".join(failed)); sys.exit(1)
 
 if __name__ == "__main__":

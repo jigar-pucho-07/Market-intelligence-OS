@@ -16,6 +16,7 @@ export const FEED_FILES = { 'site:economictimes.indiatimes.com': ['et-markets.xm
   'q=India+stock': ['google-finance.xml'], 'q=SGX+Nifty': ['global-cues.xml'] };
 
 /** opts: { feeds: 'down' (every feed fails), model: text the model answers, email: (inputs) => output | throws (Gmail), whatsapp: (inputs) => output | throws,
+ *  zerobounce: (inputs) => output | throws (default: bounce…@ / @nowhere. invalid, @catchall. catch-all, else valid),
  *  app: (method, url, query, body) => {status, body}, calls: [] } */
 export function makeFakes(opts = {}) {
   const calls = opts.calls || [];
@@ -39,6 +40,13 @@ export function makeFakes(opts = {}) {
       const to = Array.isArray(inputs.receiver) ? inputs.receiver.filter(Boolean) : [];
       if (!to.length || !to.every((a) => /@/.test(a))) throw new ServiceError(400, 'Invalid To header');
       return { id: `18fake${calls.length}`, threadId: `18thr${calls.length}`, labelIds: ['SENT'] };
+    }
+    if (piece === 'zerobounce:validateEmail') {                        // ZeroBounce /v2/validate: status + sub_status per address
+      if (opts.zerobounce) return opts.zerobounce(inputs);
+      const a = String(inputs.email || '');
+      if (/^bounce|@nowhere\./.test(a)) return { address: a, status: 'invalid', sub_status: 'mailbox_not_found' };
+      if (/@catchall\./.test(a)) return { address: a, status: 'catch-all', sub_status: '' };
+      return { address: a, status: 'valid', sub_status: '' };
     }
     if (piece === 'pucho-whatsapp:send_template_message') {
       if (opts.whatsapp) return opts.whatsapp(inputs);

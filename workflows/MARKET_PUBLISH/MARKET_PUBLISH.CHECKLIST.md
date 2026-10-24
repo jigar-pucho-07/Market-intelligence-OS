@@ -107,7 +107,13 @@ From a terminal (the app sends the same): `curl -X POST <webhook URL>/sync -H 'C
 - `holidays` (NSE trading holidays, ⚑ G3): fill the SAME list in DAILY_SCHEDULE and DAILY_WATCHDOG.
 - **BROADCAST sends by Gmail (owner decision 23 Oct 2026).** Select the Gmail connection on both Gmail steps (send and retry), set `alert_to`
   to the admins' email addresses (comma separated) and, if you like, `sender_name`. Subscribers receive the report at the `Email` on their record.
+- **BROADCAST checks every address with ZeroBounce first (owner decision 24 Oct 2026).** Select your ZeroBounce connection (its API key)
+  on both "Validate the email address" steps (send and retry). valid or catch-all → the email goes; anything else (invalid, spamtrap,
+  abuse, do_not_mail, unknown, or ZeroBounce not answering — e.g. out of credits) → no email, the delivery is Failed with
+  "Email not sent — ZeroBounce: <status> <sub_status>". A retry of such a delivery is checked again; if the address is still bad
+  the retry answers "Not sent: the email address failed the ZeroBounce check …". Each check uses one ZeroBounce credit.
 - Give each flow its own token: `INBOUND_TOKEN_<FLOW>` on the app, the same value in that flow's `inbound_token`. While the app's token is unset every read answers 403 and the flows say APP_CLOSED.
 - UNVERIFIED until the first import: LOOP_ON_ITEMS (also nested), `body.data` in the JSON Body box,
+  ZeroBounce validateEmail's input name (`email`) and its answer (`status`, `sub_status`) on the current piece version,
   Gmail send_email's response (the message id) and its props on the current piece version (registry props are from v2.0.1),
   `return_response` at the end of a schedule-triggered flow, and the app honouring `?Attempts=eq.<n>` on PATCH (kernel ticket: today the door filters on the id only).

@@ -7,6 +7,7 @@
   "pieces": [
     "@puchoaistudio/tool-webhook",
     "@puchoaistudio/tool-http",
+    "@puchoaistudio/tool-zerobounce",
     "@puchoaistudio/tool-gmail"
   ],
   "template": {
@@ -284,7 +285,7 @@
                       "nextAction": {
                         "name": "step_send_queued",
                         "type": "LOOP_ON_ITEMS",
-                        "displayName": "Only if queued (0 or 1: a 409 skips — no email, no PATCH)",
+                        "displayName": "Only if queued (0 or 1: a 409 skips — no check, no email, no PATCH)",
                         "valid": true,
                         "skip": false,
                         "settings": {
@@ -292,68 +293,30 @@
                           "sampleData": {}
                         },
                         "firstLoopAction": {
-                          "name": "step_send_email",
+                          "name": "step_send_zb",
                           "skip": false,
                           "type": "PIECE",
                           "valid": true,
                           "settings": {
                             "input": {
                               "auth": "",
-                              "receiver": [
-                                "{{step_send_loop['item']['to']}}"
-                              ],
-                              "subject": "{{step_send_loop['item']['subject']}}",
-                              "body_type": "html",
-                              "body": "{{step_send_loop['item']['body']}}",
-                              "sender_name": "{{step_constants['sender_name']}}",
-                              "cc": [],
-                              "bcc": [],
-                              "reply_to": [],
-                              "draft": false
+                              "email": "{{step_send_loop['item']['to']}}"
                             },
-                            "pieceName": "@puchoaistudio/tool-gmail",
-                            "actionName": "send_email",
+                            "pieceName": "@puchoaistudio/tool-zerobounce",
+                            "actionName": "validateEmail",
                             "sampleData": {},
-                            "pieceVersion": "^2.0.5",
+                            "pieceVersion": "^2.0.0",
                             "propertySettings": {
                               "auth": {
                                 "type": "MANUAL"
                               },
-                              "receiver": {
-                                "type": "MANUAL",
-                                "schema": {}
-                              },
-                              "subject": {
-                                "type": "MANUAL"
-                              },
-                              "body_type": {
-                                "type": "MANUAL"
-                              },
-                              "body": {
-                                "type": "MANUAL"
-                              },
-                              "sender_name": {
-                                "type": "MANUAL"
-                              },
-                              "cc": {
-                                "type": "MANUAL",
-                                "schema": {}
-                              },
-                              "bcc": {
-                                "type": "MANUAL",
-                                "schema": {}
-                              },
-                              "reply_to": {
-                                "type": "MANUAL",
-                                "schema": {}
-                              },
-                              "draft": {
+                              "email": {
                                 "type": "MANUAL"
                               }
                             },
                             "errorHandlingOptions": {
                               "retryOnFailure": {
-                                "value": false
+                                "value": true
                               },
                               "continueOnFailure": {
                                 "value": true
@@ -361,101 +324,280 @@
                             }
                           },
                           "nextAction": {
-                            "name": "step_send_result",
+                            "name": "step_send_valid",
                             "skip": false,
-                            "type": "CODE",
+                            "type": "ROUTER",
                             "valid": true,
-                            "settings": {
-                              "input": {
-                                "Delivery_ID": "{{step_send_queued['item']['Delivery_ID']}}",
-                                "sent": "{{step_send_email}}"
-                              },
-                              "sampleData": {},
-                              "sourceCode": {
-                                "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendResult() reaches (tools/build_market_flows.py)\nfunction scrubSecrets(text) {\n  return String(text ?? '').replace(/\\bhttps?:\\/\\/[^\\s\"'<>]+/gi, '<url>').replace(/\\b(k|key|secret|token)=[^&\\s\"'<>]+/gi, '$1=…');\n}\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction sendResult(inp) {\n  const id = String((inp && inp.Delivery_ID) || ''); const out = inp && inp.sent; const now = nowOf(inp).toISOString();\n  const o = out && typeof out === 'object' ? out : {};\n  const pick = (...vals) => vals.find((v) => typeof v === 'string' && v.trim()) || '';\n  const msgId = pick(o.messageId, o.message_id, o.id, o.wamid, o.messages && o.messages[0] && o.messages[0].id, o.data && o.data.messages && o.data.messages[0] && o.data.messages[0].id,\n    o.body && o.body.messages && o.body.messages[0] && o.body.messages[0].id, o.data && o.data.id);\n  const err = pick(o.error && (o.error.message || o.error), o.errorMessage, o.success === false ? o.message : '', o.status === 'failed' ? o.message : '');\n  const failed = !!err || !out || (typeof out === 'object' && !Object.keys(o).length);\n  return { Delivery_ID: id, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),\n    Error_Message: failed ? scrubSecrets(err || 'Email step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed };\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendResult(inputs);\n};",
-                                "packageJson": "{}"
-                              },
-                              "errorHandlingOptions": {
-                                "retryOnFailure": {
-                                  "value": false
-                                },
-                                "continueOnFailure": {
-                                  "value": false
-                                }
-                              }
-                            },
-                            "nextAction": {
-                              "name": "step_send_update",
-                              "skip": false,
-                              "type": "PIECE",
-                              "valid": true,
-                              "settings": {
-                                "input": {
-                                  "method": "PATCH",
-                                  "url": "{{step_constants['app_url']}}/api/data/deliveries",
-                                  "headers": {
-                                    "Content-Type": "application/json",
-                                    "Authorization": "Bearer {{step_constants['inbound_token']}}",
-                                    "X-Flow": "{{step_constants['flow']}}"
+                            "children": [
+                              {
+                                "name": "step_send_email",
+                                "skip": false,
+                                "type": "PIECE",
+                                "valid": true,
+                                "settings": {
+                                  "input": {
+                                    "auth": "",
+                                    "receiver": [
+                                      "{{step_send_loop['item']['to']}}"
+                                    ],
+                                    "subject": "{{step_send_loop['item']['subject']}}",
+                                    "body_type": "html",
+                                    "body": "{{step_send_loop['item']['body']}}",
+                                    "sender_name": "{{step_constants['sender_name']}}",
+                                    "cc": [],
+                                    "bcc": [],
+                                    "reply_to": [],
+                                    "draft": false
                                   },
-                                  "queryParams": {
-                                    "Delivery_ID": "eq.{{step_send_result['Delivery_ID']}}"
+                                  "pieceName": "@puchoaistudio/tool-gmail",
+                                  "actionName": "send_email",
+                                  "sampleData": {},
+                                  "pieceVersion": "^2.0.5",
+                                  "propertySettings": {
+                                    "auth": {
+                                      "type": "MANUAL"
+                                    },
+                                    "receiver": {
+                                      "type": "MANUAL",
+                                      "schema": {}
+                                    },
+                                    "subject": {
+                                      "type": "MANUAL"
+                                    },
+                                    "body_type": {
+                                      "type": "MANUAL"
+                                    },
+                                    "body": {
+                                      "type": "MANUAL"
+                                    },
+                                    "sender_name": {
+                                      "type": "MANUAL"
+                                    },
+                                    "cc": {
+                                      "type": "MANUAL",
+                                      "schema": {}
+                                    },
+                                    "bcc": {
+                                      "type": "MANUAL",
+                                      "schema": {}
+                                    },
+                                    "reply_to": {
+                                      "type": "MANUAL",
+                                      "schema": {}
+                                    },
+                                    "draft": {
+                                      "type": "MANUAL"
+                                    }
                                   },
-                                  "authType": "NONE",
-                                  "body_type": "json",
-                                  "body": {
-                                    "data": {
-                                      "Status": "{{step_send_result['Status']}}",
-                                      "Message_ID": "{{step_send_result['Message_ID']}}",
-                                      "Error_Message": "{{step_send_result['Error_Message']}}",
-                                      "Sent_At": "{{step_send_result['Sent_At']}}"
+                                  "errorHandlingOptions": {
+                                    "retryOnFailure": {
+                                      "value": false
+                                    },
+                                    "continueOnFailure": {
+                                      "value": true
                                     }
                                   }
                                 },
-                                "pieceName": "@puchoaistudio/tool-http",
-                                "actionName": "send_request",
-                                "sampleData": {},
-                                "pieceVersion": "^2.0.0",
-                                "propertySettings": {
-                                  "method": {
-                                    "type": "MANUAL"
+                                "nextAction": {
+                                  "name": "step_send_result",
+                                  "skip": false,
+                                  "type": "CODE",
+                                  "valid": true,
+                                  "settings": {
+                                    "input": {
+                                      "Delivery_ID": "{{step_send_queued['item']['Delivery_ID']}}",
+                                      "sent": "{{step_send_email}}"
+                                    },
+                                    "sampleData": {},
+                                    "sourceCode": {
+                                      "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendResult() reaches (tools/build_market_flows.py)\nfunction scrubSecrets(text) {\n  return String(text ?? '').replace(/\\bhttps?:\\/\\/[^\\s\"'<>]+/gi, '<url>').replace(/\\b(k|key|secret|token)=[^&\\s\"'<>]+/gi, '$1=…');\n}\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction sendResult(inp) {\n  const id = String((inp && inp.Delivery_ID) || ''); const out = inp && inp.sent; const now = nowOf(inp).toISOString();\n  const o = out && typeof out === 'object' ? out : {};\n  const pick = (...vals) => vals.find((v) => typeof v === 'string' && v.trim()) || '';\n  const msgId = pick(o.messageId, o.message_id, o.id, o.wamid, o.messages && o.messages[0] && o.messages[0].id, o.data && o.data.messages && o.data.messages[0] && o.data.messages[0].id,\n    o.body && o.body.messages && o.body.messages[0] && o.body.messages[0].id, o.data && o.data.id);\n  const err = pick(o.error && (o.error.message || o.error), o.errorMessage, o.success === false ? o.message : '', o.status === 'failed' ? o.message : '');\n  const failed = !!err || !out || (typeof out === 'object' && !Object.keys(o).length);\n  return { Delivery_ID: id, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),\n    Error_Message: failed ? scrubSecrets(err || 'Email step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed };\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendResult(inputs);\n};",
+                                      "packageJson": "{}"
+                                    },
+                                    "errorHandlingOptions": {
+                                      "retryOnFailure": {
+                                        "value": false
+                                      },
+                                      "continueOnFailure": {
+                                        "value": false
+                                      }
+                                    }
                                   },
-                                  "url": {
-                                    "type": "MANUAL"
+                                  "nextAction": {
+                                    "name": "step_send_update",
+                                    "skip": false,
+                                    "type": "PIECE",
+                                    "valid": true,
+                                    "settings": {
+                                      "input": {
+                                        "method": "PATCH",
+                                        "url": "{{step_constants['app_url']}}/api/data/deliveries",
+                                        "headers": {
+                                          "Content-Type": "application/json",
+                                          "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                                          "X-Flow": "{{step_constants['flow']}}"
+                                        },
+                                        "queryParams": {
+                                          "Delivery_ID": "eq.{{step_send_result['Delivery_ID']}}"
+                                        },
+                                        "authType": "NONE",
+                                        "body_type": "json",
+                                        "body": {
+                                          "data": {
+                                            "Status": "{{step_send_result['Status']}}",
+                                            "Message_ID": "{{step_send_result['Message_ID']}}",
+                                            "Error_Message": "{{step_send_result['Error_Message']}}",
+                                            "Sent_At": "{{step_send_result['Sent_At']}}"
+                                          }
+                                        }
+                                      },
+                                      "pieceName": "@puchoaistudio/tool-http",
+                                      "actionName": "send_request",
+                                      "sampleData": {},
+                                      "pieceVersion": "^2.0.0",
+                                      "propertySettings": {
+                                        "method": {
+                                          "type": "MANUAL"
+                                        },
+                                        "url": {
+                                          "type": "MANUAL"
+                                        },
+                                        "headers": {
+                                          "type": "MANUAL",
+                                          "schema": {}
+                                        },
+                                        "queryParams": {
+                                          "type": "MANUAL",
+                                          "schema": {}
+                                        },
+                                        "authType": {
+                                          "type": "MANUAL"
+                                        },
+                                        "body_type": {
+                                          "type": "MANUAL"
+                                        },
+                                        "body": {
+                                          "type": "MANUAL",
+                                          "schema": {}
+                                        }
+                                      },
+                                      "errorHandlingOptions": {
+                                        "retryOnFailure": {
+                                          "value": true
+                                        },
+                                        "continueOnFailure": {
+                                          "value": true
+                                        }
+                                      }
+                                    },
+                                    "displayName": "PATCH the delivery Sent (message id) or Failed (error)"
                                   },
-                                  "headers": {
-                                    "type": "MANUAL",
-                                    "schema": {}
+                                  "displayName": "Sent or Failed? (CODE)"
+                                },
+                                "displayName": "Send email (Gmail): the report, or the admin alert"
+                              },
+                              {
+                                "name": "step_send_invalid",
+                                "skip": false,
+                                "type": "PIECE",
+                                "valid": true,
+                                "settings": {
+                                  "input": {
+                                    "method": "PATCH",
+                                    "url": "{{step_constants['app_url']}}/api/data/deliveries",
+                                    "headers": {
+                                      "Content-Type": "application/json",
+                                      "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                                      "X-Flow": "{{step_constants['flow']}}"
+                                    },
+                                    "queryParams": {
+                                      "Delivery_ID": "eq.{{step_send_queued['item']['Delivery_ID']}}"
+                                    },
+                                    "authType": "NONE",
+                                    "body_type": "json",
+                                    "body": {
+                                      "data": {
+                                        "Status": "Failed",
+                                        "Error_Message": "Email not sent — ZeroBounce: {{step_send_zb['status']}} {{step_send_zb['sub_status']}}{{step_send_zb['error']}}"
+                                      }
+                                    }
                                   },
-                                  "queryParams": {
-                                    "type": "MANUAL",
-                                    "schema": {}
+                                  "pieceName": "@puchoaistudio/tool-http",
+                                  "actionName": "send_request",
+                                  "sampleData": {},
+                                  "pieceVersion": "^2.0.0",
+                                  "propertySettings": {
+                                    "method": {
+                                      "type": "MANUAL"
+                                    },
+                                    "url": {
+                                      "type": "MANUAL"
+                                    },
+                                    "headers": {
+                                      "type": "MANUAL",
+                                      "schema": {}
+                                    },
+                                    "queryParams": {
+                                      "type": "MANUAL",
+                                      "schema": {}
+                                    },
+                                    "authType": {
+                                      "type": "MANUAL"
+                                    },
+                                    "body_type": {
+                                      "type": "MANUAL"
+                                    },
+                                    "body": {
+                                      "type": "MANUAL",
+                                      "schema": {}
+                                    }
                                   },
-                                  "authType": {
-                                    "type": "MANUAL"
-                                  },
-                                  "body_type": {
-                                    "type": "MANUAL"
-                                  },
-                                  "body": {
-                                    "type": "MANUAL",
-                                    "schema": {}
+                                  "errorHandlingOptions": {
+                                    "retryOnFailure": {
+                                      "value": true
+                                    },
+                                    "continueOnFailure": {
+                                      "value": true
+                                    }
                                   }
                                 },
-                                "errorHandlingOptions": {
-                                  "retryOnFailure": {
-                                    "value": true
-                                  },
-                                  "continueOnFailure": {
-                                    "value": true
-                                  }
+                                "displayName": "PATCH the delivery Failed — the address did not pass ZeroBounce"
+                              }
+                            ],
+                            "settings": {
+                              "branches": [
+                                {
+                                  "branchName": "valid | catch-all → send",
+                                  "branchType": "CONDITION",
+                                  "conditions": [
+                                    [
+                                      {
+                                        "operator": "TEXT_EXACTLY_MATCHES",
+                                        "firstValue": "{{step_send_zb['status']}}",
+                                        "secondValue": "valid",
+                                        "caseSensitive": false
+                                      }
+                                    ],
+                                    [
+                                      {
+                                        "operator": "TEXT_EXACTLY_MATCHES",
+                                        "firstValue": "{{step_send_zb['status']}}",
+                                        "secondValue": "catch-all",
+                                        "caseSensitive": false
+                                      }
+                                    ]
+                                  ]
+                                },
+                                {
+                                  "branchName": "invalid / unknown / not checked → Failed, no email",
+                                  "branchType": "FALLBACK"
                                 }
-                              },
-                              "displayName": "PATCH the delivery Sent (message id) or Failed (error)"
+                              ],
+                              "sampleData": {},
+                              "executionType": "EXECUTE_FIRST_MATCH"
                             },
-                            "displayName": "Sent or Failed? (CODE)"
+                            "displayName": "ZeroBounce: valid or catch-all?"
                           },
-                          "displayName": "Send email (Gmail): the report, or the admin alert"
+                          "displayName": "Validate the email address (ZeroBounce)"
                         }
                       },
                       "displayName": "POST deliveries — Queued, Attempts 1 (409 = already sent)"
@@ -853,68 +995,30 @@
                           }
                         },
                         "nextAction": {
-                          "name": "step_retry_email",
+                          "name": "step_retry_zb",
                           "skip": false,
                           "type": "PIECE",
                           "valid": true,
                           "settings": {
                             "input": {
                               "auth": "",
-                              "receiver": [
-                                "{{step_retry_plan['send']['to']}}"
-                              ],
-                              "subject": "{{step_retry_plan['send']['subject']}}",
-                              "body_type": "html",
-                              "body": "{{step_retry_plan['send']['body']}}",
-                              "sender_name": "{{step_constants['sender_name']}}",
-                              "cc": [],
-                              "bcc": [],
-                              "reply_to": [],
-                              "draft": false
+                              "email": "{{step_retry_plan['send']['to']}}"
                             },
-                            "pieceName": "@puchoaistudio/tool-gmail",
-                            "actionName": "send_email",
+                            "pieceName": "@puchoaistudio/tool-zerobounce",
+                            "actionName": "validateEmail",
                             "sampleData": {},
-                            "pieceVersion": "^2.0.5",
+                            "pieceVersion": "^2.0.0",
                             "propertySettings": {
                               "auth": {
                                 "type": "MANUAL"
                               },
-                              "receiver": {
-                                "type": "MANUAL",
-                                "schema": {}
-                              },
-                              "subject": {
-                                "type": "MANUAL"
-                              },
-                              "body_type": {
-                                "type": "MANUAL"
-                              },
-                              "body": {
-                                "type": "MANUAL"
-                              },
-                              "sender_name": {
-                                "type": "MANUAL"
-                              },
-                              "cc": {
-                                "type": "MANUAL",
-                                "schema": {}
-                              },
-                              "bcc": {
-                                "type": "MANUAL",
-                                "schema": {}
-                              },
-                              "reply_to": {
-                                "type": "MANUAL",
-                                "schema": {}
-                              },
-                              "draft": {
+                              "email": {
                                 "type": "MANUAL"
                               }
                             },
                             "errorHandlingOptions": {
                               "retryOnFailure": {
-                                "value": false
+                                "value": true
                               },
                               "continueOnFailure": {
                                 "value": true
@@ -922,117 +1026,329 @@
                             }
                           },
                           "nextAction": {
-                            "name": "step_retry_result",
+                            "name": "step_retry_valid",
                             "skip": false,
-                            "type": "CODE",
+                            "type": "ROUTER",
                             "valid": true,
-                            "settings": {
-                              "input": {
-                                "Delivery_ID": "{{step_retry_claim_loop['item']['Delivery_ID']}}",
-                                "sent": "{{step_retry_email}}"
-                              },
-                              "sampleData": {},
-                              "sourceCode": {
-                                "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendResult() reaches (tools/build_market_flows.py)\nfunction scrubSecrets(text) {\n  return String(text ?? '').replace(/\\bhttps?:\\/\\/[^\\s\"'<>]+/gi, '<url>').replace(/\\b(k|key|secret|token)=[^&\\s\"'<>]+/gi, '$1=…');\n}\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction sendResult(inp) {\n  const id = String((inp && inp.Delivery_ID) || ''); const out = inp && inp.sent; const now = nowOf(inp).toISOString();\n  const o = out && typeof out === 'object' ? out : {};\n  const pick = (...vals) => vals.find((v) => typeof v === 'string' && v.trim()) || '';\n  const msgId = pick(o.messageId, o.message_id, o.id, o.wamid, o.messages && o.messages[0] && o.messages[0].id, o.data && o.data.messages && o.data.messages[0] && o.data.messages[0].id,\n    o.body && o.body.messages && o.body.messages[0] && o.body.messages[0].id, o.data && o.data.id);\n  const err = pick(o.error && (o.error.message || o.error), o.errorMessage, o.success === false ? o.message : '', o.status === 'failed' ? o.message : '');\n  const failed = !!err || !out || (typeof out === 'object' && !Object.keys(o).length);\n  return { Delivery_ID: id, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),\n    Error_Message: failed ? scrubSecrets(err || 'Email step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed };\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendResult(inputs);\n};",
-                                "packageJson": "{}"
-                              },
-                              "errorHandlingOptions": {
-                                "retryOnFailure": {
-                                  "value": false
-                                },
-                                "continueOnFailure": {
-                                  "value": false
-                                }
-                              }
-                            },
-                            "nextAction": {
-                              "name": "step_retry_update",
-                              "skip": false,
-                              "type": "PIECE",
-                              "valid": true,
-                              "settings": {
-                                "input": {
-                                  "method": "PATCH",
-                                  "url": "{{step_constants['app_url']}}/api/data/deliveries",
-                                  "headers": {
-                                    "Content-Type": "application/json",
-                                    "Authorization": "Bearer {{step_constants['inbound_token']}}",
-                                    "X-Flow": "{{step_constants['flow']}}"
-                                  },
-                                  "queryParams": {
-                                    "Delivery_ID": "eq.{{step_retry_result['Delivery_ID']}}"
-                                  },
-                                  "authType": "NONE",
-                                  "body_type": "json",
-                                  "body": {
-                                    "data": {
-                                      "Status": "{{step_retry_result['Status']}}",
-                                      "Message_ID": "{{step_retry_result['Message_ID']}}",
-                                      "Error_Message": "{{step_retry_result['Error_Message']}}",
-                                      "Sent_At": "{{step_retry_result['Sent_At']}}"
-                                    }
-                                  }
-                                },
-                                "pieceName": "@puchoaistudio/tool-http",
-                                "actionName": "send_request",
-                                "sampleData": {},
-                                "pieceVersion": "^2.0.0",
-                                "propertySettings": {
-                                  "method": {
-                                    "type": "MANUAL"
-                                  },
-                                  "url": {
-                                    "type": "MANUAL"
-                                  },
-                                  "headers": {
-                                    "type": "MANUAL",
-                                    "schema": {}
-                                  },
-                                  "queryParams": {
-                                    "type": "MANUAL",
-                                    "schema": {}
-                                  },
-                                  "authType": {
-                                    "type": "MANUAL"
-                                  },
-                                  "body_type": {
-                                    "type": "MANUAL"
-                                  },
-                                  "body": {
-                                    "type": "MANUAL",
-                                    "schema": {}
-                                  }
-                                },
-                                "errorHandlingOptions": {
-                                  "retryOnFailure": {
-                                    "value": true
-                                  },
-                                  "continueOnFailure": {
-                                    "value": true
-                                  }
-                                }
-                              },
-                              "nextAction": {
-                                "name": "step_retry_publish",
+                            "children": [
+                              {
+                                "name": "step_retry_email",
                                 "skip": false,
                                 "type": "PIECE",
                                 "valid": true,
                                 "settings": {
                                   "input": {
-                                    "method": "POST",
-                                    "url": "{{step_constants['market_publish_webhook']}}",
-                                    "headers": {
-                                      "Content-Type": "application/json"
+                                    "auth": "",
+                                    "receiver": [
+                                      "{{step_retry_plan['send']['to']}}"
+                                    ],
+                                    "subject": "{{step_retry_plan['send']['subject']}}",
+                                    "body_type": "html",
+                                    "body": "{{step_retry_plan['send']['body']}}",
+                                    "sender_name": "{{step_constants['sender_name']}}",
+                                    "cc": [],
+                                    "bcc": [],
+                                    "reply_to": [],
+                                    "draft": false
+                                  },
+                                  "pieceName": "@puchoaistudio/tool-gmail",
+                                  "actionName": "send_email",
+                                  "sampleData": {},
+                                  "pieceVersion": "^2.0.5",
+                                  "propertySettings": {
+                                    "auth": {
+                                      "type": "MANUAL"
                                     },
-                                    "queryParams": {},
+                                    "receiver": {
+                                      "type": "MANUAL",
+                                      "schema": {}
+                                    },
+                                    "subject": {
+                                      "type": "MANUAL"
+                                    },
+                                    "body_type": {
+                                      "type": "MANUAL"
+                                    },
+                                    "body": {
+                                      "type": "MANUAL"
+                                    },
+                                    "sender_name": {
+                                      "type": "MANUAL"
+                                    },
+                                    "cc": {
+                                      "type": "MANUAL",
+                                      "schema": {}
+                                    },
+                                    "bcc": {
+                                      "type": "MANUAL",
+                                      "schema": {}
+                                    },
+                                    "reply_to": {
+                                      "type": "MANUAL",
+                                      "schema": {}
+                                    },
+                                    "draft": {
+                                      "type": "MANUAL"
+                                    }
+                                  },
+                                  "errorHandlingOptions": {
+                                    "retryOnFailure": {
+                                      "value": false
+                                    },
+                                    "continueOnFailure": {
+                                      "value": true
+                                    }
+                                  }
+                                },
+                                "nextAction": {
+                                  "name": "step_retry_result",
+                                  "skip": false,
+                                  "type": "CODE",
+                                  "valid": true,
+                                  "settings": {
+                                    "input": {
+                                      "Delivery_ID": "{{step_retry_claim_loop['item']['Delivery_ID']}}",
+                                      "sent": "{{step_retry_email}}"
+                                    },
+                                    "sampleData": {},
+                                    "sourceCode": {
+                                      "code": "// @ts-nocheck\n// lib: app/src/custom/lib/market.js + market-flow.js — only what sendResult() reaches (tools/build_market_flows.py)\nfunction scrubSecrets(text) {\n  return String(text ?? '').replace(/\\bhttps?:\\/\\/[^\\s\"'<>]+/gi, '<url>').replace(/\\b(k|key|secret|token)=[^&\\s\"'<>]+/gi, '$1=…');\n}\nconst nowOf = (inp) => (inp && inp.now ? new Date(inp.now) : new Date());\nfunction sendResult(inp) {\n  const id = String((inp && inp.Delivery_ID) || ''); const out = inp && inp.sent; const now = nowOf(inp).toISOString();\n  const o = out && typeof out === 'object' ? out : {};\n  const pick = (...vals) => vals.find((v) => typeof v === 'string' && v.trim()) || '';\n  const msgId = pick(o.messageId, o.message_id, o.id, o.wamid, o.messages && o.messages[0] && o.messages[0].id, o.data && o.data.messages && o.data.messages[0] && o.data.messages[0].id,\n    o.body && o.body.messages && o.body.messages[0] && o.body.messages[0].id, o.data && o.data.id);\n  const err = pick(o.error && (o.error.message || o.error), o.errorMessage, o.success === false ? o.message : '', o.status === 'failed' ? o.message : '');\n  const failed = !!err || !out || (typeof out === 'object' && !Object.keys(o).length);\n  return { Delivery_ID: id, Status: failed ? 'Failed' : 'Sent', Message_ID: failed ? '' : msgId.slice(0, 120),\n    Error_Message: failed ? scrubSecrets(err || 'Email step returned nothing').slice(0, 300) : '', Sent_At: now, sent: !failed };\n}\n// end lib\nexport const code = async (inputs) => {\n  return sendResult(inputs);\n};",
+                                      "packageJson": "{}"
+                                    },
+                                    "errorHandlingOptions": {
+                                      "retryOnFailure": {
+                                        "value": false
+                                      },
+                                      "continueOnFailure": {
+                                        "value": false
+                                      }
+                                    }
+                                  },
+                                  "nextAction": {
+                                    "name": "step_retry_update",
+                                    "skip": false,
+                                    "type": "PIECE",
+                                    "valid": true,
+                                    "settings": {
+                                      "input": {
+                                        "method": "PATCH",
+                                        "url": "{{step_constants['app_url']}}/api/data/deliveries",
+                                        "headers": {
+                                          "Content-Type": "application/json",
+                                          "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                                          "X-Flow": "{{step_constants['flow']}}"
+                                        },
+                                        "queryParams": {
+                                          "Delivery_ID": "eq.{{step_retry_result['Delivery_ID']}}"
+                                        },
+                                        "authType": "NONE",
+                                        "body_type": "json",
+                                        "body": {
+                                          "data": {
+                                            "Status": "{{step_retry_result['Status']}}",
+                                            "Message_ID": "{{step_retry_result['Message_ID']}}",
+                                            "Error_Message": "{{step_retry_result['Error_Message']}}",
+                                            "Sent_At": "{{step_retry_result['Sent_At']}}"
+                                          }
+                                        }
+                                      },
+                                      "pieceName": "@puchoaistudio/tool-http",
+                                      "actionName": "send_request",
+                                      "sampleData": {},
+                                      "pieceVersion": "^2.0.0",
+                                      "propertySettings": {
+                                        "method": {
+                                          "type": "MANUAL"
+                                        },
+                                        "url": {
+                                          "type": "MANUAL"
+                                        },
+                                        "headers": {
+                                          "type": "MANUAL",
+                                          "schema": {}
+                                        },
+                                        "queryParams": {
+                                          "type": "MANUAL",
+                                          "schema": {}
+                                        },
+                                        "authType": {
+                                          "type": "MANUAL"
+                                        },
+                                        "body_type": {
+                                          "type": "MANUAL"
+                                        },
+                                        "body": {
+                                          "type": "MANUAL",
+                                          "schema": {}
+                                        }
+                                      },
+                                      "errorHandlingOptions": {
+                                        "retryOnFailure": {
+                                          "value": true
+                                        },
+                                        "continueOnFailure": {
+                                          "value": true
+                                        }
+                                      }
+                                    },
+                                    "nextAction": {
+                                      "name": "step_retry_publish",
+                                      "skip": false,
+                                      "type": "PIECE",
+                                      "valid": true,
+                                      "settings": {
+                                        "input": {
+                                          "method": "POST",
+                                          "url": "{{step_constants['market_publish_webhook']}}",
+                                          "headers": {
+                                            "Content-Type": "application/json"
+                                          },
+                                          "queryParams": {},
+                                          "authType": "NONE",
+                                          "body_type": "json",
+                                          "body": {
+                                            "data": {
+                                              "action": "publish",
+                                              "Report_ID": "{{step_retry_plan['publish']['Report_ID']}}",
+                                              "_job": "",
+                                              "_who": "flow:BROADCAST"
+                                            }
+                                          }
+                                        },
+                                        "pieceName": "@puchoaistudio/tool-http",
+                                        "actionName": "send_request",
+                                        "sampleData": {},
+                                        "pieceVersion": "^2.0.0",
+                                        "propertySettings": {
+                                          "method": {
+                                            "type": "MANUAL"
+                                          },
+                                          "url": {
+                                            "type": "MANUAL"
+                                          },
+                                          "headers": {
+                                            "type": "MANUAL",
+                                            "schema": {}
+                                          },
+                                          "queryParams": {
+                                            "type": "MANUAL",
+                                            "schema": {}
+                                          },
+                                          "authType": {
+                                            "type": "MANUAL"
+                                          },
+                                          "body_type": {
+                                            "type": "MANUAL"
+                                          },
+                                          "body": {
+                                            "type": "MANUAL",
+                                            "schema": {}
+                                          }
+                                        },
+                                        "errorHandlingOptions": {
+                                          "retryOnFailure": {
+                                            "value": true
+                                          },
+                                          "continueOnFailure": {
+                                            "value": true
+                                          }
+                                        }
+                                      },
+                                      "nextAction": {
+                                        "name": "step_retry_sent",
+                                        "skip": false,
+                                        "type": "PIECE",
+                                        "valid": true,
+                                        "settings": {
+                                          "input": {
+                                            "fields": {
+                                              "body": {
+                                                "ok": true,
+                                                "sent": "{{step_retry_result['sent']}}",
+                                                "Delivery_ID": "{{step_retry_result['Delivery_ID']}}",
+                                                "error": "{{step_retry_result['Error_Message']}}"
+                                              },
+                                              "status": 200,
+                                              "headers": {}
+                                            },
+                                            "respond": "stop",
+                                            "responseType": "json"
+                                          },
+                                          "pieceName": "@puchoaistudio/tool-webhook",
+                                          "actionName": "return_response",
+                                          "sampleData": {},
+                                          "pieceVersion": "^2.0.4",
+                                          "propertySettings": {
+                                            "fields": {
+                                              "type": "MANUAL",
+                                              "schema": {
+                                                "body": {
+                                                  "type": "JSON",
+                                                  "required": true,
+                                                  "displayName": "JSON Body"
+                                                },
+                                                "status": {
+                                                  "type": "NUMBER",
+                                                  "required": false,
+                                                  "displayName": "Status",
+                                                  "defaultValue": 200
+                                                },
+                                                "headers": {
+                                                  "type": "OBJECT",
+                                                  "required": false,
+                                                  "displayName": "Headers"
+                                                }
+                                              }
+                                            },
+                                            "respond": {
+                                              "type": "MANUAL"
+                                            },
+                                            "responseType": {
+                                              "type": "MANUAL"
+                                            }
+                                          },
+                                          "errorHandlingOptions": {
+                                            "retryOnFailure": {
+                                              "value": false
+                                            },
+                                            "continueOnFailure": {
+                                              "value": false
+                                            }
+                                          }
+                                        },
+                                        "displayName": "Return: the retry's outcome"
+                                      },
+                                      "displayName": "POST MARKET_PUBLISH — refresh the report's counts"
+                                    },
+                                    "displayName": "PATCH the same delivery Sent or Failed"
+                                  },
+                                  "displayName": "Sent or Failed? (CODE)"
+                                },
+                                "displayName": "Send the report email again to the address on the subscriber record"
+                              },
+                              {
+                                "name": "step_retry_invalid",
+                                "skip": false,
+                                "type": "PIECE",
+                                "valid": true,
+                                "settings": {
+                                  "input": {
+                                    "method": "PATCH",
+                                    "url": "{{step_constants['app_url']}}/api/data/deliveries",
+                                    "headers": {
+                                      "Content-Type": "application/json",
+                                      "Authorization": "Bearer {{step_constants['inbound_token']}}",
+                                      "X-Flow": "{{step_constants['flow']}}"
+                                    },
+                                    "queryParams": {
+                                      "Delivery_ID": "eq.{{step_retry_claim_loop['item']['Delivery_ID']}}"
+                                    },
                                     "authType": "NONE",
                                     "body_type": "json",
                                     "body": {
                                       "data": {
-                                        "action": "publish",
-                                        "Report_ID": "{{step_retry_plan['publish']['Report_ID']}}",
-                                        "_job": "",
-                                        "_who": "flow:BROADCAST"
+                                        "Status": "Failed",
+                                        "Error_Message": "Email not sent — ZeroBounce: {{step_retry_zb['status']}} {{step_retry_zb['sub_status']}}{{step_retry_zb['error']}}"
                                       }
                                     }
                                   },
@@ -1076,7 +1392,7 @@
                                   }
                                 },
                                 "nextAction": {
-                                  "name": "step_retry_sent",
+                                  "name": "step_retry_invalid_done",
                                   "skip": false,
                                   "type": "PIECE",
                                   "valid": true,
@@ -1084,10 +1400,10 @@
                                     "input": {
                                       "fields": {
                                         "body": {
-                                          "ok": true,
-                                          "sent": "{{step_retry_result['sent']}}",
-                                          "Delivery_ID": "{{step_retry_result['Delivery_ID']}}",
-                                          "error": "{{step_retry_result['Error_Message']}}"
+                                          "ok": false,
+                                          "sent": false,
+                                          "Delivery_ID": "{{step_retry_claim_loop['item']['Delivery_ID']}}",
+                                          "error": "Not sent: the email address failed the ZeroBounce check ({{step_retry_zb['status']}} {{step_retry_zb['sub_status']}}{{step_retry_zb['error']}}). Correct the subscriber's email, then retry."
                                         },
                                         "status": 200,
                                         "headers": {}
@@ -1137,15 +1453,46 @@
                                       }
                                     }
                                   },
-                                  "displayName": "Return: the retry's outcome"
+                                  "displayName": "Return: not sent — invalid email"
                                 },
-                                "displayName": "POST MARKET_PUBLISH — refresh the report's counts"
-                              },
-                              "displayName": "PATCH the same delivery Sent or Failed"
+                                "displayName": "PATCH the delivery Failed — the address did not pass ZeroBounce"
+                              }
+                            ],
+                            "settings": {
+                              "branches": [
+                                {
+                                  "branchName": "valid | catch-all → send",
+                                  "branchType": "CONDITION",
+                                  "conditions": [
+                                    [
+                                      {
+                                        "operator": "TEXT_EXACTLY_MATCHES",
+                                        "firstValue": "{{step_retry_zb['status']}}",
+                                        "secondValue": "valid",
+                                        "caseSensitive": false
+                                      }
+                                    ],
+                                    [
+                                      {
+                                        "operator": "TEXT_EXACTLY_MATCHES",
+                                        "firstValue": "{{step_retry_zb['status']}}",
+                                        "secondValue": "catch-all",
+                                        "caseSensitive": false
+                                      }
+                                    ]
+                                  ]
+                                },
+                                {
+                                  "branchName": "invalid / unknown / not checked → Failed, no email",
+                                  "branchType": "FALLBACK"
+                                }
+                              ],
+                              "sampleData": {},
+                              "executionType": "EXECUTE_FIRST_MATCH"
                             },
-                            "displayName": "Sent or Failed? (CODE)"
+                            "displayName": "ZeroBounce: valid or catch-all?"
                           },
-                          "displayName": "Send the report email again to the address on the subscriber record"
+                          "displayName": "Validate the email address again (ZeroBounce)"
                         },
                         "displayName": "PATCH Attempts + 1, only where Attempts = the value read"
                       },

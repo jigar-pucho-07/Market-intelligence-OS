@@ -5,13 +5,15 @@
   "allow_pieces": [
     "@puchoaistudio/tool-gmail",
     "@puchoaistudio/tool-http",
-    "@puchoaistudio/tool-webhook"
+    "@puchoaistudio/tool-webhook",
+    "@puchoaistudio/tool-zerobounce"
   ],
   "allow_names": [
     "catch_webhook",
     "return_response",
     "send_email",
-    "send_request"
+    "send_request",
+    "validateEmail"
   ],
   "require_capabilities": [
     "webhook=trigger:webhook:trigger",
@@ -23,6 +25,9 @@
     "read_subscribers=step_send_subscribers:http:read",
     "plan=step_send_plan:code:transform",
     "queue=step_send_queue:http:write",
+    "verify=step_send_zb:zerobounce:action",
+    "deliverable=step_send_valid:router:route",
+    "invalid_update=step_send_invalid:http:write",
     "send=step_send_email:gmail:write",
     "result=step_send_result:code:transform",
     "delivery_update=step_send_update:http:write",
@@ -33,6 +38,10 @@
     "retry_read_reports=step_retry_reports:http:read",
     "retry_plan=step_retry_plan:code:transform",
     "retry_claim=step_retry_claim:http:write",
+    "retry_verify=step_retry_zb:zerobounce:action",
+    "retry_deliverable=step_retry_valid:router:route",
+    "retry_invalid_update=step_retry_invalid:http:write",
+    "answer_retry_invalid=step_retry_invalid_done:webhook:respond",
     "retry_send=step_retry_email:gmail:write",
     "retry_result=step_retry_result:code:transform",
     "retry_update=step_retry_update:http:write",

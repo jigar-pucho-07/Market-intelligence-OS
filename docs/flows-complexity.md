@@ -91,8 +91,8 @@ its path (the budget question) and its credits once per item; a router is a step
 | MARKET_STORE | Authorised › Unexpected | 7 | 5 |
 | MARKET_STORE | Unknown action → 400 | 4 | 3 |
 | MARKET_STORE | Anything else → 401 | 4 | 3 |
-| BROADCAST | send | alert | 14 | 8 + step_send_loop×5 |
-| BROADCAST | retry › inner Return | 14 | 13 |
+| BROADCAST | send | alert | 16 | 8 + step_send_loop×7 |
+| BROADCAST | retry › inner Return | 16 | 14 |
 | BROADCAST | retry ›  (0 items) | 9 | 8 |
 | BROADCAST | Unknown action → 400 | 4 | 3 |
 | BROADCAST | Anything else → 401 | 4 | 3 |
@@ -100,7 +100,7 @@ its path (the budget question) and its credits once per item; a router is a step
 | MARKET_PUBLISH | Unknown action → 400 | 4 | 3 |
 | MARKET_PUBLISH | Anything else → 401 | 4 | 3 |
 
-Longest path with loop bodies counted: **14 steps** (budget 14).
+Longest path with loop bodies counted: **16 steps** (budget 14; BROADCAST 16 — owner decision 24 Oct 2026, the ZeroBounce check).
 
 ## The four flows the owner adds to os.yaml (the builder made them; os.yaml is the owner's)
 

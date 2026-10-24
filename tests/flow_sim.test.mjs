@@ -248,6 +248,38 @@ test('retry: Attempts + 1 per retry, refused at 3, to the record\'s address; a c
   assert.equal(calls.filter((c) => c.piece === 'gmail:send_email').length, 0, 'the claim found Attempts changed → no send');
 });
 
+test('ZeroBounce (owner decision 24 Oct 2026): every queued address is checked before its email — invalid → no email, delivery Failed with the reason; catch-all is sent', async () => {
+  const subs = [{ ...SUBS[0], Email: 'bounce.amit@example.in' }, { ...SUBS[1], Email: 'neha@catchall.example.in' }, SUBS[2]];
+  const w = newWorld({ reports: [readyToday()], subscribers: subs });
+  await run(w, 'BROADCAST', { action: 'send', Report_ID: 'MIR-2026-0101', _job: JOB });
+  assert.equal(all(w).filter((c) => c.piece === 'zerobounce:validateEmail').length, 2, 'one check per queued recipient');
+  assert.deepEqual(sends(w).map(to), ['neha@catchall.example.in']);
+  const by = Object.fromEntries(w.app.db.deliveries.map((d) => [d.Subscriber_ID, d]));
+  assert.equal(by['SUB-2026-0001'].Status, 'Failed'); assert.match(by['SUB-2026-0001'].Error_Message, /^Email not sent — ZeroBounce: invalid mailbox_not_found/);
+  assert.equal(by['SUB-2026-0002'].Status, 'Sent');
+  assert.equal(w.app.db.reports[0].Sent_Count, 1); assert.equal(w.app.db.reports[0].Failed_Count, 1);
+  // ZeroBounce down (no credits, bad key): no email goes out, the delivery says why, the run still finishes with its Return
+  const down = newWorld({ reports: [readyToday()], subscribers: SUBS }, {});
+  const calls = []; const fakes = makeFakes({ app: down.app.app, calls, zerobounce: () => { throw new Error('HTTP 400: Invalid API key or your account ran out of credits'); } });
+  const r = await atClock(THU, () => simulate(load('BROADCAST'), { action: 'send', Report_ID: 'MIR-2026-0101' }, fakes));
+  assert.deepEqual(r.failures, []); assert.equal(calls.filter((c) => c.piece === 'gmail:send_email').length, 0);
+  assert.ok(down.app.db.deliveries.every((d) => d.Status === 'Failed' && /ZeroBounce: .*ran out of credits/.test(d.Error_Message)));
+});
+
+test('ZeroBounce on retry: a still-invalid address sends nothing and answers why; once corrected, the retry is sent', async () => {
+  const subs = [SUBS[0], { ...SUBS[1], Email: 'neha@nowhere.example' }];
+  const w = newWorld({ reports: [readyToday({ Status: 'Sent' })], subscribers: subs, deliveries: [{ Delivery_ID: 'DLV-2026-0001', Kind: 'Report', Report_ID: 'MIR-2026-0101', Report_Date: T,
+    Subscriber_ID: 'SUB-2026-0002', Subscriber_Name: 'Neha Iyer', Status: 'Failed', Attempts: 1, Error_Message: 'Email not sent — ZeroBounce: invalid mailbox_not_found' }] });
+  const d = w.app.db.deliveries[0];
+  const r1 = await run(w, 'BROADCAST', { action: 'retry', Delivery_ID: 'DLV-2026-0001' });
+  assert.equal(r1.responses[0].ok, false); assert.equal(r1.responses[0].sent, false);
+  assert.match(r1.responses[0].error, /failed the ZeroBounce check \(invalid mailbox_not_found\)\. Correct the subscriber's email/);
+  assert.equal(sends(w).length, 0); assert.equal(d.Status, 'Failed'); assert.equal(d.Attempts, 2, 'the check counts as an attempt');
+  w.app.db.subscribers[1].Email = 'neha.iyer@example.in';
+  const r2 = await run(w, 'BROADCAST', { action: 'retry', Delivery_ID: 'DLV-2026-0001' });
+  assert.equal(r2.responses[0].sent, true); assert.equal(d.Status, 'Sent'); assert.deepEqual(sends(w).map(to), ['neha.iyer@example.in']);
+});
+
 test('publish: nothing actually sent → the report stays Ready and the app job fails', async () => {
   const w = newWorld({ reports: [readyToday()], subscribers: SUBS }, { email: () => { throw new Error('HTTP 400: Invalid To header'); } });
   await run(w, 'BROADCAST', { action: 'send', Report_ID: 'MIR-2026-0101', _job: JOB });

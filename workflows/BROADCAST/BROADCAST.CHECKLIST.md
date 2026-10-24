@@ -33,7 +33,12 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **body_type**: `json`
   - **body**: `{"data": {"Kind": "{{step_send_loop['item']['delivery']['Kind']}}", "Report_ID": "{{step_send_loop['item']['delivery']['Report_ID']}}", "Report_Date": "{{step_send_loop['item']['delivery']['Report_Date']}}", "Subscriber_ID": "{{step_send_loop['item']['delivery']['Subscriber_ID']}}", "Subscriber_Name": "{{step_send_loop['item']['delivery']['Subscriber_Name']}}", "Sentiment": "{{step_send_loop['item']['delivery']['Sentiment']}}", "Status": "{{step_send_loop['item']['delivery']['Status']}}", "Delivery_ID": "", "Attempts": 1}}`
 
-## 5. Send email (Gmail): the report, or the admin alert (`step_send_email`, gmail)
+## 5. Validate the email address (ZeroBounce) (`step_send_zb`, zerobounce)
+- [ ] Pick your **zerobounce** connection.
+- [ ] Studio may blank the boxes below when the connection is picked. Check each one; paste the value if empty:
+  - **email**: `{{step_send_loop['item']['to']}}`
+
+## 6. Send email (Gmail): the report, or the admin alert (`step_send_email`, gmail)
 - [ ] Pick your **gmail** connection.
 - [ ] Studio may blank the boxes below when the connection is picked. Check each one; paste the value if empty:
   - **receiver**: `["{{step_send_loop['item']['to']}}"]`
@@ -43,7 +48,7 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **sender_name**: `{{step_constants['sender_name']}}`
   - **draft**: `false`
 
-## 6. PATCH the delivery Sent (message id) or Failed (error) (`step_send_update`, http)
+## 7. PATCH the delivery Sent (message id) or Failed (error) (`step_send_update`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
 - [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
   - **method**: `PATCH`
@@ -54,7 +59,18 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **body_type**: `json`
   - **body**: `{"data": {"Status": "{{step_send_result['Status']}}", "Message_ID": "{{step_send_result['Message_ID']}}", "Error_Message": "{{step_send_result['Error_Message']}}", "Sent_At": "{{step_send_result['Sent_At']}}"}}`
 
-## 7. POST MARKET_PUBLISH — counts, reader copy, job (`step_send_publish`, http)
+## 8. PATCH the delivery Failed — the address did not pass ZeroBounce (`step_send_invalid`, http)
+- [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
+- [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
+  - **method**: `PATCH`
+  - **url**: `{{step_constants['app_url']}}/api/data/deliveries`
+  - **headers**: `{"Content-Type": "application/json", "Authorization": "Bearer {{step_constants['inbound_token']}}", "X-Flow": "{{step_constants['flow']}}"}`
+  - **queryParams**: `eq.{{step_send_queued['item']['Delivery_ID']}}`
+  - **authType**: `NONE`
+  - **body_type**: `json`
+  - **body**: `{"data": {"Status": "Failed", "Error_Message": "Email not sent — ZeroBounce: {{step_send_zb['status']}} {{step_send_zb['sub_status']}}{{step_send_zb['error']}}"}}`
+
+## 9. POST MARKET_PUBLISH — counts, reader copy, job (`step_send_publish`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
 - [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
   - **method**: `POST`
@@ -64,7 +80,7 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **body_type**: `json`
   - **body**: `{"data": {"action": "publish", "Report_ID": "{{step_send_plan['publish']['Report_ID']}}", "_job": "{{step_send_plan['publish']['_job']}}", "_who": "flow:BROADCAST"}}`
 
-## 8. GET deliveries (`step_retry_deliveries`, http)
+## 10. GET deliveries (`step_retry_deliveries`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
 - [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
   - **method**: `GET`
@@ -73,7 +89,7 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **queryParams**: `*`
   - **authType**: `NONE`
 
-## 9. GET subscribers (`step_retry_subscribers`, http)
+## 11. GET subscribers (`step_retry_subscribers`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
 - [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
   - **method**: `GET`
@@ -82,7 +98,7 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **queryParams**: `*`
   - **authType**: `NONE`
 
-## 10. GET reports (`step_retry_reports`, http)
+## 12. GET reports (`step_retry_reports`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
 - [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
   - **method**: `GET`
@@ -91,7 +107,7 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **queryParams**: `*`
   - **authType**: `NONE`
 
-## 11. PATCH Attempts + 1, only where Attempts = the value read (`step_retry_claim`, http)
+## 13. PATCH Attempts + 1, only where Attempts = the value read (`step_retry_claim`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
 - [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
   - **method**: `PATCH`
@@ -102,7 +118,12 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **body_type**: `json`
   - **body**: `{"data": {"Attempts": "{{step_retry_claim_loop['item']['Attempts']}}"}}`
 
-## 12. Send the report email again to the address on the subscriber record (`step_retry_email`, gmail)
+## 14. Validate the email address again (ZeroBounce) (`step_retry_zb`, zerobounce)
+- [ ] Pick your **zerobounce** connection.
+- [ ] Studio may blank the boxes below when the connection is picked. Check each one; paste the value if empty:
+  - **email**: `{{step_retry_plan['send']['to']}}`
+
+## 15. Send the report email again to the address on the subscriber record (`step_retry_email`, gmail)
 - [ ] Pick your **gmail** connection.
 - [ ] Studio may blank the boxes below when the connection is picked. Check each one; paste the value if empty:
   - **receiver**: `["{{step_retry_plan['send']['to']}}"]`
@@ -112,7 +133,7 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **sender_name**: `{{step_constants['sender_name']}}`
   - **draft**: `false`
 
-## 13. PATCH the same delivery Sent or Failed (`step_retry_update`, http)
+## 16. PATCH the same delivery Sent or Failed (`step_retry_update`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
 - [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
   - **method**: `PATCH`
@@ -123,7 +144,7 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **body_type**: `json`
   - **body**: `{"data": {"Status": "{{step_retry_result['Status']}}", "Message_ID": "{{step_retry_result['Message_ID']}}", "Error_Message": "{{step_retry_result['Error_Message']}}", "Sent_At": "{{step_retry_result['Sent_At']}}"}}`
 
-## 14. POST MARKET_PUBLISH — refresh the report's counts (`step_retry_publish`, http)
+## 17. POST MARKET_PUBLISH — refresh the report's counts (`step_retry_publish`, http)
 - [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
 - [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
   - **method**: `POST`
@@ -133,17 +154,28 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
   - **body_type**: `json`
   - **body**: `{"data": {"action": "publish", "Report_ID": "{{step_retry_plan['publish']['Report_ID']}}", "_job": "", "_who": "flow:BROADCAST"}}`
 
-## 15. Constants + action check (first step) (`step_constants`, code)
+## 18. PATCH the delivery Failed — the address did not pass ZeroBounce (`step_retry_invalid`, http)
+- [ ] No connection to pick. Check each box below; paste the value if it is empty or different.
+- [ ] A box that is a dropdown takes a `{{…}}` value only after you press its **ƒ** button. Press ƒ, then paste.
+  - **method**: `PATCH`
+  - **url**: `{{step_constants['app_url']}}/api/data/deliveries`
+  - **headers**: `{"Content-Type": "application/json", "Authorization": "Bearer {{step_constants['inbound_token']}}", "X-Flow": "{{step_constants['flow']}}"}`
+  - **queryParams**: `eq.{{step_retry_claim_loop['item']['Delivery_ID']}}`
+  - **authType**: `NONE`
+  - **body_type**: `json`
+  - **body**: `{"data": {"Status": "Failed", "Error_Message": "Email not sent — ZeroBounce: {{step_retry_zb['status']}} {{step_retry_zb['sub_status']}}{{step_retry_zb['error']}}"}}`
+
+## 19. Constants + action check (first step) (`step_constants`, code)
 - [ ] Open the step's code and replace each placeholder with the real value, then save:
   - `SET_IN_STUDIO_ADMIN_EMAILS` → the real value
   - `SET_IN_STUDIO_APP_URL` → the app's public origin, e.g. `https://<client>-os.pucho.app` (no trailing slash)
   - `SET_IN_STUDIO_INBOUND_TOKEN` → this flow's own token: set `INBOUND_TOKEN_<FLOW>` in the app's environment and paste the same value here (one token per flow — a leak points at one flow and one flow can be cut off); the shared `INBOUND_TOKEN` also works (docs/security.md § Inbound tokens)
   - `SET_IN_STUDIO_MARKET_PUBLISH_WEBHOOK_URL` → the real value
 
-## 16. Publish
+## 20. Publish
 - [ ] Press **Publish**. Edits do nothing until Studio says the flow is published.
 - [ ] Self-check: open **Sent or Failed? (CODE)**. Its code has **21 lines** and line 1 is `// @ts-nocheck`. If not, paste it again and publish.
-## 17. Test the trigger — one payload per action
+## 21. Test the trigger — one payload per action
 - [ ] Open the trigger step → **Test** → paste a payload below → send. Studio then shows every later step's input filled in, and `{{trigger['body'][…]}}` picks resolve in the UI.
 - [ ] After the test, open each **http** step: the **JSON Body** box lists the fields it writes (named, one per column). If a box is empty, the import did not take `body.data` — tell Claude.
 - [ ] Test one update with an optional field left blank (e.g. no Close_Reason): the row's column must stay as it was. If it was blanked, tell Claude (the app would then need a skip-empty rule).
@@ -177,7 +209,7 @@ File: `BROADCAST.json`. Do the steps in order. Tick each box.
 From a terminal (the app sends the same): `curl -X POST <webhook URL>/sync -H 'Content-Type: application/json' -d @payload.json`
 
 
-## 18. Hand back
+## 22. Hand back
 - [ ] Copy the webhook URL from the trigger step and send it to Claude.
 - Claude adds `/sync` at the end when the app waits for the flow's answer. Do not add it yourself.
 
@@ -192,7 +224,13 @@ From a terminal (the app sends the same): `curl -X POST <webhook URL>/sync -H 'C
 - `holidays` (NSE trading holidays, ⚑ G3): fill the SAME list in DAILY_SCHEDULE and DAILY_WATCHDOG.
 - **BROADCAST sends by Gmail (owner decision 23 Oct 2026).** Select the Gmail connection on both Gmail steps (send and retry), set `alert_to`
   to the admins' email addresses (comma separated) and, if you like, `sender_name`. Subscribers receive the report at the `Email` on their record.
+- **BROADCAST checks every address with ZeroBounce first (owner decision 24 Oct 2026).** Select your ZeroBounce connection (its API key)
+  on both "Validate the email address" steps (send and retry). valid or catch-all → the email goes; anything else (invalid, spamtrap,
+  abuse, do_not_mail, unknown, or ZeroBounce not answering — e.g. out of credits) → no email, the delivery is Failed with
+  "Email not sent — ZeroBounce: <status> <sub_status>". A retry of such a delivery is checked again; if the address is still bad
+  the retry answers "Not sent: the email address failed the ZeroBounce check …". Each check uses one ZeroBounce credit.
 - Give each flow its own token: `INBOUND_TOKEN_<FLOW>` on the app, the same value in that flow's `inbound_token`. While the app's token is unset every read answers 403 and the flows say APP_CLOSED.
 - UNVERIFIED until the first import: LOOP_ON_ITEMS (also nested), `body.data` in the JSON Body box,
+  ZeroBounce validateEmail's input name (`email`) and its answer (`status`, `sub_status`) on the current piece version,
   Gmail send_email's response (the message id) and its props on the current piece version (registry props are from v2.0.1),
   `return_response` at the end of a schedule-triggered flow, and the app honouring `?Attempts=eq.<n>` on PATCH (kernel ticket: today the door filters on the id only).
