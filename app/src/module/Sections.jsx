@@ -57,17 +57,21 @@ export function fmt(row, c, ent) {
 }
 
 // 24 Oct 2026: a value that is a web address (http/https only — never javascript: or data:) renders as a button that opens it
-// in a new tab, with the site's name under it; a section's `link_label` names the button (default "Open link").
+// in a new tab, with the site's name under it; a section's `link_label` names the button (default "Open link"). A Google News
+// RSS link goes through /api/out/<entity>/<id>?col= — the server resolves it to the publisher's page (lib/outLink.ts), since
+// Google's own redirect page can fail with a 400 in the browser.
 const webUrl = (v) => { const s = String(v ?? '').trim(); if (!/^https?:\/\/\S+$/i.test(s)) return null; try { return new URL(s); } catch { return null; } };
-function UrlButton({ url, label }) {
-  const I = Icons.ExternalLink;
+const isGoogleNews = (u) => u.hostname === 'news.google.com' && /^\/(rss\/)?(articles|read)\//.test(u.pathname);
+const entityName = (ent) => Object.keys(ENTITIES).find((k) => ENTITIES[k] === ent);
+function UrlButton({ url, label, out }) {
+  const I = Icons.ExternalLink; const gn = isGoogleNews(url) && out;
   return (
     <div className="min-w-0">
-      <a href={url.href} target="_blank" rel="noopener noreferrer" data-os-url-button title={url.href}
+      <a href={gn ? out : url.href} target="_blank" rel="noopener noreferrer" data-os-url-button title={url.href}
         className="inline-flex items-center gap-1.5 h-9 px-3 rounded-[var(--r-8)] bg-primary-500 text-white text-[13px] font-medium hover:bg-primary-600 transition-colors">
         <I className="w-3.5 h-3.5" />{label}
       </a>
-      <p className="text-[12px] text-ink-3 mt-1 truncate font-normal">{url.hostname.replace(/^www\./, '')}</p>
+      <p className="text-[12px] text-ink-3 mt-1 truncate font-normal">{gn ? "Opens the publisher's page (via Google News)" : url.hostname.replace(/^www\./, '')}</p>
     </div>
   );
 }
@@ -104,7 +108,7 @@ export function renderSection(s, i, ctx) {
       return shell(<>
         <Head bare={ctx.bare} title={s.title ?? 'Details'} />
         <dl className={cn('grid gap-x-4 gap-y-3', compact || s.rail ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-4')}>
-          {cols.map((c) => { const url = webUrl(row[c]); return <div key={c} className="min-w-0"><dt className="text-[12px] text-ink-3 mb-0.5">{L(c)}</dt><dd className="text-[14px] font-medium text-ink break-words">{url ? <UrlButton url={url} label={s.link_label ?? 'Open link'} /> : guessType(c, ent) === 'badge' && row[c] ? <StatusBadge status={row[c]} /> : fmt(row, c, ent)}</dd></div>; })}
+          {cols.map((c) => { const url = webUrl(row[c]); return <div key={c} className="min-w-0"><dt className="text-[12px] text-ink-3 mb-0.5">{L(c)}</dt><dd className="text-[14px] font-medium text-ink break-words">{url ? <UrlButton url={url} label={s.link_label ?? 'Open link'} out={entityName(ent) && row[idc] ? `/api/out/${entityName(ent)}/${encodeURIComponent(row[idc])}?col=${encodeURIComponent(c)}` : null} /> : guessType(c, ent) === 'badge' && row[c] ? <StatusBadge status={row[c]} /> : fmt(row, c, ent)}</dd></div>; })}
         </dl>
       </>);
     }
