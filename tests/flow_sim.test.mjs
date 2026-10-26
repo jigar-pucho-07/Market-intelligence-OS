@@ -122,12 +122,12 @@ const paid = (w) => all(w).filter((c) => c.piece === 'llm-ai:askLlm' || c.piece 
 const JOB = 'JOB-3F9A1C22B7E0';
 const readyToday = (o = {}) => ({ Report_ID: 'MIR-2026-0101', Report_Date: T, Created_At: '2026-10-15T00:31:00Z', Status: 'Ready', Sentiment: 'BULLISH', Confidence_Level: 'HIGH', Confidence_Pct: 74, Driver_1: 'FII inflows', WhatsApp_Message: 'w', ...o });
 
-test('MARKET_REPORT.run, end to end: report Ready → news with deterministic ids → email to each Active subscriber → Sent + counts + reader copy', async () => {
+test('MARKET_REPORT.run (schedule), end to end: report Ready → news with deterministic ids → email to each Active subscriber → Sent + counts + reader copy', async () => {
   const w = newWorld({ subscribers: SUBS });
-  await run(w, 'MARKET_REPORT', { action: 'run', Trigger: 'Manual', _who: 'Test', _job: JOB });
+  await run(w, 'MARKET_REPORT', { action: 'run', Trigger: 'Schedule', _who: 'Test', _job: JOB });
   assert.deepEqual(w.log.map((l) => l.name), ['MARKET_REPORT', 'MARKET_ANALYSE', 'MARKET_STORE', 'BROADCAST', 'MARKET_PUBLISH']);
   const [rep] = w.app.db.reports;
-  assert.equal(rep.Report_Date, T); assert.equal(rep.Trigger, 'Manual'); assert.equal(rep.Sentiment, 'CAUTIOUSLY BULLISH'); assert.equal(rep.Confidence_Pct, 100);
+  assert.equal(rep.Report_Date, T); assert.equal(rep.Trigger, 'Schedule'); assert.equal(rep.Sentiment, 'CAUTIOUSLY BULLISH'); assert.equal(rep.Confidence_Pct, 100);
   assert.equal(rep.Status, 'Sent'); assert.equal(rep.Sent_Count, 2); assert.equal(rep.Failed_Count, 0);
   assert.ok(rep.WhatsApp_Message.length <= 4000);
   for (const n of ['Economic Times Markets', 'Moneycontrol', 'Reuters India', 'Google Finance News', 'Global Market Cues']) assert.match(rep.Source_Status, new RegExp(n + ' [1-9]'));
@@ -160,17 +160,18 @@ test('no webhook secret (owner decision 23 Oct 2026): any caller with a known ac
   }
 });
 
-test('SA-02: MARKET_REPORT refuses before any feed or model call — run when today is Ready / Sent, rerun unless today\'s report is Failed', async () => {
+test('SA-02: MARKET_REPORT refuses before any feed or model call — the schedule when today is Ready / Sent, a rerun of another day', async () => {
   for (const st of ['Ready', 'Sent']) {
     const w = newWorld({ reports: [readyToday({ Status: st })] });
     const r = await run(w, 'MARKET_REPORT', { action: 'run', Trigger: 'Schedule', _job: JOB });
     assert.equal(r.responses[0].code, 'EXISTS'); assert.equal(paid(w).length, 0, 'no feed, no model'); assert.equal(w.log.length, 1);
     assert.equal(w.app.jobs[JOB].status, 'failed');
   }
-  for (const row of [readyToday({ Status: 'Failed', Report_Date: '2026-10-14' }), readyToday(), readyToday({ Status: 'Sent' })]) {
+  {
+    const row = readyToday({ Status: 'Failed', Report_Date: '2026-10-14' });
     const w = newWorld({ reports: [row] });
     const r = await run(w, 'MARKET_REPORT', { action: 'rerun', Report_ID: row.Report_ID });
-    assert.equal(r.responses[0].ok, false); assert.equal(paid(w).length, 0);
+    assert.equal(r.responses[0].ok, false); assert.equal(r.responses[0].code, 'STALE_DATE'); assert.equal(paid(w).length, 0);
   }
   const w = newWorld({ reports: [{ Report_ID: 'MIR-2026-0102', Report_Date: T, Status: 'Failed', Error_Message: 'timeout' }], subscribers: [] });
   await run(w, 'MARKET_REPORT', { action: 'run', Trigger: 'Schedule' });
@@ -184,6 +185,22 @@ test('MARKET_REPORT.rerun: Failed → Failed (bad model) → Ready on the same R
   const n1 = w.app.db.news_articles.length; assert.ok(n1 > 0);
   w.model = undefined; await run(w, 'MARKET_REPORT', { action: 'rerun', Report_ID: 'MIR-2026-0099' });
   assert.equal(w.app.db.reports[0].Status, 'Ready'); assert.equal(w.app.db.news_articles.length, n1, 'same articles, same ids');
+});
+
+test('a manual run / rerun regenerates today\'s Ready or Sent report in place and sends nothing (owner decision 26 Oct 2026)', async () => {
+  for (const [st, payload] of [['Sent', { action: 'run', Trigger: 'Manual' }], ['Ready', { action: 'rerun' }], ['Sent', { action: 'rerun' }]]) {
+    const row = readyToday({ Status: st, Driver_1: 'OLD DRIVER' });
+    const w = newWorld({ reports: [row], subscribers: SUBS });
+    await run(w, 'MARKET_REPORT', { ...payload, ...(payload.action === 'rerun' ? { Report_ID: row.Report_ID } : {}), _job: JOB });
+    assert.equal(w.app.db.reports.length, 1, `${st} ${payload.action}: same row`); assert.equal(w.app.db.reports[0].Report_ID, row.Report_ID);
+    assert.equal(w.app.db.reports[0].Status, 'Ready'); assert.notEqual(w.app.db.reports[0].Driver_1, 'OLD DRIVER', 'regenerated');
+    assert.equal(sends(w).length, 0, `${st} ${payload.action}: nothing sent`); assert.equal(w.app.jobs[JOB].status, 'done');
+  }
+  const row = readyToday({ Status: 'Sent', Driver_1: 'OLD DRIVER' });
+  const w = newWorld({ reports: [row], subscribers: SUBS }, { model: MODEL.broken });
+  await run(w, 'MARKET_REPORT', { action: 'rerun', Report_ID: row.Report_ID, _job: JOB });
+  assert.equal(w.app.db.reports[0].Status, 'Sent'); assert.equal(w.app.db.reports[0].Driver_1, 'OLD DRIVER', 'a failed re-run keeps the good report');
+  assert.equal(w.app.jobs[JOB].status, 'failed'); assert.equal(w.app.jobs[JOB].result.code, 'RERUN_FAILED');
 });
 
 test('SA-01: a row handed to MARKET_STORE is re-checked — advice in Driver_1 fails it, the WhatsApp text is rebuilt', async () => {

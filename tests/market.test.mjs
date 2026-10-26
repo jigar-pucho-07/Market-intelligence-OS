@@ -188,18 +188,24 @@ test('finishReport: Ready from good JSON, Failed (with the reason) from bad JSON
   assert.match(FL.finishReport({ ai: { error: 'HTTP 502' }, prep }).report.Error_Message, /^MODEL_ERROR/);
 });
 
-test('storePlan: one report per Report_Date — new, re-run a Failed one, refuse Ready / Sent / stale / closed door', () => {
+test('storePlan: one report per Report_Date — new, re-run a Failed one, schedule refused on Ready / Sent, manual re-runs, stale / closed door', () => {
   const ready = M.buildReportRow({ fields: M.parseModel(MODEL.fenced).fields, status: 'Ready' });
+  const scheduled = M.buildReportRow({ fields: M.parseModel(MODEL.fenced).fields, status: 'Ready', meta: { Trigger: 'Schedule' } });
   const body = (extra) => ({ Mode: 'run', report: ready, articles: [{ key: 'k', title: 'A title here', source: 'Moneycontrol', category: 'FNO', impact: 'MED' }], _job: 'JOB-3F9A1C22B7E0', ...extra });
   assert.equal(FL.storePlan({ body: body(), reports: reportsOut([]) }).route, 'new');
   const failedToday = { Report_ID: 'MIR-2026-0200', Report_Date: today, Status: 'Failed' };
   const re = FL.storePlan({ body: body(), reports: reportsOut([failedToday]) });
   assert.equal(re.route, 'rerun'); assert.equal(re.Report_ID, 'MIR-2026-0200'); assert.match(re.news[0].Article_ID, /^NWS-MIR-2026-0200-/);
-  const ex = FL.storePlan({ body: body(), reports: reportsOut([{ ...failedToday, Status: 'Ready' }]) });
+  const ex = FL.storePlan({ body: body({ report: scheduled }), reports: reportsOut([{ ...failedToday, Status: 'Ready' }]) });
   assert.equal(ex.route, 'refuse'); assert.equal(ex.code, 'EXISTS'); assert.equal(ex.jobs[0].status, 'failed');
+  for (const st of ['Ready', 'Sent']) assert.equal(FL.storePlan({ body: body(), reports: reportsOut([{ ...failedToday, Status: st }]) }).route, 'rerun', `manual run over ${st}`);
   const rr = (row) => FL.storePlan({ body: body({ Mode: 'rerun', Report_ID: row.Report_ID }), reports: reportsOut([row]) });
-  assert.equal(rr({ ...failedToday, Status: 'Sent' }).code, 'SENT');
-  assert.equal(rr({ ...failedToday, Status: 'Ready' }).code, 'NOT_FAILED');
+  assert.equal(rr({ ...failedToday, Status: 'Sent' }).route, 'rerun');
+  assert.equal(rr({ ...failedToday, Status: 'Ready' }).route, 'rerun');
+  const failedRow = M.buildReportRow({ status: 'Failed', error: 'MODEL_JSON: broken' });
+  const kept = FL.storePlan({ body: body({ Mode: 'rerun', Report_ID: failedToday.Report_ID, report: failedRow }), reports: reportsOut([{ ...failedToday, Status: 'Sent' }]) });
+  assert.equal(kept.code, 'RERUN_FAILED'); assert.match(kept.error, /keeps its Sent report/); assert.equal(kept.jobs[0].status, 'failed');
+  assert.equal(FL.storePlan({ body: body({ Mode: 'rerun', Report_ID: failedToday.Report_ID, report: failedRow }), reports: reportsOut([failedToday]) }).route, 'rerun', 'Failed → Failed is still stored');
   assert.equal(rr({ ...failedToday, Report_Date: '2026-01-02' }).code, 'STALE_DATE');
   assert.equal(rr(failedToday).route, 'rerun');
   assert.equal(FL.storePlan({ body: body({ Mode: 'rerun', Report_ID: 'MIR-404' }), reports: reportsOut([]) }).code, 'NOT_FOUND');
@@ -207,11 +213,13 @@ test('storePlan: one report per Report_Date — new, re-run a Failed one, refuse
   assert.equal(FL.storePlan({ body: { ...body(), report: { Status: 'Ready', Recipient: 'x' } }, reports: reportsOut([]) }).row.Status, 'Failed');
 });
 
-test('afterWrite: the app-numbered id stamps the news; Failed → alert, Ready → send only when auto_send; 409 → job failed', () => {
-  const plan = { row: { Status: 'Ready', Articles_Analyzed: 3 }, articles: [{ key: 'k', title: 'A title here', source: 'Moneycontrol', category: 'FNO', impact: 'MED' }] };
+test('afterWrite: the app-numbered id stamps the news; Failed → alert, Ready → send only when auto_send on a scheduled run; 409 → job failed', () => {
+  const plan = { row: { Status: 'Ready', Trigger: 'Schedule', Articles_Analyzed: 3 }, articles: [{ key: 'k', title: 'A title here', source: 'Moneycontrol', category: 'FNO', impact: 'MED' }] };
   const ok = FL.afterWrite({ written: { status: 201, body: [{ Report_ID: 'MIR-2026-0300', Status: 'Ready' }] }, plan, C: { auto_send: true }, body: { _job: 'JOB-3F9A1C22B7E0' } });
   assert.equal(ok.Report_ID, 'MIR-2026-0300'); assert.match(ok.news[0].Article_ID, /^NWS-MIR-2026-0300-/);
   assert.deepEqual(ok.broadcasts, [{ action: 'send', Report_ID: 'MIR-2026-0300' }]); assert.equal(ok.jobs[0].status, 'done');
+  const manual = { ...plan, row: { ...plan.row, Trigger: 'Manual' } };
+  assert.deepEqual(FL.afterWrite({ written: { status: 200, body: [{ Report_ID: 'X', Status: 'Ready' }] }, plan: manual, C: { auto_send: true }, body: {} }).broadcasts, [], 'a manual run is never auto-sent');
   assert.deepEqual(FL.afterWrite({ written: { status: 201, body: [{ Report_ID: 'X', Status: 'Ready' }] }, plan, C: { auto_send: false }, body: {} }).broadcasts, []);
   assert.equal(FL.afterWrite({ written: { status: 201, body: [{ Report_ID: 'X', Status: 'Failed' }] }, plan, C: { auto_send: false }, body: {} }).broadcasts[0].action, 'alert');
   const dup = FL.afterWrite({ written: { error: 'HTTP 409: already in use' }, plan, C: { auto_send: true }, body: { _job: 'JOB-3F9A1C22B7E0' } });

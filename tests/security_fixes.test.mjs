@@ -79,14 +79,18 @@ test('model answer: unknown risk level is blank, missing confidence is blank (ne
 });
 
 // ── SA-02: the gate decides before any fetch ──
-test('reportGate: run refused when today is Ready / Sent; rerun only for today\'s Failed report', () => {
+test('reportGate: the schedule is refused when today is Ready / Sent; a manual run or rerun regenerates today\'s report', () => {
   const g = (body, rows) => FL.reportGate({ body, reports: out(rows), now: NOW });
   assert.equal(g({ action: 'run', Trigger: 'Manual' }, []).route, 'go');
-  assert.equal(g({ action: 'run' }, [{ Report_ID: 'MIR-1', Report_Date: TODAY, Status: 'Failed' }]).route, 'go');
-  for (const st of ['Ready', 'Sent']) assert.equal(g({ action: 'run' }, [{ Report_ID: 'MIR-1', Report_Date: TODAY, Status: st }]).route, 'refuse');
-  assert.equal(g({ action: 'rerun', Report_ID: 'MIR-1' }, [{ Report_ID: 'MIR-1', Report_Date: TODAY, Status: 'Failed' }]).route, 'go');
-  assert.equal(g({ action: 'rerun', Report_ID: 'MIR-1' }, [{ Report_ID: 'MIR-1', Report_Date: '2026-10-14', Status: 'Failed' }]).route, 'refuse');
-  assert.equal(g({ action: 'rerun', Report_ID: 'MIR-1' }, [{ Report_ID: 'MIR-1', Report_Date: TODAY, Status: 'Ready' }]).route, 'refuse');
+  assert.equal(g({ action: 'run', Trigger: 'Schedule' }, [{ Report_ID: 'MIR-1', Report_Date: TODAY, Status: 'Failed' }]).route, 'go');
+  for (const st of ['Ready', 'Sent']) {
+    const row = [{ Report_ID: 'MIR-1', Report_Date: TODAY, Status: st }];
+    assert.equal(g({ action: 'run', Trigger: 'Schedule' }, row).code, 'EXISTS');
+    assert.equal(g({ action: 'run', Trigger: 'Manual' }, row).route, 'go');
+  }
+  for (const st of ['Failed', 'Ready', 'Sent']) assert.equal(g({ action: 'rerun', Report_ID: 'MIR-1' }, [{ Report_ID: 'MIR-1', Report_Date: TODAY, Status: st }]).route, 'go');
+  assert.equal(g({ action: 'rerun', Report_ID: 'MIR-1' }, [{ Report_ID: 'MIR-1', Report_Date: '2026-10-14', Status: 'Failed' }]).code, 'STALE_DATE');
+  assert.equal(g({ action: 'rerun', Report_ID: 'MIR-2' }, [{ Report_ID: 'MIR-1', Report_Date: TODAY, Status: 'Ready' }]).code, 'NOT_FOUND');
   assert.equal(FL.reportGate({ body: { action: 'run' }, reports: { error: 'HTTP 403' }, now: NOW }).route, 'refuse');
 });
 

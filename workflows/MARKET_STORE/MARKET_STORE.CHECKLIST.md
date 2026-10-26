@@ -113,7 +113,7 @@ File: `MARKET_STORE.json`. Do the steps in order. Tick each box.
 
 ## 13. Publish
 - [ ] Press **Publish**. Edits do nothing until Studio says the flow is published.
-- [ ] Self-check: open **Read the write: Report_ID · news ids · hand-offs (CODE)**. Its code has **50 lines** and line 1 is `// @ts-nocheck`. If not, paste it again and publish.
+- [ ] Self-check: open **Read the write: Report_ID · news ids · hand-offs (CODE)**. Its code has **51 lines** and line 1 is `// @ts-nocheck`. If not, paste it again and publish.
 ## 14. Test the trigger — one payload per action
 - [ ] Open the trigger step → **Test** → paste a payload below → send. Studio then shows every later step's input filled in, and `{{trigger['body'][…]}}` picks resolve in the UI.
 - [ ] After the test, open each **http** step: the **JSON Body** box lists the fields it writes (named, one per column). If a box is empty, the import did not take `body.data` — tell Claude.

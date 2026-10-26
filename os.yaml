@@ -89,7 +89,7 @@ entities:
     transitions:
       Ready:  [Sent, Failed]
       Failed: [Ready]
-      Sent:   [Sent]
+      Sent:   [Sent, Ready]   # a manual re-run regenerates today's Sent report; it stays Ready until the analyst sends it (26 Oct 2026)
     requires_on:
       Ready:  [Sentiment, Confidence_Level, Driver_1, WhatsApp_Message]
       Sent:   [Sentiment, Confidence_Level, Driver_1, WhatsApp_Message]
@@ -400,7 +400,7 @@ flows:
         payload: { Trigger: string, Report_ID: string }
         result: { Report_ID: string, Status: string, Articles_Analyzed: number }
         rules:
-          - "The door (owner fix round 1, SA-01..03): ?k= secret checked first (401), action validated (400), today's report state read before any spend (run with today Ready/Sent → 409; rerun only when today is Failed) → POST MARKET_ANALYSE ?k=. Steps below run in MARKET_ANALYSE"
+          - "The door (owner fix round 1, SA-01..03): ?k= secret checked first (401), action validated (400), today's report state read before any spend (a scheduled run with today Ready/Sent → 409; a manual run or rerun regenerates today's report whatever its Status; rerun of another day → 409) → POST MARKET_ANALYSE ?k=. Steps below run in MARKET_ANALYSE"
           - "Five RSS fetches run as separate steps; a failed or empty source yields 0 items and is reported in Source_Status, never stops the run (CODE)"
           - "Parse <item> title / description (CDATA or plain, HTML stripped, ≤300 chars) / pubDate / link; dedupe on the first 60 lower-cased alphanumeric title characters; categorise with word-bounded keyword rules in the source's order; keep 40 (CODE — fixes S2, S3)"
           - "Impact: HIGH when the title names RBI, repo, Fed, FII, GDP, CPI, inflation, SGX/GIFT Nifty or a ≥ $1 billion deal; MED for Banking, IT, F&O, Benchmark; else LOW (CODE)"
@@ -408,8 +408,8 @@ flows:
           - "Zero articles, or model JSON missing Sentiment / Confidence_Level / Driver_1 → Status Failed with Error_Message, never a half-empty Ready row (CODE + router on the parse field)"
           - "The model's JSON is parsed and only declared keys are kept; enum values outside the lists become empty; confidence clamped 0–100 (CODE)"
           - "WhatsApp_Message = header (day, date, report time IST) + analysis + footer 'Market Opens: 9:15 AM IST' + disclaimer, trimmed to 4,000 characters (CODE, app/src/custom/lib/market.js — the same formatter the app's preview uses)"
-          - "One report per Report_Date (unique). A payload Report_ID re-runs that row (Failed → Ready, PATCH); a Sent report is never re-run (refused). The report is written first, then news_articles with deterministic ids (Report_ID + dedupe key) so a re-run never doubles them"
-          - "Last step: POST BROADCAST — always for Failed (the admin alert), for Ready only when constants.auto_send is true; then POST /api/jobs/<id> done"
+          - "One report per Report_Date (unique). A payload Report_ID, or a manual run, re-runs today's row in place (PATCH; Failed / Ready / Sent → Ready); a re-run that fails never replaces a Ready or Sent report (RERUN_FAILED). The report is written first, then news_articles with deterministic ids (Report_ID + dedupe key) so a re-run never doubles them"
+          - "Last step: POST BROADCAST — always for Failed (the admin alert), for Ready only on the 06:00 scheduled run when constants.auto_send is true (a manual run stays Ready until sent from the app); then POST /api/jobs/<id> done"
         typical_seconds: 45
         credits: 6
         runs_per_month: 22
@@ -523,7 +523,7 @@ flows:
         via: custom
         payload: { Mode: string, Trigger: string, Report_ID: string }
         result: { Report_ID: string, Status: string }
-        rules: ["Called only by MARKET_REPORT with the finished report and articles. run: no row today → POST; today's row Failed → PATCH it; Ready / Sent → refused. rerun: only a Failed report of today; Sent refused. Then news_articles (NWS-<Report_ID>-<hash>), BROADCAST (Failed → Kind Alert; Ready → only when auto_send), POST /api/jobs/<_job>"]
+        rules: ["Called only by MARKET_REPORT with the finished report and articles. run: no row today → POST; today's row Failed → PATCH it; Ready / Sent → refused for the schedule, PATCHed for a manual run. rerun: today's report, any Status; a failed re-run never replaces a Ready / Sent one (RERUN_FAILED). Then news_articles (NWS-<Report_ID>-<hash>), BROADCAST (Failed → Kind Alert; Ready → only on a scheduled run with auto_send), POST /api/jobs/<_job>"]
         typical_seconds: 5
         credits: 12
         runs_per_month: 30
@@ -567,7 +567,7 @@ pages:
     recent: { title: Latest reports, entity: reports, date: Created_At, limit: 6, link: /reports, columns: [ { key: Report_Date, type: date, grow: true }, { key: Sentiment, type: badge }, { key: Confidence_Pct, header: Confidence, type: number }, { key: Status, type: badge } ] }
     modals:
       - { id: send_now, kind: status, title: Send to subscribers, flow: BROADCAST, action: send, entity: reports, submit: Send to subscribers, pending: "Sending to subscribers…", success: "Sending — each delivery is logged", covers: [R9], summary: [Report_Date, Sentiment, Confidence_Pct], intro: "Goes to every Active, opted-in subscriber's WhatsApp as the approved Daily Market Intelligence template." }
-      - { id: rerun,    kind: status, title: Re-run report now, flow: MARKET_REPORT, action: rerun, entity: reports, submit: Re-run report, pending: "Fetching the five sources…", success: "The report is being prepared again — it turns Ready when done", covers: [R24], summary: [Report_Date, Error_Message], intro: "Fetches the five news sources again and rewrites this report. A report already sent is never re-run." }
+      - { id: rerun,    kind: status, title: Re-run report now, flow: MARKET_REPORT, action: rerun, entity: reports, submit: Re-run report, pending: "Fetching the five sources…", success: "The report is being prepared again — it turns Ready when done", covers: [R24], summary: [Report_Date, Error_Message], intro: "Fetches the five news sources again and rewrites today's report, even one already sent. It stays Ready — send it when you choose." }
       - { id: retry,    kind: status, title: Retry delivery, flow: BROADCAST, action: retry, entity: deliveries, submit: Send again, pending: "Sending…", success: "Delivery sent again", covers: [R27], summary: [Subscriber_Name, Report_Date, Error_Message], intro: "Goes to the WhatsApp number on the subscriber's record, only if they are still Active." }
 
   - id: today
@@ -717,7 +717,7 @@ pages:
         actions: { row: [rerun] }
         drawer: { title_column: Report_Date, sections: [ { type: tiles, title: Run, columns: [Trigger, Status, Articles_Analyzed, Model] }, { type: callout, column: Source_Status, title: Sources, tone: neutral }, { type: callout, column: Category_Breakdown, title: Categories, tone: neutral }, { type: callout, column: Error_Message, title: Error, tone: warn } ] }
     modals:
-      - { id: rerun, kind: status, title: Re-run report now, flow: MARKET_REPORT, action: rerun, submit: Re-run report, pending: "Fetching the five sources…", success: "The report is being prepared again — it turns Ready when done", covers: [R24], summary: [Report_Date, Error_Message], intro: "Fetches the five news sources again and rewrites this report. A report already sent is never re-run." }
+      - { id: rerun, kind: status, title: Re-run report now, flow: MARKET_REPORT, action: rerun, submit: Re-run report, pending: "Fetching the five sources…", success: "The report is being prepared again — it turns Ready when done", covers: [R24], summary: [Report_Date, Error_Message], intro: "Fetches the five news sources again and rewrites today's report, even one already sent. It stays Ready — send it when you choose." }
     actions: { header: [], row: [rerun] }
 
   - id: subscribers

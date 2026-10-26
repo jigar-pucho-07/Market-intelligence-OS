@@ -47,22 +47,22 @@ export function finishReport(inp) {
 // ─────────────────────────────── MARKET_REPORT (the gate) · MARKET_STORE ───────────────────────────────
 
 /**
- * One report per Report_Date. run: no row today → new; today's row Failed → re-run it (PATCH); Ready or Sent → refused.
- * rerun: the Report_ID must exist, be Failed and be today's (the feeds only carry today's news). Sent is always refused.
+ * One report per Report_Date. run: no row today → new; today's row Failed → re-run it (PATCH); Ready or Sent → refused for the
+ * 06:00 schedule, re-run in place when a person runs it (Trigger Manual — owner decision 26 Oct 2026).
+ * rerun (always a person): the Report_ID must exist and be today's (the feeds only carry today's news); Failed, Ready or Sent.
+ * A manual re-run leaves the report Ready and never sends it (afterWrite) — the analyst sends it from the app.
  */
-export function decideReport(Mode, reportId, rows, reportDate, today) {
+export function decideReport(Mode, reportId, rows, reportDate, today, Trigger = 'Manual') {
   const no = (code, error) => ({ route: 'refuse', code, error, target: null });
   if (Mode === 'run') {
     const existing = rows.find((r) => r.Report_Date === reportDate);
     if (!existing) return { route: 'new', code: '', error: '', target: null };
-    if (existing.Status === 'Failed') return { route: 'rerun', code: '', error: '', target: existing };
-    return no('EXISTS', `Today's report already exists (${existing.Report_ID}, ${existing.Status}) — a Ready or Sent report is not overwritten`);
+    if (existing.Status === 'Failed' || Trigger === 'Manual') return { route: 'rerun', code: '', error: '', target: existing };
+    return no('EXISTS', `Today's report already exists (${existing.Report_ID}, ${existing.Status}) — the schedule does not overwrite a Ready or Sent report`);
   }
   if (Mode !== 'rerun') return no('INVALID_INPUT', 'the action must be run or rerun');
   const target = rows.find((r) => r.Report_ID === String(reportId || ''));
   if (!target) return no('NOT_FOUND', `No report ${String(reportId || '').slice(0, 30)}`);
-  if (target.Status === 'Sent') return no('SENT', `${target.Report_ID} was already sent — a sent report is never re-run`);
-  if (target.Status !== 'Failed') return no('NOT_FAILED', `${target.Report_ID} is ${target.Status} — only a Failed report is re-run (edit a Ready one with Review)`);
   if (target.Report_Date !== today) return no('STALE_DATE', `${target.Report_ID} is for ${target.Report_Date}; the feeds carry today's news, so only today's report can be re-run`);
   return { route: 'rerun', code: '', error: '', target };
 }
@@ -74,7 +74,7 @@ export function reportGate(inp) {
   const Trigger = Mode === 'run' && ENUMS.Trigger.includes(body.Trigger) ? body.Trigger : 'Manual';
   const rows = rowsOf(inp && inp.reports);
   const d = !rows ? { route: 'refuse', code: statusOf(inp.reports) === 403 ? 'APP_CLOSED' : 'APP_READ_FAILED', error: doorError(inp.reports, 'reports') }
-    : decideReport(Mode, body.Report_ID, rows, today, today);
+    : decideReport(Mode, body.Report_ID, rows, today, today, Trigger);
   const go = d.route !== 'refuse';
   return { route: go ? 'go' : 'refuse', code: d.code, error: d.error, Mode, Trigger, Report_ID: Mode === 'rerun' ? String(body.Report_ID || '') : '',
     _job: String(body._job || ''), jobs: go ? [] : jobItems(body._job, 'failed', { code: d.code, error: d.error }) };
@@ -90,7 +90,11 @@ export function storePlan(inp) {
     jobs: route === 'refuse' ? jobItems(body._job, 'failed', { code, error }) : [] });
   if (!Mode) return out('refuse', 'INVALID_INPUT', 'store needs Mode run or rerun', null);
   if (!rows) return out('refuse', statusOf(inp.reports) === 403 ? 'APP_CLOSED' : 'APP_READ_FAILED', doorError(inp.reports, 'reports'), null);
-  const d = decideReport(Mode, body.Report_ID, rows, row.Report_Date, today);
+  const d = decideReport(Mode, body.Report_ID, rows, row.Report_Date, today, Mode === 'rerun' ? 'Manual' : row.Trigger);
+  // A manual re-run that failed never replaces a good report: the Ready / Sent one stays as it was and the app's job says why.
+  if (d.route === 'rerun' && d.target.Status !== 'Failed' && row.Status === 'Failed') {
+    return out('refuse', 'RERUN_FAILED', `The re-run failed (${row.Error_Message || 'no reason given'}) — ${d.target.Report_ID} keeps its ${d.target.Status} report`, null);
+  }
   return out(d.route, d.code, d.error, d.target);
 }
 
@@ -103,7 +107,8 @@ export function afterWrite(inp) {
   const error = id ? '' : st === 409 ? "EXISTS: today's report was written by another run meanwhile — this run's result was not stored"
     : st === 403 ? doorError(inp.written, 'reports') : `WRITE_FAILED: the app refused the report (${st || 'no response'})`;
   const ok = !!id;
-  const autoSend = C.auto_send === true || String(C.auto_send) === 'true';
+  // auto_send is for the 06:00 schedule only — a manual run / re-run stays Ready until the analyst sends it.
+  const autoSend = (C.auto_send === true || String(C.auto_send) === 'true') && plan.row && plan.row.Trigger === 'Schedule';
   const broadcasts = !ok ? [] : Status === 'Failed' ? [{ action: 'alert', Report_ID: id }] : autoSend ? [{ action: 'send', Report_ID: id }] : [];
   const result = { Report_ID: id, Status: ok ? Status : '', Articles_Analyzed: ok ? Number(plan.row.Articles_Analyzed) || 0 : 0, ...(ok ? {} : { error }) };
   return { ok, Report_ID: id, Status: ok ? Status : '', error, news: ok ? newsRows(plan.articles, id, now.toISOString()) : [], broadcasts,
