@@ -9,4 +9,4 @@ Built by `scripts/build_flows.py` (flow/flowkit.py); the JSON lands beside this 
 ### `store`  (model: none, ~5s, ~12 credits, 30 runs/month)
 payload: `{"Mode": "string", "Trigger": "string", "Report_ID": "string"}`
 result: `{"Report_ID": "string", "Status": "string"}`
-rules: Called only by MARKET_REPORT with the finished report and articles. run: no row today → POST; today's row Failed → PATCH it; Ready / Sent → refused. rerun: only a Failed report of today; Sent refused. Then news_articles (NWS-<Report_ID>-<hash>), BROADCAST (Failed → Kind Alert; Ready → only when auto_send), POST /api/jobs/<_job>
+rules: Called only by MARKET_REPORT with the finished report and articles. run: no row today → POST; today's row Failed → PATCH it; Ready / Sent → refused for the schedule, PATCHed for a manual run. rerun: today's report, any Status; a failed re-run never replaces a Ready / Sent one (RERUN_FAILED). Then news_articles (NWS-<Report_ID>-<hash>), BROADCAST (Failed → Kind Alert; Ready → only on a scheduled run with auto_send), POST /api/jobs/<_job>

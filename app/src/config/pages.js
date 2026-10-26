@@ -184,7 +184,7 @@ export const PAGES = [
           "Report_Date",
           "Error_Message"
         ],
-        "intro": "Fetches the five news sources again and rewrites this report. A report already sent is never re-run."
+        "intro": "Fetches the five news sources again and rewrites today's report, even one already sent. It stays Ready — send it when you choose."
       },
       {
         "id": "retry",
@@ -1188,7 +1188,7 @@ export const PAGES = [
           "Report_Date",
           "Error_Message"
         ],
-        "intro": "Fetches the five news sources again and rewrites this report. A report already sent is never re-run."
+        "intro": "Fetches the five news sources again and rewrites today's report, even one already sent. It stays Ready — send it when you choose."
       }
     ],
     "actions": {
